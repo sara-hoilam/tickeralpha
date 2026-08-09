@@ -561,14 +561,41 @@
     announce();
   }
 
+  /* One Tap needs a nonce of its own.
+
+     With use_fedcm_for_prompt the browser mints a nonce and puts it in the
+     id_token whether or not we asked for one. Sending that token to Supabase
+     without the matching nonce fails with "Passed nonce and nonce in id_token
+     should either both exist or not" -- which is why the button worked (it goes
+     through the redirect grant) and the pop-up did not.
+
+     Google is given the SHA-256 of the nonce, which is what lands in the token;
+     Supabase is given the raw value and hashes it to compare. Handing the same
+     string to both would fail the comparison just as surely. */
+  async function makeNonce() {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    const raw = btoa(String.fromCharCode(...bytes))
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
+    const hashed = [...new Uint8Array(digest)]
+      .map(b => b.toString(16).padStart(2, "0")).join("");
+    return { raw, hashed };
+  }
+
   if (CFG.googleClientId && !session()) {
     const s = document.createElement("script");
     s.src = "https://accounts.google.com/gsi/client";
     s.async = true;
-    s.onload = () => {
+    s.onload = async () => {
       if (!window.google || !google.accounts || !google.accounts.id) return;
+      // No SubtleCrypto (an insecure origin) means no verifiable nonce, so the
+      // pop-up is skipped rather than offered and then refused.
+      if (!(crypto && crypto.subtle)) return;
+      let nonce;
+      try { nonce = await makeNonce(); } catch { return; }
       google.accounts.id.initialize({
         client_id: CFG.googleClientId,
+        nonce: nonce.hashed,
         callback: async res => {
           let d = null, status = 0;
           try {
@@ -576,7 +603,8 @@
               `${CFG.supabaseUrl}/auth/v1/token?grant_type=id_token`, {
                 method: "POST",
                 headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
-                body: JSON.stringify({ provider: "google", id_token: res.credential }),
+                body: JSON.stringify({ provider: "google", id_token: res.credential,
+                                       nonce: nonce.raw }),
               });
             status = r.status;
             d = await r.json();
