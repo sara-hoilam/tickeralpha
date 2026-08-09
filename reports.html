@@ -23,17 +23,28 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
 
-<!-- One report exists; a search engine should know which. -->
+<!-- Four reports; a search engine should be able to find each. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "Report",
-  "name": "NVIDIA Corporation (NASDAQ: NVDA) — Equity Research",
-  "url": "https://tickeralpha.ai/reports/nvda.html",
-  "image": "https://tickeralpha.ai/reports/nvda-cover.png",
-  "datePublished": "2026-08-06",
+  "@type": "CollectionPage",
+  "name": "Equity Research Reports — Ticker Alpha",
+  "url": "https://tickeralpha.ai/reports.html",
   "publisher": { "@type": "Organization", "name": "Ticker Alpha" },
-  "about": { "@type": "Corporation", "name": "NVIDIA Corporation", "tickerSymbol": "NASDAQ:NVDA" }
+  "hasPart": [
+    { "@type": "Report", "name": "NVIDIA Corporation (NASDAQ: NVDA) — Equity Research",
+      "url": "https://tickeralpha.ai/reports/nvda.html",
+      "image": "https://tickeralpha.ai/reports/nvda-cover.png", "datePublished": "2026-08-06" },
+    { "@type": "Report", "name": "Space Exploration Technologies Corp. (NASDAQ: SPCX) — Equity Research",
+      "url": "https://tickeralpha.ai/reports/spcx.html",
+      "image": "https://tickeralpha.ai/reports/spcx-cover.png", "datePublished": "2026-08-07" },
+    { "@type": "Report", "name": "Micron Technology, Inc. (NASDAQ: MU) — Equity Research",
+      "url": "https://tickeralpha.ai/reports/mu.html",
+      "image": "https://tickeralpha.ai/reports/mu-cover.png", "datePublished": "2026-08-07" },
+    { "@type": "Report", "name": "Palantir Technologies Inc. (NASDAQ: PLTR) — Equity Research",
+      "url": "https://tickeralpha.ai/reports/pltr.html",
+      "image": "https://tickeralpha.ai/reports/pltr-cover.png", "datePublished": "2026-08-07" }
+  ]
 }
 </script>
 
@@ -175,25 +186,31 @@ a.rep:hover{transform:translateY(-3px);
       </div>
     </a>
 
-    <div class="rep soon">
-      <span class="badge">Coming soon</span>
-      <div class="rep-cover"><span>MU</span></div>
+    <a class="rep" href="reports/mu.html">
+      <span class="badge live">Available</span>
+      <div class="rep-cover">
+        <img src="reports/mu-cover.png" alt="Micron Technology equity research report cover" loading="lazy" width="420" height="594">
+      </div>
       <div class="rep-body">
         <div class="rep-tick">NASDAQ: MU</div>
         <div class="rep-name">Micron Technology</div>
-        <div class="rep-meta"><span>In preparation</span></div>
+        <div class="rep-meta"><span>7 Aug 2026</span><i>·</i><span>8 pages</span><i>·</i><span>Initiation</span></div>
+        <div class="rep-read">Read the report →</div>
       </div>
-    </div>
+    </a>
 
-    <div class="rep soon">
-      <span class="badge">Coming soon</span>
-      <div class="rep-cover"><span>PLTR</span></div>
+    <a class="rep" href="reports/pltr.html">
+      <span class="badge live">Available</span>
+      <div class="rep-cover">
+        <img src="reports/pltr-cover.png" alt="Palantir Technologies equity research report cover" loading="lazy" width="420" height="594">
+      </div>
       <div class="rep-body">
         <div class="rep-tick">NASDAQ: PLTR</div>
         <div class="rep-name">Palantir Technologies</div>
-        <div class="rep-meta"><span>In preparation</span></div>
+        <div class="rep-meta"><span>7 Aug 2026</span><i>·</i><span>8 pages</span><i>·</i><span>Initiation</span></div>
+        <div class="rep-read">Read the report →</div>
       </div>
-    </div>
+    </a>
   </div>
 
   <div class="foot">

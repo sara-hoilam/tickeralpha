@@ -1,0 +1,2392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Micron Technology, Inc. (NASDAQ: MU) — Ticker Alpha Equity Research</title>
+<meta name="description" content="Mid-upcycle on HBM and AI memory. Trailing multiples look reasonable at 19.7× only because TTM earnings already bake in the boom; after +677% the shares sit at the 91st percentile…" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Micron Technology, Inc. (NASDAQ: MU) — Ticker Alpha Equity Research" />
+<meta property="og:description" content="Mid-upcycle on HBM and AI memory. Trailing multiples look reasonable at 19.7× only because TTM earnings already bake in the boom; after +677% the shares sit at the 91st percentile…" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="og:image" content="https://tickeralpha.ai/reports/mu-cover.png" />
+<meta name="twitter:image" content="https://tickeralpha.ai/reports/mu-cover.png" />
+<meta property="og:url" content="https://tickeralpha.ai/reports/mu.html" />
+<meta property="og:site_name" content="Ticker Alpha" />
+<link rel="canonical" href="https://tickeralpha.ai/reports/mu.html" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   Ticker Alpha — shared report stylesheet
+   Every page links this file. Page-specific markup only.
+   ============================================================ */
+
+:root {
+  --paper:      #FDFDFC;
+  --ink:        #14181D;
+  --ink-soft:   #3A4149;
+  --muted:      #797F86;
+  --faint:      #A8ADB2;
+  --rule:       #E4E2DC;
+  --rule-soft:  #EFEEE9;
+  --brass:      #A9853F;
+  --wash:       #F7F6F3;
+
+  /* Rating semantics — the only saturated colours in the report */
+  --bull:       #1E6B48;
+  --neutral:    #4A4F55;
+  --bear:       #8E2C22;
+}
+
+/* Swap this one line to re-skin the whole call: var(--bull|--neutral|--bear) */
+.page { --rating: var(--neutral); }
+
+@page { size: A4; margin: 0; }
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: #55585C;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ─────────────── Sheet ─────────────── */
+.page {
+  position: relative;
+  width: 210mm; height: 297mm;
+  margin: 24px auto;
+  padding: 15mm 16mm 10mm;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Inter", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-feature-settings: "tnum" 1;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 18px 50px rgba(0,0,0,.35);
+}
+
+.page::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 3.2mm;
+  background: linear-gradient(90deg, #14181D 0%, #14181D 62%, var(--brass) 62%, #C9A867 100%);
+}
+
+/* ─────────────── Primitives ─────────────── */
+.micro {
+  font-size: 6.2pt; letter-spacing: .15em; text-transform: uppercase;
+  font-weight: 600; color: var(--muted);
+}
+.mono { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+.pos { color: var(--bull); }
+.neg { color: var(--bear); }
+.t-bull { --tone: var(--bull); }
+.t-neutral { --tone: var(--neutral); }
+.t-bear { --tone: var(--bear); }
+.t-brass { --tone: var(--brass); }
+
+/* ─────────────── Masthead (page 1 only) ─────────────── */
+.masthead {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding-bottom: 3.5mm; border-bottom: 0.6pt solid var(--rule);
+}
+.brand { display: flex; align-items: center; gap: 3mm; }
+.seal {
+  width: 9.5mm; height: 9.5mm;
+  border: 0.8pt solid var(--brass);
+  display: flex; align-items: center; justify-content: center;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 11pt; font-weight: 600; color: var(--brass); letter-spacing: .01em;
+}
+.brand-name {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 12.5pt; font-weight: 600; letter-spacing: .16em;
+  text-transform: uppercase; line-height: 1.1;
+}
+.brand-sub {
+  font-size: 6.2pt; letter-spacing: .19em; text-transform: uppercase;
+  color: var(--muted); margin-top: 1mm;
+}
+.masthead-right { text-align: right; }
+.tag {
+  display: inline-block; border: 0.6pt solid var(--ink);
+  padding: 1.1mm 2.4mm;
+  font-size: 6.2pt; letter-spacing: .17em; text-transform: uppercase; font-weight: 600;
+}
+.masthead-meta { margin-top: 2.2mm; font-size: 6.8pt; color: var(--muted); letter-spacing: .03em; }
+
+/* ─────────────── Running header (pages 2–8) ─────────────── */
+.runhead {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 3mm; border-bottom: 0.6pt solid var(--rule);
+}
+.runhead-left { display: flex; align-items: center; gap: 2.8mm; }
+.seal-sm {
+  width: 6.8mm; height: 6.8mm; flex: none;
+  border: 0.7pt solid var(--brass);
+  display: flex; align-items: center; justify-content: center;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 7.5pt; font-weight: 600; color: var(--brass);
+}
+.runhead-id {
+  font-size: 6.6pt; letter-spacing: .13em; text-transform: uppercase;
+  font-weight: 600; color: var(--muted);
+}
+.runhead-id b { color: var(--ink); font-weight: 600; }
+.runhead-right {
+  display: flex; align-items: baseline; gap: 2.2mm;
+  font-size: 6.6pt; letter-spacing: .14em; text-transform: uppercase; font-weight: 600;
+}
+.runhead-no {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 9.5pt; font-weight: 600; color: var(--brass); letter-spacing: 0;
+}
+
+/* ─────────────── Page title block (pages 2–8) ─────────────── */
+.page-title { padding-top: 6mm; }
+.page-title h2 {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 19pt; font-weight: 600; line-height: 1.05;
+  letter-spacing: -.015em; margin: 0;
+}
+.page-lede {
+  margin: 2.8mm 0 0; font-size: 8.1pt; line-height: 1.45;
+  color: var(--ink-soft); max-width: 152mm;
+}
+
+/* ─────────────── Section band ─────────────── */
+.band { margin-top: 6mm; }
+.band-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 6mm; padding-bottom: 2.2mm; border-bottom: 0.6pt solid var(--rule);
+}
+.band-title { font-size: 6.8pt; letter-spacing: .15em; text-transform: uppercase; font-weight: 600; }
+.band-note { font-size: 6.2pt; color: var(--faint); letter-spacing: .04em; text-align: right; }
+.band-body { margin-top: 3.4mm; }
+
+/* ─────────────── Column helpers ─────────────── */
+.cols-2  { display: grid; grid-template-columns: 1fr 1fr; column-gap: 10mm; align-items: start; }
+.cols-3  { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 8mm; align-items: start; }
+.cols-2u { display: grid; grid-template-columns: 1fr 64mm; column-gap: 10mm; align-items: start; }
+.cols-2w { display: grid; grid-template-columns: 1fr 78mm; column-gap: 10mm; align-items: start; }
+
+/* ─────────────── Identity (page 1) ─────────────── */
+.identity { padding-top: 7mm; }
+.ticker-line {
+  font-size: 8pt; letter-spacing: .13em; text-transform: uppercase;
+  font-weight: 600; color: var(--brass);
+}
+.company {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 31pt; font-weight: 600; line-height: 1.02;
+  letter-spacing: -.018em; margin: 2.4mm 0 0;
+}
+.classification { margin-top: 2.8mm; font-size: 7.4pt; color: var(--muted); letter-spacing: .05em; }
+.classification span { color: var(--faint); margin: 0 1.8mm; }
+.descriptor {
+  margin-top: 3mm; font-size: 8.1pt; line-height: 1.4;
+  color: var(--ink-soft); max-width: 118mm;
+}
+
+/* ─────────────── The call (page 1) ─────────────── */
+/* Row 1: thesis | valuation card.  Row 2: triggers | catalysts.
+   The grid row forces the two row-2 headings onto the same baseline. */
+.call {
+  margin-top: 7mm;
+  display: grid; grid-template-columns: 1fr 64mm;
+  column-gap: 10mm; row-gap: 5mm;
+  align-items: start;
+}
+.call-head { display: flex; align-items: baseline; }
+.ch-left { padding-right: 8mm; }
+.ch-rule { border-left: 0.6pt solid var(--rule); align-self: stretch; }
+.ch-right { padding-left: 8mm; }
+.rating-word {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 26pt; font-weight: 700; line-height: 1;
+  letter-spacing: -.01em; color: var(--rating);
+}
+.price-value {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 22pt; font-weight: 600; line-height: 1; letter-spacing: -.01em;
+}
+.ch-label {
+  margin-top: 2.6mm; font-size: 6pt; letter-spacing: .15em;
+  text-transform: uppercase; font-weight: 600; color: var(--muted); white-space: nowrap;
+}
+.price-range { margin-top: 1.6mm; font-size: 6.4pt; color: var(--faint); white-space: nowrap; }
+.rail { display: flex; margin-top: 3.4mm; width: 56mm; }
+.rail div {
+  flex: 1; text-align: center; padding: 1.5mm 0;
+  font-size: 5.9pt; letter-spacing: .15em; text-transform: uppercase; font-weight: 600;
+  border: 0.6pt solid var(--rule); border-left-width: 0; color: var(--faint);
+}
+.rail div:first-child { border-left-width: 0.6pt; }
+.rail div.on { background: var(--rating); border-color: var(--rating); color: #fff; }
+.rating-note { margin-top: 3mm; font-size: 6.8pt; color: var(--muted); letter-spacing: .04em; }
+.thesis {
+  margin-top: 5mm;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 8.1pt; line-height: 1.55; color: var(--ink-soft);
+  border-left: 1.2pt solid var(--rating); padding-left: 5mm;
+  margin-bottom: 0; max-width: 104mm;
+}
+
+/* Pull quote / verdict — same voice as the thesis, reusable anywhere */
+.pull {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 8.1pt; line-height: 1.55; color: var(--ink-soft);
+  border-left: 1.2pt solid var(--rating); padding-left: 5mm;
+  margin: 0;
+}
+.pull.tight { font-size: 7.6pt; line-height: 1.5; padding-left: 4mm; }
+
+/* ─────────────── Trigger / bullet rows ─────────────── */
+.triggers, .catalysts { padding-top: 2.6mm; border-top: 0.6pt solid var(--rule); }
+.trigger { display: flex; gap: 2.2mm; margin-top: 2mm; font-size: 7.1pt; line-height: 1.45; color: var(--ink-soft); }
+.trigger i { font-style: normal; font-weight: 700; line-height: 1.3; }
+.trigger.up i { color: var(--bull); }
+.trigger.down i { color: var(--bear); }
+.trigger.dot i { color: var(--brass); }
+.cat-row {
+  display: grid; grid-template-columns: 19mm 1fr; column-gap: 2mm;
+  margin-top: 1.5mm; font-size: 6.5pt; line-height: 1.3; color: var(--ink-soft);
+}
+.cat-date { color: var(--ink); font-weight: 600; white-space: nowrap; }
+
+/* ─────────────── Valuation card (page 1) ─────────────── */
+.valuation { border: 0.6pt solid var(--rule); background: var(--wash); padding: 3.4mm 4.2mm 3.2mm; }
+.vhead { display: flex; align-items: baseline; justify-content: space-between; }
+.vhead .sub { font-size: 5.8pt; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
+
+.divider { border-top: 0.6pt solid var(--rule); margin: 3mm 0 2.4mm; }
+
+.scen { margin-top: 2.4mm; }
+.scen-row {
+  display: grid; grid-template-columns: 13mm 1fr 1fr 8mm;
+  align-items: center; column-gap: 2mm; padding: 0.9mm 0;
+}
+.scen-row.head { padding: 0 0 1mm; }
+.scen-row.head span {
+  font-size: 5.6pt; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--faint); font-weight: 600;
+}
+.scen-row.head span:not(:first-child) { text-align: right; }
+.scen-row.is-base {
+  background: rgba(20,24,29,.05);
+  margin: 0 -4.2mm; padding-left: 4.2mm; padding-right: 4.2mm;
+}
+.name { font-size: 7pt; font-weight: 600; display: flex; align-items: center; gap: 1.4mm; }
+.name i { width: 2.2mm; height: 0; border-top: 1.4pt solid currentColor; display: inline-block; }
+.n { font-size: 7.8pt; font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+.n.b { font-weight: 700; }
+.p { font-size: 6.4pt; color: var(--muted); text-align: right; }
+.row-bull { color: var(--bull); }
+.row-base { color: var(--ink); }
+.row-bear { color: var(--bear); }
+
+.street-line { display: flex; align-items: baseline; gap: 3mm; margin-top: 2mm; }
+.street-val { font-size: 12pt; font-weight: 700; font-family: "Source Serif 4", Georgia, serif; line-height: 1; }
+.street-up { font-size: 8.4pt; font-weight: 700; line-height: 1; }
+.street-n { font-size: 6.2pt; color: var(--muted); margin-top: 2mm; }
+.dist { display: flex; gap: 0.5mm; height: 1.5mm; margin: 2mm 0 1.4mm; }
+.dist span:nth-child(1) { background: var(--bull); }
+.dist span:nth-child(2) { background: #C6C3BC; }
+.dist span:nth-child(3) { background: var(--bear); }
+.dist-key { font-size: 6.1pt; color: var(--muted); letter-spacing: .03em; }
+.vs-street { margin-top: 2.2mm; font-size: 6.3pt; color: var(--ink-soft); letter-spacing: .02em; }
+
+/* ─────────────── Metric strip ─────────────── */
+.metrics, .statstrip {
+  border-top: 1.1pt solid var(--ink); border-bottom: 0.6pt solid var(--rule);
+  display: grid;
+}
+.metrics { margin-top: 5mm; grid-template-columns: repeat(6, 1fr); }
+.statstrip.c3 { grid-template-columns: repeat(3, 1fr); }
+.statstrip.c4 { grid-template-columns: repeat(4, 1fr); }
+.statstrip.c5 { grid-template-columns: repeat(5, 1fr); }
+.statstrip.c6 { grid-template-columns: repeat(6, 1fr); }
+.metric { padding: 3.2mm 3.2mm 3.4mm; border-left: 0.6pt solid var(--rule-soft); }
+.metric:first-child { border-left: 0; padding-left: 0; }
+.metric:last-child { padding-right: 0; }
+.metric-label {
+  font-size: 6pt; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600; white-space: nowrap;
+}
+.metric-value {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 15pt; font-weight: 600; line-height: 1; margin-top: 2.5mm; letter-spacing: -.01em;
+}
+.metric-value.sm { font-size: 12.5pt; }
+.metric-sub { margin-top: 2mm; font-size: 6.3pt; color: var(--faint); letter-spacing: .02em; white-space: nowrap; }
+.metric-sub b { font-weight: 600; }
+
+/* ─────────────── Charts ─────────────── */
+.chart-block { margin-top: 5mm; }
+.chart-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 2mm; }
+.chart-title { font-size: 6.8pt; letter-spacing: .15em; text-transform: uppercase; font-weight: 600; }
+.chart-note { font-size: 6.2pt; color: var(--faint); letter-spacing: .04em; }
+.chart svg { display: block; width: 100%; height: auto; }
+.legend { display: flex; gap: 4.5mm; font-size: 6.2pt; color: var(--muted); letter-spacing: .03em; }
+.legend span { display: flex; align-items: center; gap: 1.3mm; white-space: nowrap; }
+.legend i { display: inline-block; width: 3.4mm; height: 2mm; background: var(--ink); }
+.legend i.line { height: 0; border-top: 1.4pt solid var(--ink); }
+.legend i.dash { height: 0; border-top: 1.2pt dashed var(--muted); }
+
+/* ─────────────── Scorecard ─────────────── */
+.scorecard-head {
+  margin-top: 3.6mm; padding-top: 3.2mm; border-top: 0.6pt solid var(--rule);
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.scorecard { margin-top: 2.8mm; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8mm; }
+.score-label { font-size: 6pt; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.meter { display: flex; gap: 1.1mm; margin: 2.2mm 0 1.8mm; }
+.meter span { height: 1.6mm; flex: 1; background: #E4E2DC; }
+.meter span.on { background: var(--tone, var(--ink)); }
+.meter.sm span { height: 1.2mm; gap: .8mm; }
+.score-verdict { font-family: "Source Serif 4", Georgia, serif; font-size: 9.5pt; font-weight: 600; color: var(--tone, var(--ink)); }
+
+/* ─────────────── Data table ─────────────── */
+.dtable { width: 100%; border-collapse: collapse; }
+.dtable th {
+  font-size: 5.8pt; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--faint); font-weight: 600; text-align: right;
+  padding: 0 1.6mm 1.8mm; white-space: nowrap;
+}
+.dtable th:first-child { text-align: left; padding-left: 0; }
+.dtable th:last-child { padding-right: 0; }
+.dtable td {
+  font-size: 7.2pt; text-align: right; padding: 1.5mm 1.6mm;
+  border-top: 0.6pt solid var(--rule-soft);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.dtable td:first-child {
+  text-align: left; padding-left: 0;
+  font-size: 7pt; font-weight: 600; color: var(--ink);
+}
+.dtable td:last-child { padding-right: 0; }
+.dtable tr.em td { font-weight: 700; border-top-color: var(--rule); }
+.dtable tr.hl td { background: rgba(169,133,63,.10); border-top-color: var(--rule); }
+.dtable tr.hl td:first-child { color: var(--ink); }
+.dtable .say {
+  text-align: left; font-size: 6.3pt; color: var(--muted);
+  font-weight: 400; white-space: normal; letter-spacing: .02em;
+}
+.dtable .sub { font-size: 6.2pt; color: var(--faint); font-weight: 400; }
+.dtable.compact td { padding: 1.1mm 1.6mm; font-size: 6.9pt; }
+
+/* ─────────────── Prose (page 2 is the only long-form page) ─────────────── */
+.prose { font-size: 8.1pt; line-height: 1.55; color: var(--ink-soft); }
+.prose p { margin: 0 0 2.6mm; }
+.prose p:last-child { margin-bottom: 0; }
+.prose.two { column-count: 2; column-gap: 10mm; }
+.prose b { color: var(--ink); font-weight: 600; }
+
+/* ─────────────── Pills (named peers, tags) ─────────────── */
+.pills { margin-top: 2.6mm; }
+.pill {
+  display: inline-block; border: 0.6pt solid var(--rule);
+  padding: 0.9mm 2mm; margin: 0 1.4mm 1.4mm 0;
+  font-size: 6.2pt; letter-spacing: .05em; color: var(--ink-soft);
+}
+.pill.on { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+
+/* ─────────────── Percentile rank rows ─────────────── */
+.pctrow {
+  display: grid; grid-template-columns: 30mm 1fr 15mm;
+  align-items: center; column-gap: 3mm;
+  padding: 1.9mm 0; border-top: 0.6pt solid var(--rule-soft);
+}
+.pctrow:first-child { border-top: 0; }
+.pctlab { font-size: 6.6pt; font-weight: 600; }
+.pcttrack { position: relative; height: 2.2mm; background: var(--rule-soft); }
+.pcttrack::after {
+  content: ""; position: absolute; left: 50%; top: -0.8mm; bottom: -0.8mm;
+  width: 0.5pt; background: var(--faint);
+}
+.pctfill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--tone, var(--ink)); }
+.pctval { font-size: 6.8pt; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.pctval span { font-size: 5.4pt; font-weight: 400; color: var(--faint); }
+
+/* ─────────────── Methodology band (page 8) ─────────────── */
+.method { margin-top: 4mm; padding-top: 3mm; border-top: 0.6pt solid var(--rule); }
+.method-cols { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 8mm; margin-top: 2.6mm; }
+.method-cols h4 {
+  margin: 0 0 1.6mm; font-size: 6pt; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--muted); font-weight: 600;
+}
+.method-cols p { margin: 0; font-size: 6.3pt; line-height: 1.5; color: var(--ink-soft); }
+
+/* ─────────────── Sensitivity grid ─────────────── */
+.sens { width: 100%; border-collapse: collapse; }
+.sens th {
+  font-size: 5.6pt; letter-spacing: .11em; text-transform: uppercase;
+  color: var(--faint); font-weight: 600; padding: 0 0 1.6mm; text-align: center;
+}
+.sens th.corner { text-align: left; }
+.sens td {
+  font-size: 6.9pt; text-align: center; padding: 1.5mm 0.8mm;
+  border: 0.5pt solid var(--rule-soft); font-variant-numeric: tabular-nums;
+}
+.sens td.axis {
+  border: 0; text-align: right; padding-right: 2.2mm;
+  font-size: 6.2pt; color: var(--muted); font-weight: 600; white-space: nowrap;
+}
+.sens td.b1 { background: rgba(142,44,34,.10); }
+.sens td.b2 { background: rgba(142,44,34,.04); }
+.sens td.b3 { background: rgba(30,107,72,.05); }
+.sens td.b4 { background: rgba(30,107,72,.11); }
+.sens td.b5 { background: rgba(30,107,72,.18); }
+.sens td.here { outline: 1.1pt solid var(--ink); outline-offset: -1.1pt; font-weight: 700; }
+
+/* ─────────────── Risk register ─────────────── */
+.risk {
+  display: grid; grid-template-columns: 6mm 1fr 24mm 24mm;
+  column-gap: 4mm; align-items: start;
+  padding: 1.9mm 0; border-top: 0.6pt solid var(--rule-soft);
+}
+.risk:first-of-type { border-top: 0.6pt solid var(--rule); }
+.risk-no {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 10.5pt; font-weight: 600; color: var(--brass); line-height: 1;
+}
+.risk-title { font-size: 7.4pt; font-weight: 600; line-height: 1.25; }
+.risk-desc { margin-top: 1.1mm; font-size: 6.4pt; line-height: 1.4; color: var(--muted); }
+.risk-cell .score-label { font-size: 5.6pt; }
+
+/* ─────────────── Catalyst register ─────────────── */
+/* Eight rows have to fit alongside a timeline, so every stack in the row is
+   budgeted to the same ~10mm: date, title plus a two-line note, and the two
+   score cells. Lengthening a note past two lines costs the whole page. */
+.catrow {
+  display: grid; grid-template-columns: 18mm 1fr 21mm 22mm;
+  column-gap: 4mm; align-items: start;
+  padding: 1.2mm 0; border-top: 0.6pt solid var(--rule-soft);
+}
+.catrow:first-of-type { border-top: 0.6pt solid var(--rule); }
+.cat-day {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 9.5pt; font-weight: 600; line-height: 1; white-space: nowrap;
+}
+.cat-year { margin-top: 1mm; font-size: 6.2pt; color: var(--muted); }
+.cat-conf {
+  margin-top: 1.4mm; font-size: 5.4pt; letter-spacing: .12em;
+  text-transform: uppercase; font-weight: 600; color: var(--faint);
+}
+.cat-conf.fixed { color: var(--ink-soft); }
+.cat-name { font-size: 7.4pt; font-weight: 600; line-height: 1.25; }
+.cat-note { margin-top: 1mm; font-size: 6.2pt; line-height: 1.35; color: var(--muted); }
+.cat-note b { color: var(--ink-soft); font-weight: 600; }
+.cat-cell .score-label { font-size: 5.6pt; }
+.cat-cell .meter { margin: 1.9mm 0 1.3mm; }
+.cat-skew {
+  margin: 1.3mm 0 1.1mm;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 8.6pt; font-weight: 600; line-height: 1; color: var(--tone, var(--ink));
+}
+.cat-foot { font-size: 6pt; line-height: 1.3; color: var(--faint); }
+
+/* ─────────────── Callout ─────────────── */
+.callout { border: 0.6pt solid var(--rule); background: var(--wash); padding: 3.2mm 4mm; }
+.callout.plain { background: transparent; }
+.callout-body { margin-top: 2.4mm; font-size: 7pt; line-height: 1.5; color: var(--ink-soft); }
+.callout-big {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 16pt; font-weight: 600; line-height: 1; margin-top: 2mm; letter-spacing: -.01em;
+}
+
+/* Key/value rows inside a callout or card */
+.kv { display: flex; justify-content: space-between; align-items: baseline; gap: 3mm; padding: 1.3mm 0; }
+.kv + .kv { border-top: 0.6pt solid var(--rule-soft); }
+.kv dt { font-size: 6.6pt; color: var(--muted); }
+.kv dd { margin: 0; font-size: 7.4pt; font-weight: 600; font-variant-numeric: tabular-nums; }
+dl.kvlist { margin: 0; }
+
+/* ─────────────── Footer ─────────────── */
+.footer { margin-top: auto; padding-top: 3.4mm; border-top: 0.6pt solid var(--rule); }
+.footer-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8mm; }
+.footnote { font-size: 6pt; color: var(--faint); letter-spacing: .03em; line-height: 1.5; max-width: 158mm; }
+.footer-page { font-size: 6.3pt; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); font-weight: 600; white-space: nowrap; }
+
+@media print {
+  html, body { background: #fff; }
+  .page { margin: 0; box-shadow: none; page-break-after: always; break-after: page; }
+  .page:last-of-type { page-break-after: auto; break-after: auto; }
+}
+
+
+:root { --fit: 1; }
+body { background: #55585C; }
+.sheet {
+  width: calc(210mm * var(--fit));
+  height: calc(297mm * var(--fit));
+  margin: 0 auto 14px;
+  overflow: hidden;
+}
+.sheet > .page { margin: 0; transform: scale(var(--fit)); transform-origin: top left; }
+
+.bar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 10px 16px; margin-bottom: 14px;
+  background: #14181D; color: #FDFDFC;
+  font-family: "Inter", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+.bar-id {
+  min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-size: 11px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600;
+}
+.bar-id b { color: #C9A867; font-weight: 600; }
+.bar-id span { color: rgba(253,253,252,.4); }
+@media (max-width: 520px) { .bar-id { letter-spacing: .04em; } }
+.ta-cta {
+  max-width: 720px; margin: 34px auto 60px; padding: 0 20px; text-align: center;
+  font-family: "Inter", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+.ta-cta h2 {
+  font-family: "Source Serif 4", Georgia, serif; font-size: 25px; font-weight: 600;
+  letter-spacing: -.01em; color: var(--ink); margin: 0 0 10px;
+}
+.ta-cta p { font-size: 14.5px; line-height: 1.62; color: var(--ink-soft); margin: 0 0 20px; }
+.ta-cta-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.ta-btn {
+  display: inline-block; padding: 11px 20px; border-radius: 3px; text-decoration: none;
+  font-size: 13px; font-weight: 600; letter-spacing: .01em;
+  background: var(--ink); color: var(--paper); border: 1px solid var(--ink);
+}
+.ta-btn:hover { background: #000; }
+.ta-btn.ghost { background: transparent; color: var(--ink); border-color: var(--rule); }
+.ta-btn.ghost:hover { border-color: var(--ink); }
+.ta-cta-note { margin-top: 13px; font-size: 12px; color: var(--muted); }
+
+.bar-back { border-color: transparent !important; padding-left: 0 !important; opacity: .75; }
+.bar-back:hover { opacity: 1; }
+.bar a {
+  flex: none; padding: 7px 13px; border: 1px solid rgba(253,253,252,.32); border-radius: 2px;
+  color: #FDFDFC; text-decoration: none; font-size: 11px; font-weight: 600; letter-spacing: .04em;
+}
+.bar a:hover { background: #FDFDFC; color: #14181D; border-color: #FDFDFC; }
+
+@media print {
+  :root { --fit: 1; }
+  .bar { display: none; }
+  .sheet { width: auto; height: auto; overflow: visible; margin: 0; }
+  .sheet > .page { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <a class="bar-back" href="../reports.html">&larr;&nbsp; All reports</a>
+  <div class="bar-id">Ticker Alpha <span>&middot;</span> <b>Micron Technology, Inc.</b> <span>&middot;</span> NASDAQ: MU</div>
+  <a href="mu.pdf" download>Download PDF</a>
+</div>
+
+<div class="sheet">
+<div class="page" style="--rating:var(--bull)">
+
+  <!-- ══════════ MASTHEAD ══════════ -->
+  <header class="masthead">
+    <div class="brand">
+      <div class="seal">TA</div>
+      <div>
+        <div class="brand-name">Ticker Alpha</div>
+        <div class="brand-sub">Independent Equity Research</div>
+      </div>
+    </div>
+    <div class="masthead-right">
+      <div class="tag">AI Research Report</div>
+      <div class="masthead-meta">7 August 2026 &nbsp;·&nbsp; Initiation of coverage</div>
+    </div>
+  </header>
+
+  <!-- ══════════ IDENTITY ══════════ -->
+  <section class="identity">
+    <div class="ticker-line">NASDAQ: MU</div>
+    <h1 class="company">Micron Technology, Inc.</h1>
+    <div class="classification">
+      Information Technology<span>/</span>Semiconductors<span>·</span>Mega Cap<span>·</span>Reported in USD
+    </div>
+    <p class="descriptor">
+      Designs and manufactures DRAM and NAND memory. Owns the fabs — capital intensity is the model.
+      HBM for AI stacks is the growth engine; commodity DRAM and NAND remain the cyclical drag.
+    </p>
+  </section>
+
+  <!-- ══════════ THE CALL ══════════ -->
+  <section class="call">
+    <div class="call-main">
+      <div class="call-head">
+        <div class="ch-left">
+          <div class="rating-word">Bullish</div>
+          <div class="rail">
+            <div>Bearish</div>
+            <div>Neutral</div>
+            <div class="on">Bullish</div>
+          </div>
+        </div>
+        <div class="ch-rule"></div>
+        <div class="ch-right">
+          <div class="price-value">$869.54</div>
+          <div class="ch-label">Last close · 7 Aug 2026</div>
+          <div class="price-range">52-week range $110.79–$1,255.00</div>
+        </div>
+      </div>
+
+      <div class="rating-note">Initiation &nbsp;·&nbsp; 12-month horizon &nbsp;·&nbsp; Risk: High</div>
+
+      <p class="thesis">
+        Mid-upcycle on HBM and AI memory. Trailing multiples look reasonable at 19.7× only because TTM
+        earnings already bake in the boom; after +677% the shares sit at the <b>91st percentile</b> of
+        Micron's own five-year EV/Sales history. Bullish on the cycle into the Street's FY27 ~$249B
+        consensus — and below the Street because memory mean-reverts and 28% capex intensity eats free
+        cash. Working capital and capacity overbuild break first.
+      </p>
+
+    </div>
+
+    <aside class="valuation">
+      <div class="vhead">
+        <div class="micro">Ticker Alpha Consensus</div>
+        <div class="sub">12-Month</div>
+      </div>
+
+      <div class="scen">
+        <div class="scen-row head">
+          <span>Scenario</span><span>Target</span><span>Return</span><span>Odds</span>
+        </div>
+        <div class="scen-row">
+          <div class="name row-bull"><i></i>Bull</div>
+          <div class="n">$1,800</div><div class="n pos">+107.0%</div><div class="p">25%</div>
+        </div>
+        <div class="scen-row is-base">
+          <div class="name row-base"><i></i>Base</div>
+          <div class="n b">$1,200</div><div class="n b pos">+38.0%</div><div class="p">50%</div>
+        </div>
+        <div class="scen-row">
+          <div class="name row-bear"><i></i>Bear</div>
+          <div class="n">$420</div><div class="n neg">−51.7%</div><div class="p">25%</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="vhead">
+        <div class="micro">Wall Street Consensus</div>
+        <div class="sub">70 Analysts</div>
+      </div>
+      <div class="street-line">
+        <div class="street-val">$1,575.91</div>
+        <div class="street-up pos">+81.2%</div>
+      </div>
+      <div class="street-n">Range $1,100–$2,200 · median $1,512.50</div>
+      <div class="dist">
+        <span style="flex:57"></span><span style="flex:11"></span><span style="flex:2"></span>
+      </div>
+      <div class="dist-key">57 Buy &nbsp;·&nbsp; 11 Hold &nbsp;·&nbsp; 2 Sell</div>
+      <div class="vs-street">Our base case is <b>23.9% below</b> the Street mean.</div>
+    </aside>
+
+    <!-- Second grid row: these two headings always align -->
+    <div class="triggers">
+      <div class="micro">What Would Change Our View</div>
+      <div class="trigger up"><i>▲</i><span>HBM mix / gross margin held mid-70s+ with inventory days stable</span></div>
+      <div class="trigger down"><i>▼</i><span>Hyperscaler 2027 AI capex growth cut hard, or bit growth without ASP support</span></div>
+    </div>
+
+    <div class="catalysts">
+      <div class="micro">Key Catalysts</div>
+      <div class="cat-row"><span class="cat-date">22 Sep 2026</span><span>Q4 FY26 results</span></div>
+      <div class="cat-row"><span class="cat-date">late Oct 2026</span><span>Hyperscaler Q3 capex</span></div>
+      <div class="cat-row"><span class="cat-date">late Jan 2027</span><span>Hyperscaler FY28 budgets</span></div>
+    </div>
+  </section>
+
+  <!-- ══════════ KEY METRICS ══════════ -->
+  <section class="metrics">
+    <div class="metric">
+      <div class="metric-label">Market Cap</div>
+      <div class="metric-value">$982B</div>
+      <div class="metric-sub">EV $962B · net cash</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Revenue TTM</div>
+      <div class="metric-value">$90.3B</div>
+      <div class="metric-sub">FY27 cons. $249.5B</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Rev. Growth</div>
+      <div class="metric-value">+48.9%</div>
+      <div class="metric-sub"><b class="pos">+346%</b> latest qtr</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Gross Margin</div>
+      <div class="metric-value">72.6%</div>
+      <div class="metric-sub">84.6% latest qtr</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">FCF Margin</div>
+      <div class="metric-value">17.5%</div>
+      <div class="metric-sub">$15.8B TTM</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">P / E</div>
+      <div class="metric-value">19.7×</div>
+      <div class="metric-sub"><b class="pos">5.6×</b> on FY27E</div>
+    </div>
+  </section>
+
+  <!-- ══════════ PRICE CHART + FORWARD SCENARIOS ══════════ -->
+  <section class="chart-block">
+    <div class="chart-head">
+      <div class="chart-title">Share Price — 12 Months Back, 12 Months Forward</div>
+      <div class="chart-note">Weekly closes, USD</div>
+    </div>
+
+    <div class="chart">
+      <!-- fig:price-path -->
+<svg viewBox="0 0 800 160" role="img" aria-label="Twelve months of weekly closes for MU with bull, base and bear twelve-month targets">
+<defs><linearGradient id="pp-fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#14181D" stop-opacity="0.10"/><stop offset="100%" stop-color="#14181D" stop-opacity="0"/></linearGradient></defs>
+<rect x="324" y="10" width="316" height="136" fill="#F5F4F1"/>
+<rect x="324" y="10" width="316" height="67.33" fill="#797F86" fill-opacity="0.13"/>
+<text x="332" y="21" fill="#797F86" font-family="Inter, sans-serif" font-size="7.4">Street target range $1100–$2200 · mean $1575.91</text>
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="8" y1="137.92" x2="640" y2="137.92"/><line x1="8" y1="110.99" x2="640" y2="110.99"/><line x1="8" y1="84.06" x2="640" y2="84.06"/><line x1="8" y1="57.13" x2="640" y2="57.13"/><line x1="8" y1="30.2" x2="640" y2="30.2"/></g>
+<line x1="8" y1="146" x2="640" y2="146" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="8"><text x="12" y="135.42">200</text><text x="12" y="108.49">600</text><text x="12" y="81.56">1000</text><text x="12" y="54.63">1400</text><text x="12" y="27.7">1800</text></g>
+<path d="M8,142.79 L13.96,143.17 L19.92,143.54 L25.89,143.41 L31.85,142.28 L37.81,140.69 L43.77,140.18 L49.74,140.12 L55.7,138.88 L61.66,138.79 L67.62,137.77 L73.58,136.45 L79.55,136.71 L85.51,135.15 L91.47,136 L97.43,136.27 L103.4,135.26 L109.36,134.39 L115.32,135.73 L121.28,132.79 L127.25,131.68 L133.21,132.17 L139.17,128.53 L145.13,128.94 L151.09,125.19 L157.06,122.08 L163.02,125.84 L168.98,123.76 L174.94,123.04 L180.91,122.5 L186.87,124.4 L192.83,123.2 L198.79,120.3 L204.75,125.66 L210.72,126.62 L216.68,124 L222.64,120.67 L228.6,118.57 L234.57,116.48 L240.53,106.51 L246.49,97.28 L252.45,102.1 L258.42,88.88 L264.38,78.7 L270.34,91.34 L276.3,81.15 L282.26,80.79 L288.23,81.89 L294.19,87.51 L300.15,90.5 L306.11,86.79 L312.08,101.63 L318.04,91.25 L324,92.84 L324,146 L8,146 Z" fill="url(#pp-fade)"/>
+<polyline points="8,142.79 13.96,143.17 19.92,143.54 25.89,143.41 31.85,142.28 37.81,140.69 43.77,140.18 49.74,140.12 55.7,138.88 61.66,138.79 67.62,137.77 73.58,136.45 79.55,136.71 85.51,135.15 91.47,136 97.43,136.27 103.4,135.26 109.36,134.39 115.32,135.73 121.28,132.79 127.25,131.68 133.21,132.17 139.17,128.53 145.13,128.94 151.09,125.19 157.06,122.08 163.02,125.84 168.98,123.76 174.94,123.04 180.91,122.5 186.87,124.4 192.83,123.2 198.79,120.3 204.75,125.66 210.72,126.62 216.68,124 222.64,120.67 228.6,118.57 234.57,116.48 240.53,106.51 246.49,97.28 252.45,102.1 258.42,88.88 264.38,78.7 270.34,91.34 276.3,81.15 282.26,80.79 288.23,81.89 294.19,87.51 300.15,90.5 306.11,86.79 312.08,101.63 318.04,91.25 324,92.84" fill="none" stroke="#14181D" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M324,92.84 L640,30.2 L640,123.11 Z" fill="#14181D" fill-opacity="0.05"/>
+<line x1="324" y1="92.84" x2="640" y2="30.2" stroke="#1E6B48" stroke-width="1.1" stroke-dasharray="4 3"/>
+<line x1="324" y1="92.84" x2="640" y2="70.59" stroke="#14181D" stroke-width="1.7"/>
+<line x1="324" y1="92.84" x2="640" y2="123.11" stroke="#8E2C22" stroke-width="1.1" stroke-dasharray="4 3"/>
+<circle cx="324" cy="92.84" r="5.4" fill="#14181D" opacity="0.1"/>
+<circle cx="324" cy="92.84" r="2.6" fill="#14181D"/>
+<circle cx="640" cy="30.2" r="2.7" fill="#1E6B48"/>
+<circle cx="640" cy="70.59" r="3.1" fill="#14181D"/>
+<circle cx="640" cy="123.11" r="2.7" fill="#8E2C22"/>
+<g font-family="Inter, sans-serif"><text x="650" y="29.7" fill="#1E6B48" font-size="11" font-weight="700">$1800</text><text x="650" y="39.7" fill="#797F86" font-size="7.8">Bull · +107%</text><text x="650" y="70.09" fill="#14181D" font-size="11" font-weight="700">$1200</text><text x="650" y="80.09" fill="#797F86" font-size="7.8">Base · +38.0%</text><text x="650" y="122.61" fill="#8E2C22" font-size="11" font-weight="700">$420</text><text x="650" y="132.61" fill="#797F86" font-size="7.8">Bear · −51.7%</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="8"><text x="8" y="157" text-anchor="start">AUG 2025</text><text x="87" y="157" text-anchor="middle">NOV</text><text x="166" y="157" text-anchor="middle">FEB 2026</text><text x="245" y="157" text-anchor="middle">MAY</text><text x="324" y="157" text-anchor="middle" fill="#797F86" font-weight="600">TODAY</text><text x="403" y="157" text-anchor="middle">NOV</text><text x="482" y="157" text-anchor="middle">FEB 2027</text><text x="561" y="157" text-anchor="middle">MAY</text><text x="640" y="157" text-anchor="middle">AUG 2027</text></g>
+</svg>
+<!-- /fig:price-path -->
+    </div>
+  </section>
+
+  <!-- ══════════ SCORECARD ══════════ -->
+  <div class="scorecard-head">
+    <div class="micro">Ticker Alpha Scorecard</div>
+    <div class="chart-note">Scored 1–5 against peers and Micron's own 5-year history</div>
+  </div>
+  <section class="scorecard">
+    <div class="t-bull">
+      <div class="score-label">Growth</div>
+      <div class="meter"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+      <div class="score-verdict">Exceptional</div>
+    </div>
+    <div class="t-bull">
+      <div class="score-label">Profitability</div>
+      <div class="meter"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+      <div class="score-verdict">Best in class</div>
+    </div>
+    <div class="t-bull">
+      <div class="score-label">Balance Sheet</div>
+      <div class="meter"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+      <div class="score-verdict">Fortress</div>
+    </div>
+    <div class="t-bear">
+      <div class="score-label">Valuation</div>
+      <div class="meter"><span class="on"></span><span class="on"></span><span></span><span></span><span></span></div>
+      <div class="score-verdict">Stretched vs history</div>
+    </div>
+  </section>
+
+  <!-- ══════════ FOOTER ══════════ -->
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Data as of 7 August 2026 close. Prices, estimates and analyst consensus from Financial Modeling
+        Prep; fundamentals from Micron SEC filings, fiscal year ending late August. Scenario targets are
+        Ticker Alpha model outputs based on stated assumptions, set independently of Wall Street
+        estimates, and are not predictions. This report is generated automatically and is for
+        informational purposes only — it is not investment advice, an offer, or a solicitation to buy or
+        sell any security. Past performance does not indicate future results.
+      </div>
+      <div class="footer-page">Page 1 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page" style="--rating:var(--bull)">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>Micron Technology, Inc.</b> &nbsp;·&nbsp; NASDAQ: MU</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">02</span> Business &amp; Model</div>
+  </header>
+
+  <section class="page-title">
+    <h2>What Micron Actually Sells</h2>
+  </section>
+
+  <div class="prose two" style="margin-top:4mm">
+    <p>
+      Micron designs and manufactures DRAM and NAND — memory chips that sit next to every accelerator
+      and inside every phone, PC and server. It <b>owns the fabs</b>, the opposite of NVIDIA's fabless
+      model, which is why capital spending runs at <b>28.0% of revenue</b> and $90.3B of trailing sales
+      converts into only $15.8B of free cash.
+    </p>
+    <p>
+      The growth story is HBM for AI stacks; the cyclical drag is still commodity DRAM and NAND. In
+      FY25, DRAM was <b>$28.6B (77.1%)</b> of product mix and NAND $8.5B. Segment reporting switched in
+      FY25 from business units to DRAM/NAND — the chart below keeps the older BU taxonomy through FY24
+      so the two series are never forced onto one axis.
+    </p>
+  </div>
+
+  <!-- ══════════ UNIT ECONOMICS ══════════ -->
+  <section class="statstrip c6" style="margin-top:6mm">
+    <div class="metric">
+      <div class="metric-label">Revenue / Employee</div>
+      <div class="metric-value">$1.70M</div>
+      <div class="metric-sub">53,000 staff</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">R&amp;D / Revenue</div>
+      <div class="metric-value">5.3%</div>
+      <div class="metric-sub">~$4.8B TTM</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Capex / Revenue</div>
+      <div class="metric-value">28.0%</div>
+      <div class="metric-sub">Owns the fabs</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Gross Margin</div>
+      <div class="metric-value">72.6%</div>
+      <div class="metric-sub">On $90.3B TTM</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Inventory Days</div>
+      <div class="metric-value">126</div>
+      <div class="metric-sub"><b class="pos">−10 days</b> vs FY25</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">DRAM Share</div>
+      <div class="metric-value">77.1%</div>
+      <div class="metric-sub">Of FY25 product mix</div>
+    </div>
+  </section>
+
+  <!-- ══════════ SEGMENT MIX ══════════ -->
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">Revenue by Business Unit — FY21 to FY24</div>
+      <div class="band-note">Company filings, $M. Fiscal years end late August · FY25 switched to DRAM/NAND</div>
+    </div>
+    <div class="band-body chart">
+      <!-- fig:segments -->
+<svg viewBox="0 0 800 182" role="img" aria-label="Revenue by segment, FY21 to FY24, stacked">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="34" y1="110.82" x2="672" y2="110.82"/><line x1="34" y1="69.65" x2="672" y2="69.65"/><line x1="34" y1="28.47" x2="672" y2="28.47"/></g>
+<path d="M34,101.44 L246.67,95.62 L459.33,128.49 L672,112.83 L672,152 L459.33,152 L246.67,152 L34,152 Z" fill="#2C3238"/>
+<path d="M34,71.78 L246.67,65.72 L459.33,113.54 L672,86.67 L672,112.83 L459.33,128.49 L246.67,95.62 L34,101.44 Z" fill="#79838B"/>
+<path d="M34,55.42 L246.67,46.98 L459.33,103.03 L672,67.76 L672,86.67 L459.33,113.54 L246.67,65.72 L34,71.78 Z" fill="#A9853F"/>
+<path d="M34,38.09 L246.67,25.42 L459.33,88.05 L672,48.76 L672,67.76 L459.33,103.03 L246.67,46.98 L34,55.42 Z" fill="#CDD0D2"/>
+<line x1="34" y1="152" x2="672" y2="152" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="8" text-anchor="end"><text x="28" y="155">0</text><text x="28" y="113.82">10B</text><text x="28" y="72.65">20B</text><text x="28" y="31.47">30B</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="8.4" text-anchor="middle"><text x="34" y="166">FY21</text><text x="246.67" y="166">FY22</text><text x="459.33" y="166">FY23</text><text x="672" y="166">FY24</text></g>
+<g font-family="Inter, sans-serif"><line x1="676" y1="132.41" x2="684" y2="132.41" stroke="#2C3238" stroke-width="1.4"/><text x="688" y="130.91" fill="#14181D" font-size="8.6" font-weight="600">Compute &amp; Networking</text><text x="688" y="140.41" fill="#A9853F" font-size="7.6" font-weight="600">37.9% of revenue · +66.6% YoY</text><line x1="676" y1="99.75" x2="684" y2="99.75" stroke="#79838B" stroke-width="1.4"/><text x="688" y="98.25" fill="#14181D" font-size="8.6" font-weight="600">Mobile</text><text x="688" y="107.75" fill="#797F86" font-size="7.6" font-weight="400">25.3% of revenue · +75.0% YoY</text><line x1="676" y1="77.21" x2="684" y2="77.21" stroke="#A9853F" stroke-width="1.4"/><text x="688" y="75.71" fill="#14181D" font-size="8.6" font-weight="600">Storage</text><text x="688" y="85.21" fill="#797F86" font-size="7.6" font-weight="400">18.3% of revenue · +79.9% YoY</text><line x1="676" y1="57.21" x2="684" y2="57.21" stroke="#CDD0D2" stroke-width="1.4"/><text x="688" y="55.71" fill="#14181D" font-size="8.6" font-weight="600">Embedded</text><text x="688" y="65.21" fill="#797F86" font-size="7.6" font-weight="400">18.4% of revenue · +26.9% YoY</text></g>
+<text x="34" y="31.09" fill="#797F86" font-family="Inter, sans-serif" font-size="8.4" font-weight="600">$27.66B</text>
+<text x="672" y="41.76" fill="#14181D" font-family="Inter, sans-serif" font-size="8.4" font-weight="600" text-anchor="end">$25.07B</text>
+</svg>
+<!-- /fig:segments -->
+    </div>
+    <p class="pull" style="margin-top:4mm">
+      Through FY24 the story was Compute &amp; Networking pulling away from Mobile, Storage and Embedded.
+      In FY25 Micron re-cut disclosure to <b>DRAM $28.6B</b> and <b>NAND $8.5B</b> — HBM lives inside the
+      DRAM line. Everything on the next six pages is a judgment about how long that DRAM upcycle lasts
+      before capacity catches demand.
+    </p>
+  </section>
+
+  <!-- ══════════ GEOGRAPHY + MOAT ══════════ -->
+  <section class="band cols-2w">
+    <div>
+      <div class="band-head">
+        <div class="band-title">Where The Revenue Is Billed</div>
+        <div class="band-note">FY22 vs FY25</div>
+      </div>
+      <div class="band-body">
+        <div class="legend" style="margin-bottom:2.4mm">
+          <span><i style="background:#CDD0D2"></i>FY22</span>
+          <span><i style="background:#2C3238"></i>FY25</span>
+        </div>
+        <div class="chart">
+          <!-- fig:geography -->
+<svg viewBox="0 0 404.49 150" role="img" aria-label="Revenue by geography, FY22 against FY25, with three-year growth rates">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="167.08" y1="4" x2="167.08" y2="134"/><line x1="252.15" y1="4" x2="252.15" y2="134"/><line x1="337.23" y1="4" x2="337.23" y2="134"/></g>
+<g font-family="Inter, sans-serif"><text x="74" y="19.75" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="end">United States</text><text x="74" y="29.75" fill="#797F86" font-size="7.4" text-anchor="end">14.6% 3-yr CAGR</text><rect x="82" y="11.77" width="170.43" height="8.48" fill="#CDD0D2"/><rect x="82" y="23.25" width="256.43" height="8.48" fill="#2C3238"/><text x="343.43" y="30.73" fill="#14181D" font-size="8" font-weight="600">$24.11B</text><text x="74" y="51.25" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="end">Taiwan</text><text x="74" y="61.25" fill="#797F86" font-size="7.4" text-anchor="end">-2.8% 3-yr CAGR</text><rect x="82" y="43.27" width="65.77" height="8.48" fill="#CDD0D2"/><rect x="82" y="54.75" width="60.32" height="8.48" fill="#2C3238"/><text x="147.32" y="62.23" fill="#14181D" font-size="8" font-weight="600">$5.67B</text><text x="74" y="82.75" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="end">China</text><text x="74" y="92.75" fill="#797F86" font-size="7.4" text-anchor="end">-7.3% 3-yr CAGR</text><rect x="82" y="74.77" width="35.21" height="8.48" fill="#CDD0D2"/><rect x="82" y="86.25" width="28.06" height="8.48" fill="#2C3238"/><text x="115.06" y="93.73" fill="#14181D" font-size="8" font-weight="600">$2.64B</text><text x="74" y="114.25" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="end">Rest of Asia</text><text x="74" y="124.25" fill="#797F86" font-size="7.4" text-anchor="end">-4.9% 3-yr CAGR</text><rect x="82" y="106.27" width="48.75" height="8.48" fill="#CDD0D2"/><rect x="82" y="117.75" width="41.96" height="8.48" fill="#2C3238"/><text x="128.96" y="125.23" fill="#14181D" font-size="8" font-weight="600">$3.95B</text></g>
+<line x1="82" y1="134" x2="358.49" y2="134" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="middle"><text x="82" y="146">0</text><text x="167.08" y="146">$8B</text><text x="252.15" y="146">$16B</text><text x="337.23" y="146">$24B</text></g>
+</svg>
+<!-- /fig:geography -->
+        </div>
+        <p style="margin:3.4mm 0 0;font-size:7.1pt;line-height:1.45;color:var(--ink-soft)">
+          These are ship-to locations, not end markets. The United States grew strongly from FY22 to
+          FY25 as AI server demand concentrated there; Taiwan and China look softer on a three-year CAGR
+          even where dollar volumes held up.
+        </p>
+
+        <div class="micro" style="margin-top:5mm">Competes Against</div>
+        <div class="pills">
+          <span class="pill on">Samsung</span><span class="pill on">SK Hynix</span><span class="pill on">Kioxia</span><span class="pill">Western Digital</span><span class="pill">Solidigm</span><span class="pill">Nanya</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="band-head">
+        <div class="band-title">Moat Assessment</div>
+        <div class="band-note">Moderate–Wide</div>
+      </div>
+      <div class="band-body t-neutral">
+        <div class="meter"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        <div style="font-size:7.1pt;line-height:1.45;color:var(--ink-soft);margin-bottom:3mm">
+          Scale and process know-how are real. Commodity pricing and two Korean giants keep the moat from going Wide.
+        </div>
+
+        <div class="micro" style="margin-bottom:1mm">Structural Advantages</div>
+        <div class="trigger up"><i>▲</i><span>Integrated manufacturing — process node and HBM stack are hard to rent from a foundry</span></div>
+        <div class="trigger up"><i>▲</i><span>HBM qualification cycles lock in hyperscaler sockets for multi-year ramps</span></div>
+        <div class="trigger up"><i>▲</i><span>72.6% TTM gross margin with net cash ~$19.7B — cycle peaks fund the trough</span></div>
+
+        <div class="micro" style="margin:3.2mm 0 1mm">Structural Weaknesses</div>
+        <div class="trigger down"><i>▼</i><span>DRAM and NAND remain commodity-priced once supply catches demand</span></div>
+        <div class="trigger down"><i>▼</i><span>Samsung and SK Hynix can match capacity and undercut on ASP</span></div>
+        <div class="trigger down"><i>▼</i><span>Capex at 28% of sales means FCF lags earnings through every upcycle</span></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Segment, geographic and headcount data from Micron SEC filings via Financial Modeling Prep.
+        Geographic revenue is disclosed by billing location and does not indicate where products are
+        ultimately deployed. Revenue per employee, R&amp;D and capital intensity ratios are Ticker Alpha
+        calculations on trailing twelve-month figures. Moat scoring and all commentary are model outputs,
+        not statements of fact.
+      </div>
+      <div class="footer-page">Page 2 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page" style="--rating:var(--bull)">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>Micron Technology, Inc.</b> &nbsp;·&nbsp; NASDAQ: MU</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">03</span> Financial Performance</div>
+  </header>
+
+  <section class="page-title">
+    <h2>Has It Actually Performed?</h2>
+    <p class="page-lede">
+      Four-year revenue CAGR is only 7.8% because FY23 sat in the trough — then FY24–25 ripped the other
+      way. The open question is whether free cash follows earnings, or whether 28% capex keeps converting
+      net income into fabs.
+    </p>
+  </section>
+
+  <!-- ══════════ HEADLINE QUALITY MEASURES ══════════ -->
+  <section class="statstrip c5" style="margin-top:3.5mm">
+    <div class="metric">
+      <div class="metric-label">4-Yr Revenue CAGR</div>
+      <div class="metric-value">7.8%</div>
+      <div class="metric-sub">FY25 alone <b class="pos">+48.9%</b></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">4-Yr EPS CAGR</div>
+      <div class="metric-value">10.2%</div>
+      <div class="metric-sub">FY25 alone <b class="pos">$7.59</b></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">FCF Conversion</div>
+      <div class="metric-value">31.3%</div>
+      <div class="metric-sub"><b class="neg">of net income</b>, TTM</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Incremental Margin</div>
+      <div class="metric-value">69.8%</div>
+      <div class="metric-sub">FY25 Δ EBIT / Δ revenue</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">ROIC</div>
+      <div class="metric-value">44.0%</div>
+      <div class="metric-sub">Peer median ~12%</div>
+    </div>
+  </section>
+
+  <!-- ══════════ FIVE-YEAR SUMMARY ══════════ -->
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">Five-Year Summary</div>
+      <div class="band-note">$B except per share · fiscal years end late August</div>
+    </div>
+    <div class="band-body">
+      <table class="dtable compact">
+        <thead>
+          <tr>
+            <th style="width:30mm">&nbsp;</th>
+            <th style="width:14mm">FY21</th>
+            <th style="width:14mm">FY22</th>
+            <th style="width:14mm">FY23</th>
+            <th style="width:14mm">FY24</th>
+            <th style="width:14mm">FY25</th>
+            <th style="width:62mm;text-align:left;padding-left:6mm">What it says</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Revenue</td>
+            <td>27.7</td><td>30.8</td><td>15.5</td><td>25.1</td><td>37.4</td>
+            <td class="say" style="padding-left:6mm">Cycle trough in FY23, then a two-year climb</td>
+          </tr>
+          <tr>
+            <td>Revenue growth</td>
+            <td>+29.3%</td><td>+11.0%</td><td class="neg">−49.5%</td><td>+61.6%</td><td><b>+48.9%</b></td>
+            <td class="say" style="padding-left:6mm">FY23 was the memory winter, not a new ceiling</td>
+          </tr>
+          <tr>
+            <td>Gross profit</td>
+            <td>10.4</td><td>13.9</td><td class="neg">−1.4</td><td>5.6</td><td>14.9</td>
+            <td class="say" style="padding-left:6mm">Negative gross profit in the trough — then a snapback</td>
+          </tr>
+          <tr>
+            <td>Gross margin</td>
+            <td>37.6%</td><td>45.2%</td><td class="neg">−9.1%</td><td>22.4%</td><td>39.8%</td>
+            <td class="say" style="padding-left:6mm">FY25 still mid-cycle; TTM is already 72.6%</td>
+          </tr>
+          <tr>
+            <td>Operating income</td>
+            <td>6.3</td><td>9.7</td><td class="neg">−5.7</td><td>1.3</td><td><b>9.9</b></td>
+            <td class="say" style="padding-left:6mm">Back above the FY21 peak in dollars</td>
+          </tr>
+          <tr>
+            <td>Operating margin</td>
+            <td>22.7%</td><td>31.5%</td><td class="neg">−37.0%</td><td>5.2%</td><td>26.4%</td>
+            <td class="say" style="padding-left:6mm">TTM op margin is 65.8% — the boom is in the last three quarters</td>
+          </tr>
+          <tr>
+            <td>Net income</td>
+            <td>5.9</td><td>8.7</td><td class="neg">−5.8</td><td>0.8</td><td>8.5</td>
+            <td class="say" style="padding-left:6mm">Near a full recovery of the FY22 peak</td>
+          </tr>
+          <tr>
+            <td>Diluted EPS</td>
+            <td>$5.14</td><td>$7.74</td><td class="neg">−$5.34</td><td>$0.70</td><td>$7.59</td>
+            <td class="say" style="padding-left:6mm">TTM EPS already $44.18 on the HBM print</td>
+          </tr>
+          <tr class="em">
+            <td>Free cash flow</td>
+            <td>2.4</td><td>3.1</td><td class="neg">−6.1</td><td>0.1</td><td>1.7</td>
+            <td class="say" style="padding-left:6mm"><b>Thin through the cycle — fabs eat the cash</b></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════ FINANCIAL CONDITION ══════════ -->
+  <section class="statstrip c5" style="margin-top:3.2mm">
+    <div class="metric">
+      <div class="metric-label">Net Cash</div>
+      <div class="metric-value sm">~$19.7B</div>
+      <div class="metric-sub">EV $962B on $982B cap</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Net Debt / EBITDA</div>
+      <div class="metric-value sm">−0.3×</div>
+      <div class="metric-sub"><b class="pos">Net cash position</b></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">FCF Yield</div>
+      <div class="metric-value sm">2.7%</div>
+      <div class="metric-sub">$15.8B TTM FCF</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Current Ratio</div>
+      <div class="metric-value sm">3.42×</div>
+      <div class="metric-sub">Fortress liquidity</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Capex / Revenue</div>
+      <div class="metric-value sm">28.0%</div>
+      <div class="metric-sub"><b class="neg">FCF lags earnings</b></div>
+    </div>
+  </section>
+
+  <!-- ══════════ THREE VIEWS ══════════ -->
+  <section class="band cols-3" style="margin-top:3.5mm">
+    <div>
+      <div class="band-head"><div class="band-title">Revenue</div></div>
+      <div class="band-body chart">
+        <!-- fig:revenue -->
+<svg viewBox="0 0 242.7 132" role="img" aria-label="Revenue by fiscal year with year-on-year growth">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="28" y1="85.9" x2="238.7" y2="85.9"/><line x1="28" y1="67.81" x2="238.7" y2="67.81"/><line x1="28" y1="49.71" x2="238.7" y2="49.71"/><line x1="28" y1="31.62" x2="238.7" y2="31.62"/></g>
+<g font-family="Inter, sans-serif"><rect x="34.74" y="53.87" width="28.65" height="50.13" fill="#79838B"/><text x="49.07" y="47.87" fill="#797F86" font-size="7.4" font-weight="600" text-anchor="middle">+29.3%</text><rect x="76.88" y="48.34" width="28.65" height="55.66" fill="#79838B"/><text x="91.21" y="42.34" fill="#797F86" font-size="7.4" font-weight="600" text-anchor="middle">+11.0%</text><rect x="119.02" y="75.88" width="28.65" height="28.12" fill="#79838B"/><text x="133.35" y="69.88" fill="#8E2C22" font-size="7.4" font-weight="600" text-anchor="middle">−49.5%</text><rect x="161.16" y="58.56" width="28.65" height="45.44" fill="#79838B"/><text x="175.49" y="52.56" fill="#797F86" font-size="7.4" font-weight="600" text-anchor="middle">+61.6%</text><rect x="203.3" y="36.36" width="28.65" height="67.64" fill="#14181D"/><text x="217.63" y="30.36" fill="#797F86" font-size="7.4" font-weight="600" text-anchor="middle">+48.9%</text></g>
+<line x1="28" y1="104" x2="238.7" y2="104" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="23" y="107">0</text><text x="23" y="70.81">20B</text><text x="23" y="34.62">40B</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.6" text-anchor="middle"><text x="49.07" y="117">21</text><text x="91.21" y="117">22</text><text x="133.35" y="117">23</text><text x="175.49" y="117">24</text><text x="217.63" y="117">25</text></g>
+<text x="28" y="11" fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.4">$M revenue · YoY growth above</text>
+</svg>
+<!-- /fig:revenue -->
+      </div>
+    </div>
+    <div>
+      <div class="band-head"><div class="band-title">Margins</div></div>
+      <div class="band-body">
+        <div class="legend" style="margin-bottom:2mm">
+          <span><i class="line" style="border-color:#2C3238"></i>Gross</span>
+          <span><i class="line" style="border-color:#79838B"></i>Op.</span>
+          <span><i class="line" style="border-color:#A9853F"></i>FCF</span>
+        </div>
+        <div class="chart"><!-- fig:margins -->
+<svg viewBox="0 0 242.7 132" role="img" aria-label="Gross, operating and free cash flow margin by fiscal year">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="28" y1="100.2" x2="206.7" y2="100.2"/><line x1="28" y1="85" x2="206.7" y2="85"/><line x1="28" y1="69.8" x2="206.7" y2="69.8"/><line x1="28" y1="54.6" x2="206.7" y2="54.6"/><line x1="28" y1="39.4" x2="206.7" y2="39.4"/></g>
+<polyline points="28,41.22 72.67,35.45 117.35,76.72 162.02,52.78 206.7,39.55" fill="none" stroke="#2C3238" stroke-width="1.8" stroke-linejoin="round"/>
+<polyline points="28,52.55 72.67,45.86 117.35,97.92 162.02,65.85 206.7,49.74" fill="none" stroke="#79838B" stroke-width="1.4" stroke-linejoin="round"/>
+<polyline points="28,63.11 72.67,62.12 117.35,99.74 162.02,69.42 206.7,66.38" fill="none" stroke="#A9853F" stroke-width="1.4" stroke-linejoin="round"/>
+<circle cx="206.7" cy="39.55" r="2.6" fill="#2C3238"/>
+<circle cx="206.7" cy="49.74" r="2.6" fill="#79838B"/>
+<circle cx="206.7" cy="66.38" r="2.6" fill="#A9853F"/>
+<text x="212.7" y="42.55" fill="#2C3238" font-family="Inter, sans-serif" font-size="8" font-weight="600">39.8%</text>
+<text x="212.7" y="52.74" fill="#79838B" font-family="Inter, sans-serif" font-size="8" font-weight="600">26.4%</text>
+<text x="212.7" y="69.38" fill="#A9853F" font-family="Inter, sans-serif" font-size="8" font-weight="600">4.5%</text>
+<line x1="28" y1="104" x2="238.7" y2="104" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="23" y="103.2">-40%</text><text x="23" y="88">-20%</text><text x="23" y="72.8">0%</text><text x="23" y="57.6">20%</text><text x="23" y="42.4">40%</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.6" text-anchor="middle"><text x="28" y="117">21</text><text x="72.67" y="117">22</text><text x="117.35" y="117">23</text><text x="162.02" y="117">24</text><text x="206.7" y="117">25</text></g>
+<text x="28" y="11" fill="#1E6B48" font-family="Inter, sans-serif" font-size="7.4" font-weight="600">Through the trough and out the other side</text>
+</svg>
+<!-- /fig:margins --></div>
+      </div>
+    </div>
+    <div>
+      <div class="band-head"><div class="band-title">Earnings Quality</div></div>
+      <div class="band-body">
+        <div class="legend" style="margin-bottom:2mm">
+          <span><i style="background:#79838B"></i>Net income</span>
+          <span><i style="background:#1E6B48"></i>Free cash flow</span>
+        </div>
+        <div class="chart"><!-- fig:earnings-quality -->
+<svg viewBox="0 0 242.7 132" role="img" aria-label="Free cash flow compared with net income by fiscal year">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="28" y1="85" x2="238.7" y2="85"/><line x1="28" y1="66" x2="238.7" y2="66"/><line x1="28" y1="47" x2="238.7" y2="47"/></g>
+<rect x="34.32" y="59.46" width="13.95" height="44.54" fill="#79838B"/><rect x="49.87" y="85.47" width="13.95" height="18.53" fill="#1E6B48"/>
+<rect x="76.46" y="37.98" width="13.95" height="66.02" fill="#79838B"/><rect x="92.01" y="80.33" width="13.95" height="23.67" fill="#1E6B48"/>
+<rect x="118.6" y="148.33" width="13.95" height="-44.33" fill="#79838B"/><rect x="134.15" y="150.49" width="13.95" height="-46.49" fill="#1E6B48"/>
+<rect x="160.74" y="98.09" width="13.95" height="5.91" fill="#79838B"/><rect x="176.29" y="103.08" width="13.95" height="0.92" fill="#1E6B48"/>
+<rect x="202.88" y="39.1" width="13.95" height="64.9" fill="#79838B"/><rect x="218.43" y="91.32" width="13.95" height="12.68" fill="#1E6B48"/>
+<line x1="28" y1="104" x2="238.7" y2="104" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="23" y="107">0</text><text x="23" y="69">5B</text><text x="23" y="31">10B</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.6" text-anchor="middle"><text x="49.07" y="117">21</text><text x="91.21" y="117">22</text><text x="133.35" y="117">23</text><text x="175.49" y="117">24</text><text x="217.63" y="117">25</text></g>
+<text x="28" y="11" fill="#8E2C22" font-family="Inter, sans-serif" font-size="7.4" font-weight="600">FCF thin through the cycle</text>
+</svg>
+<!-- /fig:earnings-quality --></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ TRACK RECORD ══════════ -->
+  <section class="band" style="margin-top:3.5mm">
+    <div class="band-head">
+      <div class="band-title">Earnings Track Record — Last Eight Quarters</div>
+      <div class="band-note">Reported EPS against consensus at the time</div>
+    </div>
+    <div class="band-body chart">
+      <!-- fig:beat-miss -->
+<svg viewBox="0 0 800 88" role="img" aria-label="Earnings per share surprise against consensus for the last eight quarters">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="30" y1="51.58" x2="792" y2="51.58"/><line x1="30" y1="37.89" x2="792" y2="37.89"/><line x1="30" y1="24.21" x2="792" y2="24.21"/></g>
+<g font-family="Inter, sans-serif"><rect x="54.77" y="57.87" width="45.72" height="7.39" fill="#1E6B48"/><text x="77.63" y="52.87" fill="#1E6B48" font-size="8" font-weight="600" text-anchor="middle">+5.4%</text><text x="77.63" y="84" fill="#A8ADB2" font-size="7.8" text-anchor="middle">Q4 24</text><rect x="150.01" y="62.12" width="45.72" height="3.15" fill="#1E6B48"/><text x="172.88" y="57.12" fill="#1E6B48" font-size="8" font-weight="600" text-anchor="middle">+2.3%</text><text x="172.88" y="84" fill="#A8ADB2" font-size="7.8" text-anchor="middle">Q1 25</text><rect x="245.26" y="52.81" width="45.72" height="12.45" fill="#1E6B48"/><text x="268.13" y="47.81" fill="#1E6B48" font-size="8" font-weight="600" text-anchor="middle">+9.1%</text><text x="268.13" y="84" fill="#A8ADB2" font-size="7.8" text-anchor="middle">Q2 25</text><rect x="340.51" y="38.72" width="45.72" height="26.55" fill="#1E6B48"/><text x="363.38" y="33.72" fill="#1E6B48" font-size="8" font-weight="600" text-anchor="middle">+19.4%</text><text x="363.38" y="84" fill="#A8ADB2" font-size="7.8" text-anchor="middle">Q3 25</text><rect x="435.76" y="57.19" width="45.72" height="8.07" fill="#1E6B48"/><text x="458.63" y="52.19" fill="#1E6B48" font-size="8" font-weight="600" text-anchor="middle">+5.9%</text><text x="458.63" y="84" fill="#A8ADB2" font-size="7.8" text-anchor="middle">Q4 25</text><rect x="531.01" y="36.94" width="45.72" height="28.33" fill="#1E6B48"/><text x="553.88" y="31.94" fill="#1E6B48" font-size="8" font-weight="600" text-anchor="middle">+20.7%</text><text x="553.88" y="84" fill="#A8ADB2" font-size="7.8" text-anchor="middle">Q1 26</text><rect x="626.26" y="20.38" width="45.72" height="44.88" fill="#1E6B48"/><text x="649.13" y="15.38" fill="#1E6B48" font-size="8" font-weight="600" text-anchor="middle">+32.8%</text><text x="649.13" y="84" fill="#A8ADB2" font-size="7.8" text-anchor="middle">Q2 26</text><rect x="721.51" y="38.31" width="45.72" height="26.96" fill="#1E6B48"/><text x="744.38" y="33.31" fill="#1E6B48" font-size="8" font-weight="600" text-anchor="middle">+19.7%</text><text x="744.38" y="84" fill="#A8ADB2" font-size="7.8" text-anchor="middle">Q3 26</text></g>
+<line x1="30" y1="65.26" x2="792" y2="65.26" stroke="#DEDBD4" stroke-width="1"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="24" y="68.26">+0%</text><text x="24" y="54.58">+10%</text><text x="24" y="40.89">+20%</text><text x="24" y="27.21">+30%</text></g>
+</svg>
+<!-- /fig:beat-miss -->
+    </div>
+    <p class="pull" style="margin-top:2.6mm">
+      Eight beats from eight, but wide — <b>+2.3%</b> to <b>+32.8%</b>, averaging roughly +14%. Memory
+      ASPs move faster than the Street recalibrates; the printed surprise is large and the guide still
+      matters more.
+    </p>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Income statement, cash flow and balance sheet data from Micron SEC filings via Financial
+        Modeling Prep; fiscal years end in late August. Free cash flow is operating cash
+        flow less capital expenditure; net cash is cash, equivalents and short-term investments less
+        total debt. CAGRs, conversion and incremental-margin ratios are Ticker Alpha calculations. The
+        surprise series uses the vendor's as-reported basis, which mixes GAAP and adjusted EPS.
+      </div>
+      <div class="footer-page">Page 3 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>Micron Technology, Inc.</b> &nbsp;·&nbsp; NASDAQ: MU</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">04</span> Peers &amp; Relative Position</div>
+  </header>
+
+  <section class="page-title">
+    <h2>How Does It Compare?</h2>
+    <p class="page-lede">
+      Against nine peers across accelerators, foundry and memory, Micron prints <b>best-in-set operating
+      margin (65.8%)</b> on TTM and still trades <b>below</b> the peer median EV/Sales near 14.9×. Cycle
+      skepticism is in the multiple.
+    </p>
+  </section>
+
+  <!-- ══════════ COMPS ══════════ -->
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">Comparable Companies</div>
+      <div class="band-note">TTM figures · sorted by market capitalisation · Micron highlighted</div>
+    </div>
+    <div class="band-body">
+      <!-- fig:peer-table -->
+      <table class="dtable compact">
+        <thead>
+          <tr>
+            <th style="width:44mm">Company</th>
+            <th>Market cap</th>
+            <th>Rev growth</th>
+            <th>Gross margin</th>
+            <th>Op margin</th>
+            <th>ROIC</th>
+            <th>EV / Sales</th>
+            <th>P / E</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>NVIDIA <span class="sub">NVDA</span></td><td>$5.39T</td><td>+65.5%</td><td>74.1%</td><td>64.0%</td><td>63.0%</td><td>21.2×</td><td>33.9×</td></tr>
+          <tr><td>TSMC <span class="sub">TSM</span></td><td>$2.17T</td><td>+33.0%</td><td>64.2%</td><td>56.0%</td><td>27.1%</td><td>13.4×</td><td>27.5×</td></tr>
+          <tr><td>Broadcom <span class="sub">AVGO</span></td><td>$2.02T</td><td>+23.9%</td><td>67.0%</td><td>43.7%</td><td>19.5%</td><td>27.4×</td><td>68.6×</td></tr>
+          <tr class="hl"><td>Micron <span class="sub">MU</span></td><td>$982B</td><td>+48.9%</td><td>72.6%</td><td>65.8%</td><td>44.0%</td><td>10.7×</td><td>19.7×</td></tr>
+          <tr><td>AMD <span class="sub">AMD</span></td><td>$784B</td><td>+34.3%</td><td>53.2%</td><td>15.7%</td><td>7.6%</td><td>19.0×</td><td>122.0×</td></tr>
+          <tr><td>Intel <span class="sub">INTC</span></td><td>$510B</td><td class="neg">−0.5%</td><td>38.9%</td><td>0.1%</td><td>0.0%</td><td>9.6×</td><td class="sub">n/m</td></tr>
+          <tr><td>Seagate <span class="sub">STX</span></td><td>$180B</td><td>+34.1%</td><td>45.6%</td><td>33.6%</td><td>51.4%</td><td>14.9×</td><td>55.1×</td></tr>
+          <tr><td>Western Digital <span class="sub">WDC</span></td><td>$149B</td><td>+35.7%</td><td>48.9%</td><td>34.9%</td><td>40.2%</td><td>11.5×</td><td>15.9×</td></tr>
+          <tr><td>Marvell <span class="sub">MRVL</span></td><td>$190B</td><td>+42.1%</td><td>50.6%</td><td>16.2%</td><td>5.0%</td><td>22.0×</td><td>74.0×</td></tr>
+          <tr><td>Qualcomm <span class="sub">QCOM</span></td><td>$175B</td><td>+13.7%</td><td>54.2%</td><td>23.2%</td><td>17.4%</td><td>4.2×</td><td>19.0×</td></tr>
+          <tr class="em"><td>Peer median <span class="sub">excl. MU</span></td><td>$510B</td><td>+34.1%</td><td>53.2%</td><td>33.6%</td><td>19.5%</td><td>14.9×</td><td>44.5×</td></tr>
+        </tbody>
+      </table>
+<!-- /fig:peer-table -->
+    </div>
+  </section>
+
+  <!-- ══════════ SCATTER + RELATIVE RANK ══════════ -->
+  <section class="band cols-2w">
+    <div>
+      <div class="band-head">
+        <div class="band-title">Growth Against Valuation</div>
+        <div class="band-note">Revenue growth vs EV/Sales</div>
+      </div>
+      <div class="band-body chart">
+        <!-- fig:growth-vs-multiple -->
+<svg viewBox="0 0 404.49 196" role="img" aria-label="Revenue growth against EV to sales for Micron Technology, Inc. and its peer set">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="30" y1="132" x2="390.49" y2="132"/><line x1="30" y1="108" x2="390.49" y2="108"/><line x1="30" y1="84" x2="390.49" y2="84"/><line x1="30" y1="60" x2="390.49" y2="60"/><line x1="30" y1="36" x2="390.49" y2="36"/></g>
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="53.41" y1="12" x2="53.41" y2="156"/><line x1="147.04" y1="12" x2="147.04" y2="156"/><line x1="240.68" y1="12" x2="240.68" y2="156"/><line x1="334.31" y1="12" x2="334.31" y2="156"/></g>
+<line x1="44.05" y1="108.61" x2="362.4" y2="57.26" stroke="#14181D" stroke-width="1" stroke-dasharray="4 3" opacity="0.45"/>
+<text x="88.86" y="114.06" fill="#797F86" font-family="Inter, sans-serif" font-size="7.4" text-anchor="start">peer fit</text>
+<g font-family="Inter, sans-serif"><circle cx="360.06" cy="54.24" r="2.8" fill="#79838B"/><text x="353.06" y="57.24" fill="#797F86" font-size="8" font-weight="500" text-anchor="end">NVDA</text><circle cx="207.91" cy="91.68" r="2.8" fill="#79838B"/><text x="214.91" y="94.68" fill="#797F86" font-size="8" font-weight="500" text-anchor="start">TSM</text><circle cx="165.3" cy="24.48" r="2.8" fill="#79838B"/><text x="172.3" y="27.48" fill="#797F86" font-size="8" font-weight="500" text-anchor="start">AVGO</text><circle cx="282.35" cy="104.64" r="7" fill="#A9853F" fill-opacity="0.18"/><circle cx="282.35" cy="104.64" r="3.8" fill="#A9853F"/><text x="275.35" y="107.64" fill="#14181D" font-size="8.8" font-weight="700" text-anchor="end">MU</text><circle cx="213.99" cy="64.8" r="2.8" fill="#79838B"/><text x="220.99" y="67.8" fill="#797F86" font-size="8" font-weight="500" text-anchor="start">AMD</text><circle cx="51.07" cy="109.92" r="2.8" fill="#79838B"/><text x="58.07" y="112.92" fill="#797F86" font-size="8" font-weight="500" text-anchor="start">INTC</text><circle cx="213.06" cy="84.48" r="2.8" fill="#79838B"/><text x="220.06" y="87.48" fill="#797F86" font-size="8" font-weight="500" text-anchor="start">STX</text><circle cx="220.55" cy="100.8" r="2.8" fill="#79838B"/><text x="227.55" y="103.8" fill="#797F86" font-size="8" font-weight="500" text-anchor="start">WDC</text><circle cx="250.51" cy="50.4" r="2.8" fill="#79838B"/><text x="243.51" y="53.4" fill="#797F86" font-size="8" font-weight="500" text-anchor="end">MRVL</text><circle cx="117.55" cy="135.84" r="2.8" fill="#79838B"/><text x="124.55" y="138.84" fill="#797F86" font-size="8" font-weight="500" text-anchor="start">QCOM</text></g>
+<line x1="30" y1="156" x2="390.49" y2="156" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="25" y="159">0×</text><text x="25" y="111">10×</text><text x="25" y="63">20×</text><text x="25" y="15">30×</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.6" text-anchor="middle"><text x="53.41" y="171">0%</text><text x="147.04" y="171">20%</text><text x="240.68" y="171">40%</text><text x="334.31" y="171">60%</text></g>
+<text x="4" y="8" fill="#797F86" font-family="Inter, sans-serif" font-size="7.2" letter-spacing="0.08em" font-weight="600">EV / SALES</text>
+<text x="390.49" y="193" fill="#797F86" font-family="Inter, sans-serif" font-size="7.2" letter-spacing="0.08em" font-weight="600" text-anchor="end">REVENUE GROWTH, LATEST FY</text>
+</svg>
+<!-- /fig:growth-vs-multiple -->
+      </div>
+    </div>
+
+    <div>
+      <div class="band-head">
+        <div class="band-title">Where Micron Ranks</div>
+        <div class="band-note">Percentile in the ten-name set</div>
+      </div>
+      <div class="band-body">
+        <!-- fig:peer-ranks -->
+        <div class="pctrow t-bull">
+          <div class="pctlab">Revenue growth</div>
+          <div class="pcttrack"><div class="pctfill" style="width:89%"></div></div>
+          <div class="pctval">89th <span>pct</span></div>
+        </div>
+        <div class="pctrow t-bull">
+          <div class="pctlab">Gross margin</div>
+          <div class="pcttrack"><div class="pctfill" style="width:89%"></div></div>
+          <div class="pctval">89th <span>pct</span></div>
+        </div>
+        <div class="pctrow t-bull">
+          <div class="pctlab">Operating margin</div>
+          <div class="pcttrack"><div class="pctfill" style="width:100%"></div></div>
+          <div class="pctval">100th <span>pct</span></div>
+        </div>
+        <div class="pctrow t-bull">
+          <div class="pctlab">Return on capital</div>
+          <div class="pcttrack"><div class="pctfill" style="width:78%"></div></div>
+          <div class="pctval">78th <span>pct</span></div>
+        </div>
+        <div class="pctrow t-bull">
+          <div class="pctlab">Cheapness on P/E</div>
+          <div class="pcttrack"><div class="pctfill" style="width:75%"></div></div>
+          <div class="pctval">75th <span>pct</span></div>
+        </div>
+        <div class="pctrow t-bull">
+          <div class="pctlab">Cheapness on EV/Sales</div>
+          <div class="pcttrack"><div class="pctfill" style="width:78%"></div></div>
+          <div class="pctval">78th <span>pct</span></div>
+        </div>
+<!-- /fig:peer-ranks -->
+
+      </div>
+    </div>
+  </section>
+
+  <p class="pull" style="margin-top:3mm">
+    <b>Best margins in the set, not the richest sales multiple.</b> NVIDIA grows faster near 21× sales;
+    Micron prints a higher TTM operating margin near 11× sales. That gap prices cycle mean-reversion —
+    which is why our base sits below the Street even with a bullish rating.
+  </p>
+
+  <!-- ══════════ THE ALTERNATIVES ══════════ -->
+  <section class="band cols-3">
+    <div>
+      <div class="band-head"><div class="band-title">NVIDIA &nbsp;·&nbsp; NVDA</div></div>
+      <div class="band-body t-bull">
+        <dl class="kvlist">
+          <div class="kv"><dt>Revenue growth</dt><dd class="pos">+65.5%</dd></div>
+          <div class="kv"><dt>Operating margin</dt><dd>64.0%</dd></div>
+          <div class="kv"><dt>ROIC</dt><dd>63.0%</dd></div>
+          <div class="kv"><dt>P / E</dt><dd>33.4×</dd></div>
+        </dl>
+        <div class="score-verdict" style="margin-top:2.4mm">The demand that pulls HBM</div>
+        <div style="font-size:6.4pt;line-height:1.4;color:var(--muted);margin-top:1mm">
+          Same hyperscaler cheque — with more cyclical ASP risk.
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="band-head"><div class="band-title">Western Digital &nbsp;·&nbsp; WDC</div></div>
+      <div class="band-body t-neutral">
+        <dl class="kvlist">
+          <div class="kv"><dt>Revenue growth</dt><dd>+35.7%</dd></div>
+          <div class="kv"><dt>Operating margin</dt><dd>34.9%</dd></div>
+          <div class="kv"><dt>ROIC</dt><dd>40.2%</dd></div>
+          <div class="kv"><dt>P / E</dt><dd class="pos">15.9×</dd></div>
+        </dl>
+        <div class="score-verdict" style="margin-top:2.4mm">NAND without the HBM print</div>
+        <div style="font-size:6.4pt;line-height:1.4;color:var(--muted);margin-top:1mm">
+          Cheaper multiple, thinner AI exposure — storage without Micron's DRAM mix.
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="band-head"><div class="band-title">Advanced Micro Devices &nbsp;·&nbsp; AMD</div></div>
+      <div class="band-body t-bear">
+        <dl class="kvlist">
+          <div class="kv"><dt>Revenue growth</dt><dd>+34.3%</dd></div>
+          <div class="kv"><dt>Operating margin</dt><dd class="neg">15.7%</dd></div>
+          <div class="kv"><dt>ROIC</dt><dd class="neg">7.6%</dd></div>
+          <div class="kv"><dt>P / E</dt><dd class="neg">124.5×</dd></div>
+        </dl>
+        <div class="score-verdict" style="margin-top:2.4mm">Priced for a share gain</div>
+        <div style="font-size:6.4pt;line-height:1.4;color:var(--muted);margin-top:1mm">
+          Near Micron's sales multiple on a quarter of the margin. MI400 has to land.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Peer set covers merchant silicon, foundry, custom-ASIC vendors and memory / storage suppliers
+        to AI infrastructure; market data as of 7 August 2026, fundamentals trailing twelve months per
+        Financial Modeling Prep. Medians exclude Micron where noted and, on P/E, names whose trailing
+        earnings round to nothing. Growth is the latest completed fiscal year and calendars differ
+        across names. The regression is descriptive, not a valuation method.
+      </div>
+      <div class="footer-page">Page 4 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>Micron Technology, Inc.</b> &nbsp;·&nbsp; NASDAQ: MU</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">05</span> Valuation &amp; What's Priced In</div>
+  </header>
+
+  <section class="page-title">
+    <h2>What Is It Worth?</h2>
+    <p class="page-lede">
+      Three questions in order: cheap against its own history, cheap against its industry, and what
+      would have to be true for today's price to be right. For Micron the answers conflict — cheap on
+      trailing earnings versus peers, rich on sales versus its own five years.
+    </p>
+  </section>
+
+  <!-- ══════════ WHERE IT TRADES ══════════ -->
+  <section class="statstrip c6" style="margin-top:5mm">
+    <div class="metric">
+      <div class="metric-label">Share Price</div>
+      <div class="metric-value">$869.54</div>
+      <div class="metric-sub">52-wk $110.79–$1,255</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Enterprise Value</div>
+      <div class="metric-value">$962B</div>
+      <div class="metric-sub">$982B cap · net cash</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">EV / Sales</div>
+      <div class="metric-value">10.7×</div>
+      <div class="metric-sub"><b class="neg">+215%</b> vs 5-yr median</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">EV / EBITDA</div>
+      <div class="metric-value">14.0×</div>
+      <div class="metric-sub"><b class="neg">+84%</b> vs 5-yr median</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">P / E</div>
+      <div class="metric-value">19.7×</div>
+      <div class="metric-sub"><b class="pos">near median</b> · 5.6× FY27E</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">FCF Yield</div>
+      <div class="metric-value">2.7%</div>
+      <div class="metric-sub">On market cap</div>
+    </div>
+  </section>
+
+  <!-- ══════════ CHEAP AGAINST WHAT? ══════════ -->
+  <section class="band cols-2">
+    <div>
+      <div class="band-head">
+        <div class="band-title">Against Its Own Five Years</div>
+        <div class="band-note">Daily observations</div>
+      </div>
+      <div class="band-body chart">
+        <!-- fig:multiple-bands -->
+<svg viewBox="0 0 377.53 118" role="img" aria-label="Current valuation multiples placed inside their own historical ranges">
+<g font-family="Inter, sans-serif"><text x="56" y="21" fill="#14181D" font-size="8" font-weight="600" text-anchor="end">EV / Sales</text><rect x="62" y="13.5" width="283.53" height="9" fill="#CDD0D2" fill-opacity="0.65"/><rect x="62" y="13.5" width="40.89" height="9" fill="#1E6B48" fill-opacity="0.14"/><line x1="102.89" y1="10.5" x2="102.89" y2="25.5" stroke="#797F86" stroke-width="1"/><text x="102.89" y="7.5" fill="#797F86" font-size="6.8" text-anchor="middle">median</text><circle cx="301.91" cy="18" r="3.4" fill="#14181D"/><text x="301.91" y="34.5" fill="#14181D" font-size="8.2" font-weight="700" text-anchor="middle">10.7×</text><text x="60" y="34.5" fill="#A8ADB2" font-size="7" text-anchor="start">1.9×</text><text x="349.53" y="21" fill="#A8ADB2" font-size="7">12.3×</text><text x="349.53" y="13" fill="#A9853F" font-size="7.4" font-weight="600">91th</text><text x="56" y="53" fill="#14181D" font-size="8" font-weight="600" text-anchor="end">EV / EBITDA</text><rect x="62" y="45.5" width="283.53" height="9" fill="#CDD0D2" fill-opacity="0.65"/><rect x="62" y="45.5" width="66.43" height="9" fill="#1E6B48" fill-opacity="0.14"/><line x1="128.43" y1="42.5" x2="128.43" y2="57.5" stroke="#797F86" stroke-width="1"/><text x="128.43" y="39.5" fill="#797F86" font-size="6.8" text-anchor="middle">median</text><circle cx="232.12" cy="50" r="3.4" fill="#14181D"/><text x="232.12" y="66.5" fill="#14181D" font-size="8.2" font-weight="700" text-anchor="middle">14.0×</text><text x="60" y="66.5" fill="#A8ADB2" font-size="7" text-anchor="start">3.5×</text><text x="349.53" y="53" fill="#A8ADB2" font-size="7">21.0×</text><text x="349.53" y="45" fill="#A9853F" font-size="7.4" font-weight="600">84th</text><text x="56" y="85" fill="#14181D" font-size="8" font-weight="600" text-anchor="end">P / E</text><rect x="62" y="77.5" width="283.53" height="9" fill="#CDD0D2" fill-opacity="0.65"/><rect x="62" y="77.5" width="28.02" height="9" fill="#1E6B48" fill-opacity="0.14"/><line x1="90.02" y1="74.5" x2="90.02" y2="89.5" stroke="#797F86" stroke-width="1"/><text x="90.02" y="71.5" fill="#797F86" font-size="6.8" text-anchor="middle">median</text><circle cx="88.58" cy="82" r="3.4" fill="#14181D"/><text x="88.58" y="98.5" fill="#14181D" font-size="8.2" font-weight="700" text-anchor="middle">19.7×</text><text x="60" y="98.5" fill="#A8ADB2" font-size="7" text-anchor="start">6.8×</text><text x="349.53" y="85" fill="#A8ADB2" font-size="7">144.4×</text><text x="349.53" y="77" fill="#A9853F" font-size="7.4" font-weight="600">46th</text></g>
+<text x="2" y="114" fill="#A8ADB2" font-family="Inter, sans-serif" font-size="6.5">Bar spans the 5th to 95th percentile of daily observations since Aug 2021 · dot is today</text>
+</svg>
+<!-- /fig:multiple-bands -->
+      </div>
+    </div>
+    <div>
+      <div class="band-head">
+        <div class="band-title">Against Peers And Sector</div>
+        <div class="band-note">Median multiples</div>
+      </div>
+      <div class="band-body chart">
+        <!-- fig:vs-sector -->
+<svg viewBox="0 0 377.53 132" role="img" aria-label="Micron Technology, Inc. valuation multiples against its peer set and sector">
+<g font-family="Inter, sans-serif"><text x="0" y="10" fill="#797F86" font-size="7.2" letter-spacing="0.1em" font-weight="600">P / E, TRAILING</text><text x="50" y="26" fill="#3A4149" font-size="7.6" text-anchor="end">Micron</text><rect x="56" y="18" width="44.78" height="9" fill="#14181D"/><text x="105.78" y="26" fill="#14181D" font-size="7.8" font-weight="600">19.7×</text><text x="50" y="40" fill="#3A4149" font-size="7.6" text-anchor="end">Memory / storage peers</text><rect x="56" y="32" width="80.7" height="9" fill="#79838B"/><text x="141.7" y="40" fill="#14181D" font-size="7.8" font-weight="600">35.5×</text><text x="50" y="54" fill="#3A4149" font-size="7.6" text-anchor="end">NASDAQ tech</text><rect x="56" y="46" width="108.21" height="9" fill="#CDD0D2"/><text x="169.21" y="54" fill="#14181D" font-size="7.8" font-weight="600">47.6×</text><text x="0" y="76" fill="#797F86" font-size="7.2" letter-spacing="0.1em" font-weight="600">EV / SALES</text><text x="50" y="92" fill="#3A4149" font-size="7.6" text-anchor="end">Micron</text><rect x="56" y="84" width="131.76" height="9" fill="#14181D"/><text x="192.76" y="92" fill="#14181D" font-size="7.8" font-weight="600">10.7×</text><text x="50" y="106" fill="#3A4149" font-size="7.6" text-anchor="end">Memory / storage peers</text><rect x="56" y="98" width="162.54" height="9" fill="#79838B"/><text x="223.54" y="106" fill="#14181D" font-size="7.8" font-weight="600">13.2×</text></g>
+</svg>
+<!-- /fig:vs-sector -->
+      </div>
+    </div>
+  </section>
+
+  <p class="pull" style="margin-top:4mm">
+    <b>Cheap on earnings, expensive on sales — against itself.</b> EV/Sales sits at the <b>91st
+    percentile</b> of five years of daily observations (5-yr median 3.4×; today 10.7×). P/E is only
+    the <b>46th percentile</b>, near its own median, because TTM EPS already includes the boom. Versus
+    peers the trailing P/E still looks light; the history check is the one that bites.
+  </p>
+
+  <!-- ══════════ WHAT IS PRICED IN ══════════ -->
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">What Today's Price Requires</div>
+      <div class="band-note">Street path vs our base · memory cycles mean-revert faster than accelerators</div>
+    </div>
+    <div class="band-body cols-3">
+      <div>
+        <div class="micro">On The Street's Path</div>
+        <dl class="kvlist" style="margin-top:2mm">
+          <div class="kv"><dt>FY26E revenue</dt><dd>~$129.4B</dd></div>
+          <div class="kv"><dt>FY27E revenue</dt><dd class="neg">~$249.5B</dd></div>
+          <div class="kv"><dt>FY27E EPS</dt><dd>$154.67</dd></div>
+          <div class="kv"><dt>Verdict</dt><dd>HBM cycle lasts</dd></div>
+        </dl>
+      </div>
+      <div>
+        <div class="micro">On Our Base Path</div>
+        <dl class="kvlist" style="margin-top:2mm">
+          <div class="kv"><dt>FY27E revenue</dt><dd>~$249B</dd></div>
+          <div class="kv"><dt>FY27E op. margin</dt><dd>58%</dd></div>
+          <div class="kv"><dt>FY28E margin fade</dt><dd class="pos">→ ~42%</dd></div>
+          <div class="kv"><dt>Verdict</dt><dd>Peak then mid-cycle</dd></div>
+        </dl>
+      </div>
+      <div class="t-neutral">
+        <div class="micro">Which Is It?</div>
+        <div class="score-verdict" style="margin-top:2mm">Street FY27, then fade</div>
+        <p style="margin:2mm 0 0;font-size:7.1pt;line-height:1.5;color:var(--ink-soft)">
+          Accepting ~$249B in FY27 implies the HBM cycle lasts through next year. Our base keeps that
+          revenue print and fades operating margin toward mid-cycle by FY28 — which is why $1,200 sits
+          <b>23.9% below</b> the Street mean target even with a bullish rating.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ THE STREET ══════════ -->
+  <section class="band cols-2w">
+    <div>
+      <div class="band-head">
+        <div class="band-title">Street Target Revisions</div>
+        <div class="band-note">Average target by lookback window</div>
+      </div>
+      <div class="band-body chart">
+        <!-- fig:estimate-revisions -->
+<svg viewBox="0 0 404.49 112" role="img" aria-label="Street estimate revisions over the last twelve months">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="34" y1="72.77" x2="360.49" y2="72.77"/><line x1="34" y1="67.54" x2="360.49" y2="67.54"/><line x1="34" y1="62.31" x2="360.49" y2="62.31"/><line x1="34" y1="57.08" x2="360.49" y2="57.08"/><line x1="34" y1="51.85" x2="360.49" y2="51.85"/><line x1="34" y1="46.62" x2="360.49" y2="46.62"/><line x1="34" y1="41.38" x2="360.49" y2="41.38"/><line x1="34" y1="36.15" x2="360.49" y2="36.15"/><line x1="34" y1="30.92" x2="360.49" y2="30.92"/><line x1="34" y1="25.69" x2="360.49" y2="25.69"/><line x1="34" y1="20.46" x2="360.49" y2="20.46"/><line x1="34" y1="15.23" x2="360.49" y2="15.23"/></g>
+<path d="M34,70.15 L142.83,34.02 L251.66,17.85 L360.49,26.95 L360.49,78 L34,78 Z" fill="#1E6B48" fill-opacity="0.07"/>
+<polyline points="34,70.15 142.83,34.02 251.66,17.85 360.49,26.95" fill="none" stroke="#1E6B48" stroke-width="1.8" stroke-linejoin="round"/>
+<circle cx="34" cy="70.15" r="2.8" fill="#1E6B48"/>
+<circle cx="142.83" cy="34.02" r="1.8" fill="#1E6B48"/>
+<circle cx="251.66" cy="17.85" r="1.8" fill="#1E6B48"/>
+<circle cx="360.49" cy="26.95" r="2.8" fill="#1E6B48"/>
+<line x1="34" y1="78" x2="360.49" y2="78" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="29" y="75.77">$700</text><text x="29" y="70.54">$800</text><text x="29" y="65.31">$900</text><text x="29" y="60.08">$1000</text><text x="29" y="54.85">$1100</text><text x="29" y="49.62">$1200</text><text x="29" y="44.38">$1300</text><text x="29" y="39.15">$1400</text><text x="29" y="33.92">$1500</text><text x="29" y="28.69">$1600</text><text x="29" y="23.46">$1700</text><text x="29" y="18.23">$1800</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.4" text-anchor="middle"><text x="34" y="92">LAST YEAR</text><text x="142.83" y="92">LAST QUARTER</text><text x="251.66" y="92">LAST MONTH</text><text x="360.49" y="92">TODAY</text></g>
+<text x="34" y="82.15" fill="#797F86" font-family="Inter, sans-serif" font-size="8" font-weight="600" text-anchor="middle">$750</text>
+<text x="366.49" y="29.95" fill="#1E6B48" font-family="Inter, sans-serif" font-size="9" font-weight="700">$1576</text>
+<text x="366.49" y="39.95" fill="#797F86" font-family="Inter, sans-serif" font-size="7.6">+110%</text>
+<text x="34" y="108" fill="#A8ADB2" font-family="Inter, sans-serif" font-size="6.8">Average Street price target by lookback window · the Street has been marking Micron up with the HBM cycle</text>
+</svg>
+<!-- /fig:estimate-revisions -->
+      </div>
+    </div>
+    <div>
+      <div class="band-head">
+        <div class="band-title">Estimates &amp; Ratings</div>
+        <div class="band-note">70 analysts</div>
+      </div>
+      <div class="band-body">
+        <dl class="kvlist">
+          <div class="kv"><dt>Mean target, today</dt><dd>$1,575.91</dd></div>
+          <div class="kv"><dt>Mean target, 12m ago</dt><dd class="pos">$750.14</dd></div>
+          <div class="kv"><dt>FY26 EPS consensus</dt><dd>$73.22 → 11.9×</dd></div>
+          <div class="kv"><dt>FY27 EPS consensus</dt><dd>$154.67 → 5.6×</dd></div>
+          <div class="kv"><dt>FY28 EPS consensus</dt><dd>$166.89</dd></div>
+          <div class="kv"><dt>Ratings</dt><dd>57 buy · 11 hold · 2 sell</dd></div>
+        </dl>
+        <p style="margin:2.6mm 0 0;font-size:7.1pt;line-height:1.5;color:var(--ink-soft)">
+          The mean target of <b>$1,575.91</b> has more than doubled from a year ago as the Street marked
+          Micron up with HBM. Our $1,200 asks for less — roughly <b>8×</b> on FY27E EPS near $155, with
+          cyclical multiple compression versus the accelerator complex.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Historical multiple ranges use five years of daily closes against rolling trailing-twelve-month
+        fundamentals; sector multiple is the NASDAQ technology median from Financial Modeling Prep.
+        Forward P/E uses Financial Modeling Prep consensus EPS. Micron fiscal years end in late
+        August, so FY26 closes August 2026 and FY27 closes August 2027. Scenario commentary on this
+        page is judgment, not a reverse-DCF solve.
+      </div>
+      <div class="footer-page">Page 5 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>Micron Technology, Inc.</b> &nbsp;·&nbsp; NASDAQ: MU</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">06</span> Scenarios &amp; Target Derivation</div>
+  </header>
+
+  <section class="page-title">
+    <h2>How We Got To $1,200</h2>
+    <p class="page-lede">
+      Every assumption behind the three targets on page one is on this page. Change one and the number
+      moves — that is the point. A target you cannot take apart is a guess with a decimal place.
+    </p>
+  </section>
+
+  <!-- ══════════ ASSUMPTIONS ══════════ -->
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">The Assumptions Behind Each Case</div>
+      <div class="band-note">12-month horizon · valued primarily on FY27E EPS × exit multiple · target date August 2027</div>
+    </div>
+    <div class="band-body">
+      <table class="dtable compact">
+        <thead>
+          <tr>
+            <th style="width:46mm">Driver</th>
+            <th style="width:22mm">Bear</th>
+            <th style="width:22mm">Base</th>
+            <th style="width:22mm">Bull</th>
+            <th style="text-align:left;padding-left:6mm">Why it moves</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>FY27E revenue</td>
+            <td class="neg">$160B</td><td><b>$249B</b></td><td class="pos">$284B</td>
+            <td class="say" style="padding-left:6mm">Street lo / mean / hi for FY27</td>
+          </tr>
+          <tr>
+            <td>FY27E operating margin</td>
+            <td class="neg">25%</td><td><b>58%</b></td><td class="pos">68%</td>
+            <td class="say" style="padding-left:6mm">HBM mix vs commodity ASP collapse</td>
+          </tr>
+          <tr>
+            <td>FY27E EPS</td>
+            <td class="neg">~$52</td><td><b>~$155</b></td><td class="pos">~$217</td>
+            <td class="say" style="padding-left:6mm">Aligned to Street EPS range</td>
+          </tr>
+          <tr>
+            <td>Diluted shares, B</td>
+            <td>1.13</td><td><b>1.13</b></td><td>1.12</td>
+            <td class="say" style="padding-left:6mm">~1.13B shares outstanding</td>
+          </tr>
+          <tr>
+            <td>Exit P / E on FY27E</td>
+            <td>8×</td><td><b>8×</b></td><td>8–9×</td>
+            <td class="say" style="padding-left:6mm">Cyclical compression vs NVDA's 23×</td>
+          </tr>
+          <tr class="em">
+            <td>12-month target</td>
+            <td class="neg">$420</td><td><b>$1,200</b></td><td class="pos">$1,800</td>
+            <td class="say" style="padding-left:6mm"><b>−51.7% / +38.0% / +107.0%</b></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════ PATHS ══════════ -->
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">What Each Case Looks Like</div>
+      <div class="band-note">FY25 actual, then three years modelled · FY26–27 pinned to the consensus range</div>
+    </div>
+    <div class="band-body chart">
+      <!-- fig:scenario-paths -->
+<svg viewBox="0 0 800 172" role="img" aria-label="Revenue and operating margin paths for the bull, base and bear cases">
+<text x="8" y="10" fill="#797F86" font-family="Inter, sans-serif" font-size="7.4" letter-spacing="0.09em" font-weight="600">REVENUE, $B</text>
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="34" y1="122.29" x2="346" y2="122.29"/><line x1="34" y1="106.12" x2="346" y2="106.12"/><line x1="34" y1="89.94" x2="346" y2="89.94"/><line x1="34" y1="73.76" x2="346" y2="73.76"/><line x1="34" y1="57.59" x2="346" y2="57.59"/><line x1="34" y1="41.41" x2="346" y2="41.41"/></g>
+<polyline points="34,126.38 138,96.81 242,86.71 346,93.18" fill="none" stroke="#8E2C22" stroke-width="1.3" stroke-dasharray="4 3" stroke-linejoin="round"/>
+<circle cx="346" cy="93.18" r="2.6" fill="#8E2C22"/>
+<text x="352" y="96.18" fill="#8E2C22" font-family="Inter, sans-serif" font-size="8.4" font-weight="700">$140B</text>
+<polyline points="34,126.38 138,96.6 242,57.75 346,48.51" fill="none" stroke="#14181D" stroke-width="1.9" stroke-linejoin="round"/>
+<circle cx="346" cy="48.51" r="2.6" fill="#14181D"/>
+<text x="352" y="51.51" fill="#14181D" font-family="Inter, sans-serif" font-size="8.4" font-weight="700">$278B</text>
+<polyline points="34,126.38 138,96.12 242,46.54 346,28.47" fill="none" stroke="#1E6B48" stroke-width="1.3" stroke-dasharray="4 3" stroke-linejoin="round"/>
+<circle cx="346" cy="28.47" r="2.6" fill="#1E6B48"/>
+<text x="352" y="31.47" fill="#1E6B48" font-family="Inter, sans-serif" font-size="8.4" font-weight="700">$340B</text>
+<circle cx="34" cy="126.38" r="2.6" fill="#14181D"/>
+<line x1="34" y1="132" x2="346" y2="132" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="29" y="125.29">50</text><text x="29" y="109.12">100</text><text x="29" y="92.94">150</text><text x="29" y="76.76">200</text><text x="29" y="60.59">250</text><text x="29" y="44.41">300</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.8" text-anchor="middle"><text x="34" y="147">FY25A</text><text x="138" y="147">FY26E</text><text x="242" y="147">FY27E</text><text x="346" y="147">FY28E</text></g>
+<text x="410" y="10" fill="#797F86" font-family="Inter, sans-serif" font-size="7.4" letter-spacing="0.09em" font-weight="600">OPERATING MARGIN</text>
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="436" y1="125.53" x2="748" y2="125.53"/><line x1="436" y1="99.65" x2="748" y2="99.65"/><line x1="436" y1="73.76" x2="748" y2="73.76"/><line x1="436" y1="47.88" x2="748" y2="47.88"/><line x1="436" y1="22" x2="748" y2="22"/></g>
+<polyline points="436,91.36 540,54.35 644,93.18 748,115.18" fill="none" stroke="#8E2C22" stroke-width="1.3" stroke-dasharray="4 3" stroke-linejoin="round"/>
+<circle cx="748" cy="115.18" r="2.6" fill="#8E2C22"/>
+<text x="754" y="118.18" fill="#8E2C22" font-family="Inter, sans-serif" font-size="8.4" font-weight="700">8.0%</text>
+<polyline points="436,91.36 540,37.53 644,50.47 748,71.18" fill="none" stroke="#14181D" stroke-width="1.9" stroke-linejoin="round"/>
+<circle cx="748" cy="71.18" r="2.6" fill="#14181D"/>
+<text x="754" y="74.18" fill="#14181D" font-family="Inter, sans-serif" font-size="8.4" font-weight="700">42.0%</text>
+<polyline points="436,91.36 540,32.35 644,37.53 748,54.35" fill="none" stroke="#1E6B48" stroke-width="1.3" stroke-dasharray="4 3" stroke-linejoin="round"/>
+<circle cx="748" cy="54.35" r="2.6" fill="#1E6B48"/>
+<text x="754" y="57.35" fill="#1E6B48" font-family="Inter, sans-serif" font-size="8.4" font-weight="700">55.0%</text>
+<circle cx="436" cy="91.36" r="2.6" fill="#14181D"/>
+<line x1="436" y1="132" x2="748" y2="132" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="431" y="128.53">0%</text><text x="431" y="102.65">20%</text><text x="431" y="76.76">40%</text><text x="431" y="50.88">60%</text><text x="431" y="25">80%</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.8" text-anchor="middle"><text x="436" y="147">FY25A</text><text x="540" y="147">FY26E</text><text x="644" y="147">FY27E</text><text x="748" y="147">FY28E</text></g>
+</svg>
+<!-- /fig:scenario-paths -->
+    </div>
+  </section>
+
+  <!-- ══════════ FALSIFIABLE CONDITIONS ══════════ -->
+  <section class="band cols-2">
+    <div>
+      <div class="band-head">
+        <div class="band-title">For The Bull Case To Be Right</div>
+        <div class="band-note">All four, not one</div>
+      </div>
+      <div class="band-body">
+        <div class="trigger up"><i>▲</i><span>HBM mix keeps gross margin in the mid-70s or better through FY27</span></div>
+        <div class="trigger up"><i>▲</i><span>FY27 revenue tracks the Street high near $284B</span></div>
+        <div class="trigger up"><i>▲</i><span>Inventory days stay stable as capacity ramps</span></div>
+        <div class="trigger up"><i>▲</i><span>HBM4 volume qualifications convert into named bit share</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="band-head">
+        <div class="band-title">For The Bear Case To Be Right</div>
+        <div class="band-note">Any two are enough</div>
+      </div>
+      <div class="band-body">
+        <div class="trigger down"><i>▼</i><span>Hyperscaler 2027 AI capex growth cut hard in late January</span></div>
+        <div class="trigger down"><i>▼</i><span>Bit growth without ASP support — DRAM ASP rolls over</span></div>
+        <div class="trigger down"><i>▼</i><span>Capex / sales turns back above 40% into a demand pause</span></div>
+        <div class="trigger down"><i>▼</i><span>Operating margin compresses toward 25% as supply catches demand</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ SENSITIVITY + RECONCILIATION ══════════ -->
+  <section class="band cols-2u">
+    <div>
+      <div class="band-head">
+        <div class="band-title">Target Price Sensitivity</div>
+        <div class="band-note">FY27E EPS × exit P/E</div>
+      </div>
+      <div class="band-body">
+        <!-- fig:sensitivity -->
+    <table class="sens">
+      <thead>
+      <tr><th class="corner">FY27E EPS</th><th>6×</th><th>8×</th><th>10×</th><th>12×</th><th>14×</th></tr>
+      </thead>
+      <tbody>
+      <tr><td class="axis">$90</td><td class="b1">$540</td><td class="b1">$720</td><td class="b3">$900</td><td class="b4">$1080</td><td class="b5">$1260</td></tr>
+      <tr><td class="axis">$120</td><td class="b1">$720</td><td class="b3">$960</td><td class="b5">$1200</td><td class="b5">$1440</td><td class="b5">$1680</td></tr>
+      <tr><td class="axis">$155</td><td class="b3">$930</td><td class="b5 here">$1240</td><td class="b5">$1550</td><td class="b5">$1860</td><td class="b5">$2170</td></tr>
+      <tr><td class="axis">$185</td><td class="b4">$1110</td><td class="b5">$1480</td><td class="b5">$1850</td><td class="b5">$2220</td><td class="b5">$2590</td></tr>
+      <tr><td class="axis">$220</td><td class="b5">$1320</td><td class="b5">$1760</td><td class="b5">$2200</td><td class="b5">$2640</td><td class="b5">$3080</td></tr>
+      </tbody>
+    </table>
+<!-- /fig:sensitivity -->
+      </div>
+    </div>
+    <div>
+      <div class="band-head">
+        <div class="band-title">Expected Value Check</div>
+      </div>
+      <div class="band-body">
+        <dl class="kvlist">
+          <div class="kv"><dt>Bear $420 × 25%</dt><dd>$105.00</dd></div>
+          <div class="kv"><dt>Base $1,200 × 50%</dt><dd>$600.00</dd></div>
+          <div class="kv"><dt>Bull $1,800 × 25%</dt><dd>$450.00</dd></div>
+          <div class="kv"><dt><b>Probability-weighted</b></dt><dd><b>$1,155</b></dd></div>
+          <div class="kv"><dt>Headline base target</dt><dd>$1,200</dd></div>
+          <div class="kv"><dt>Expected return</dt><dd class="pos">+32.8%</dd></div>
+        </dl>
+        <p style="margin:3mm 0 0;font-size:7.1pt;line-height:1.5;color:var(--ink-soft)">
+          The cell at <b>$155 × 8× ≈ $1,240</b> sits near the $1,200 base. On an EV check,
+          $1,200 × 1.129B shares less ~$19.7B net cash is roughly <b>$1.34T EV</b> / FY27E sales
+          ~5.4× — mid-cycle for a memory name, not peak AI hardware.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Scenario targets are Ticker Alpha model outputs built from the assumptions shown and set
+        independently of Street targets; FY26–27 revenue in each path is pinned to the Financial Modeling
+        Prep consensus low, mean and high so the first steps of the fan are the Street's own range.
+        Memory cycles are shorter than the accelerator complex, so targets are valued primarily on FY27E
+        rather than FY28E. Probabilities are model-assigned and subjective. Targets are not predictions of price.
+      </div>
+      <div class="footer-page">Page 6 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>Micron Technology, Inc.</b> &nbsp;·&nbsp; NASDAQ: MU</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">07</span> Key Catalysts</div>
+  </header>
+
+  <section class="page-title">
+    <h2>What To Watch, And When</h2>
+    <p class="page-lede">
+      Seven events over the next eighteen months, each scored for how much of the thesis it settles.
+      The two heaviest dates are a September print that closes FY26 against $129B, and a January capex
+      season Micron does not control.
+    </p>
+  </section>
+
+  <!-- ══════════ TIMELINE ══════════ -->
+  <section class="band" style="margin-top:4.5mm">
+    <div class="band-head">
+      <div class="band-title">The Next Eighteen Months</div>
+      <div class="band-note">Dot size is impact · a hollow dot means the date is estimated, not confirmed</div>
+    </div>
+    <div class="band-body">
+      <div class="legend" style="margin-bottom:2.6mm">
+        <span><i style="background:#1E6B48"></i>Positive skew</span>
+        <span><i style="background:#14181D"></i>Two-sided</span>
+        <span><i style="background:#8E2C22"></i>Negative skew</span>
+      </div>
+      <div class="chart">
+        <!-- fig:catalyst-timeline -->
+<svg viewBox="0 0 800 128" role="img" aria-label="Scheduled catalysts grouped into lanes over the next eighteen months">
+<g font-family="Inter, sans-serif"><text x="150" y="14" fill="#A8ADB2" font-size="7.2" letter-spacing="0.11em" font-weight="600" text-anchor="middle">Q4 26</text><rect x="208" y="22" width="145" height="98" fill="#F5F4F1"/><line x1="208" y1="22" x2="208" y2="120" stroke="#DEDBD4" stroke-width="0.7"/><text x="280.5" y="14" fill="#A8ADB2" font-size="7.2" letter-spacing="0.11em" font-weight="600" text-anchor="middle">Q1 27</text><line x1="353" y1="22" x2="353" y2="120" stroke="#DEDBD4" stroke-width="0.7"/><text x="425.5" y="14" fill="#A8ADB2" font-size="7.2" letter-spacing="0.11em" font-weight="600" text-anchor="middle">Q2 27</text><rect x="498" y="22" width="145" height="98" fill="#F5F4F1"/><line x1="498" y1="22" x2="498" y2="120" stroke="#DEDBD4" stroke-width="0.7"/><text x="570.5" y="14" fill="#A8ADB2" font-size="7.2" letter-spacing="0.11em" font-weight="600" text-anchor="middle">Q3 27</text><line x1="643" y1="22" x2="643" y2="120" stroke="#DEDBD4" stroke-width="0.7"/><text x="715.5" y="14" fill="#A8ADB2" font-size="7.2" letter-spacing="0.11em" font-weight="600" text-anchor="middle">Q4 27</text></g>
+<line x1="92" y1="22" x2="788" y2="22" stroke="#DEDBD4" stroke-width="0.7"/>
+<g font-family="Inter, sans-serif"><line x1="92" y1="42" x2="788" y2="42" stroke="#DEDBD4" stroke-width="0.7"/><text x="78" y="45" fill="#797F86" font-size="7" letter-spacing="0.11em" font-weight="600" text-anchor="end">EARNINGS</text><line x1="92" y1="76" x2="788" y2="76" stroke="#DEDBD4" stroke-width="0.7"/><text x="78" y="79" fill="#797F86" font-size="7" letter-spacing="0.11em" font-weight="600" text-anchor="end">DEMAND</text><line x1="92" y1="110" x2="788" y2="110" stroke="#DEDBD4" stroke-width="0.7"/><text x="78" y="113" fill="#797F86" font-size="7" letter-spacing="0.11em" font-weight="600" text-anchor="end">SUPPLY</text></g>
+<g font-family="Inter, sans-serif"><circle cx="179" cy="42" r="5.7" fill="#14181D"/><text x="179" y="30.3" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">Q4 FY26</text><text x="179" y="58.7" fill="#A8ADB2" font-size="7" text-anchor="middle">22 Sep 2026</text><circle cx="266" cy="76" r="5" fill="#FDFDFC" stroke="#14181D" stroke-width="1.8"/><text x="266" y="65" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">Hyperscaler Q3</text><text x="266" y="92" fill="#A8ADB2" font-size="7" text-anchor="middle">late Oct 2026</text><circle cx="377.17" cy="42" r="5" fill="#FDFDFC" stroke="#14181D" stroke-width="1.8"/><text x="377.17" y="31" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">Q1 FY27</text><text x="377.17" y="58" fill="#A8ADB2" font-size="7" text-anchor="middle">mid Dec 2026</text><circle cx="449.67" cy="110" r="5" fill="#FDFDFC" stroke="#1E6B48" stroke-width="1.8"/><text x="449.67" y="99" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">HBM4</text><text x="449.67" y="126" fill="#A8ADB2" font-size="7" text-anchor="middle">H1 2027</text><circle cx="536.67" cy="76" r="5.7" fill="#FDFDFC" stroke="#14181D" stroke-width="1.8"/><text x="536.67" y="64.3" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">FY28 budgets</text><text x="536.67" y="92.7" fill="#A8ADB2" font-size="7" text-anchor="middle">late Jan 2027</text><circle cx="618.83" cy="42" r="5" fill="#FDFDFC" stroke="#14181D" stroke-width="1.8"/><text x="618.83" y="31" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">Q2 FY27</text><text x="618.83" y="58" fill="#A8ADB2" font-size="7" text-anchor="middle">late Mar 2027</text><circle cx="749.33" cy="110" r="4.3" fill="#FDFDFC" stroke="#8E2C22" stroke-width="1.8"/><text x="749.33" y="99.7" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">Capacity</text><text x="749.33" y="125.3" fill="#A8ADB2" font-size="7" text-anchor="middle">mid 2027 2027</text></g>
+</svg>
+<!-- /fig:catalyst-timeline -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ REGISTER ══════════ -->
+  <section class="band" style="margin-top:4.5mm">
+    <div class="band-head">
+      <div class="band-title">Catalyst Register</div>
+      <div class="band-note">Impact is the share of the thesis the event settles, not the expected price move</div>
+    </div>
+    <div class="band-body">
+      <!-- fig:catalyst-register -->
+    <div class="catrow">
+      <div>
+        <div class="cat-day">22 Sep</div>
+        <div class="cat-year">2026</div>
+        <div class="cat-conf fixed">Confirmed</div>
+      </div>
+      <div>
+        <div class="cat-name">Q4 FY26 results and FY27 guide</div>
+        <div class="cat-note">Closes the year the Street models at $129B. Consensus wants ~$50.5B and $31.33 for the quarter alone. <b>Watch:</b> FY27 revenue framing against $249B, and whether HBM mix is disclosed.</div>
+      </div>
+      <div class="cat-cell t-brass">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+        <div class="cat-foot">Decisive</div>
+      </div>
+      <div class="cat-cell t-neutral">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Two-sided</div>
+        <div class="cat-foot">All three</div>
+      </div>
+    </div>
+    <div class="catrow">
+      <div>
+        <div class="cat-day">late Oct</div>
+        <div class="cat-year">2026</div>
+        <div class="cat-conf">Estimated</div>
+      </div>
+      <div>
+        <div class="cat-name">Hyperscaler September-quarter capex</div>
+        <div class="cat-note">HBM demand is a derived demand. Capex language from the four largest buyers leads Micron by a quarter. <b>Watch:</b> Any of the four trimming full-year AI capex, or shifting from build to optimise.</div>
+      </div>
+      <div class="cat-cell">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        <div class="cat-foot">High</div>
+      </div>
+      <div class="cat-cell t-neutral">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Two-sided</div>
+        <div class="cat-foot">Base or bear</div>
+      </div>
+    </div>
+    <div class="catrow">
+      <div>
+        <div class="cat-day">mid Dec</div>
+        <div class="cat-year">2026</div>
+        <div class="cat-conf">Estimated</div>
+      </div>
+      <div>
+        <div class="cat-name">Q1 FY27 results</div>
+        <div class="cat-note">First print against the FY27 base. A sequential step-down here is normal seasonality; a collapse is not. <b>Watch:</b> Gross margin against the mid-70s printed in Q2–Q3 FY26.</div>
+      </div>
+      <div class="cat-cell">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        <div class="cat-foot">High</div>
+      </div>
+      <div class="cat-cell t-neutral">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Two-sided</div>
+        <div class="cat-foot">Base or bear</div>
+      </div>
+    </div>
+    <div class="catrow">
+      <div>
+        <div class="cat-day">H1</div>
+        <div class="cat-year">2027</div>
+        <div class="cat-conf">Estimated</div>
+      </div>
+      <div>
+        <div class="cat-name">HBM4 volume ramp</div>
+        <div class="cat-note">The next density node. Volume matters more than the keynote — Micron needs share of the stack, not just samples. <b>Watch:</b> Named customer qualifications and bit-ship commentary.</div>
+      </div>
+      <div class="cat-cell">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        <div class="cat-foot">High</div>
+      </div>
+      <div class="cat-cell t-bull">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Positive</div>
+        <div class="cat-foot">Bull</div>
+      </div>
+    </div>
+    <div class="catrow">
+      <div>
+        <div class="cat-day">late Jan</div>
+        <div class="cat-year">2027</div>
+        <div class="cat-conf">Estimated</div>
+      </div>
+      <div>
+        <div class="cat-name">Hyperscaler 2027 capex budgets</div>
+        <div class="cat-note">Same date that settles NVIDIA. Memory is the more cyclical claim on the same cheque. <b>Watch:</b> Aggregate 2027 AI server and HBM dollar growth versus 2026.</div>
+      </div>
+      <div class="cat-cell t-brass">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+        <div class="cat-foot">Decisive</div>
+      </div>
+      <div class="cat-cell t-neutral">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Two-sided</div>
+        <div class="cat-foot">All three</div>
+      </div>
+    </div>
+    <div class="catrow">
+      <div>
+        <div class="cat-day">late Mar</div>
+        <div class="cat-year">2027</div>
+        <div class="cat-conf">Estimated</div>
+      </div>
+      <div>
+        <div class="cat-name">Q2 FY27 results</div>
+        <div class="cat-note">Halfway through the year the Street models at $249B. A miss here rewrites the multiple. <b>Watch:</b> Whether operating margin stays above 50% as capacity catches demand.</div>
+      </div>
+      <div class="cat-cell">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        <div class="cat-foot">High</div>
+      </div>
+      <div class="cat-cell t-neutral">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Two-sided</div>
+        <div class="cat-foot">Bull or bear</div>
+      </div>
+    </div>
+    <div class="catrow">
+      <div>
+        <div class="cat-day">mid 2027</div>
+        <div class="cat-year">2027</div>
+        <div class="cat-conf">Estimated</div>
+      </div>
+      <div>
+        <div class="cat-name">Idaho / Japan fab utilisation</div>
+        <div class="cat-note">The cycle risk is overbuilding into a demand pause. Capex guidance is the tell. <b>Watch:</b> Capex as a percent of sales turning back above 40% without a matching backlog.</div>
+      </div>
+      <div class="cat-cell">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+        <div class="cat-foot">Medium</div>
+      </div>
+      <div class="cat-cell t-bear">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Negative</div>
+        <div class="cat-foot">Bear</div>
+      </div>
+    </div>
+<!-- /fig:catalyst-register -->
+    </div>
+  </section>
+
+  <!-- ══════════ THE ONE THAT MATTERS + UNSCHEDULED ══════════ -->
+  <section class="band cols-2w" style="margin-top:4.5mm">
+    <div>
+      <div class="band-head">
+        <div class="band-title">If You Only Watch One Thing</div>
+        <div class="band-note">late Jan · FY28 budgets</div>
+      </div>
+      <div class="band-body">
+        <p class="pull tight">
+          Memory is a derived demand on the same hyperscaler cheque that settles NVIDIA. Aggregate
+          2027 AI server and HBM dollar growth versus 2026 decides more of this thesis than any
+          Micron guide.
+        </p>
+        <table class="dtable compact" style="margin-top:3mm">
+          <thead>
+            <tr>
+              <th>Aggregate 2027 AI / HBM</th>
+              <th style="text-align:left">Reads as</th>
+              <th>Target</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>HBM dollars up hard</td><td class="say">Cycle extends; Street FY27 ~$249B looks light</td><td class="pos">$1,800</td></tr>
+            <tr><td>Growth, not a pause</td><td class="say">Digestion without a break; base intact</td><td>$1,200</td></tr>
+            <tr><td>Capex / HBM cut hard</td><td class="say">Oversupply path; bear becomes the base</td><td class="neg">$420</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div>
+      <div class="band-head">
+        <div class="band-title">Not On This Calendar</div>
+        <div class="band-note">No date</div>
+      </div>
+      <div class="band-body">
+        <div style="font-size:7.1pt;line-height:1.45;color:var(--ink-soft);margin-bottom:2.4mm">
+          Unscheduled events, any of which can move the shares further than the register above.
+        </div>
+        <div class="trigger dot"><i>●</i><span>An export-control change covering advanced memory or China</span></div>
+        <div class="trigger dot"><i>●</i><span>Samsung or SK Hynix announcing aggressive HBM capacity adds</span></div>
+        <div class="trigger dot"><i>●</i><span>A hyperscaler shifting HBM share away from Micron</span></div>
+        <div class="trigger dot"><i>●</i><span>DRAM ASP collapse on commodity bit growth without AI mix</span></div>
+        <div class="trigger dot"><i>●</i><span>Idaho / Japan fab utilisation or yield disruption</span></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Micron's Q4 FY26 date (22 Sep 2026) is company-confirmed; later earnings dates are estimated from
+        a stable reporting cadence, and capex dates from hyperscaler reporting calendars. Impact scores,
+        skew and thresholds are Ticker Alpha model outputs, not company guidance. Consensus wants
+        ~$50.5B revenue and ~$31.33 EPS for the September quarter.
+      </div>
+      <div class="footer-page">Page 7 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>Micron Technology, Inc.</b> &nbsp;·&nbsp; NASDAQ: MU</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">08</span> Risks &amp; Signals</div>
+  </header>
+
+  <section class="page-title">
+    <h2>What Could Break This</h2>
+    <p class="page-lede">
+      Six risks ranked by what they would cost rather than how likely they are, each with the
+      observable that tells you it is happening. A risk you cannot monitor is not a risk, it is an anxiety.
+    </p>
+  </section>
+
+  <!-- ══════════ RISK REGISTER ══════════ -->
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">Risk Register</div>
+      <div class="band-note">Severity is impact on our base target · likelihood is over 24 months</div>
+    </div>
+    <div class="band-body">
+      <div class="risk">
+        <div class="risk-no">1</div>
+        <div>
+          <div class="risk-title">Classical DRAM / NAND oversupply into FY27</div>
+          <div class="risk-desc">Bit growth without ASP support is the textbook memory ending. Capacity that looked scarce in 2026 floods the commodity channels. <b>Watch:</b> DRAM ASP commentary and inventory days rising with revenue still growing.</div>
+        </div>
+        <div class="risk-cell t-bear">
+          <div class="score-label">Severity</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+        </div>
+        <div class="risk-cell t-neutral">
+          <div class="score-label">Likelihood</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="risk">
+        <div class="risk-no">2</div>
+        <div>
+          <div class="risk-title">HBM share loss to SK Hynix or Samsung</div>
+          <div class="risk-desc">HBM is where the margin lives. Losing stack share at the large hyperscalers rewrites the FY27 path even if industry HBM bits still grow. <b>Watch:</b> named customer qualifications and HBM mix disclosure.</div>
+        </div>
+        <div class="risk-cell t-bear">
+          <div class="score-label">Severity</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+        </div>
+        <div class="risk-cell t-neutral">
+          <div class="score-label">Likelihood</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="risk">
+        <div class="risk-no">3</div>
+        <div>
+          <div class="risk-title">Capex overbuild / utilisation</div>
+          <div class="risk-desc">Capex is already 28% of sales. Building Idaho and Japan into a demand pause turns peak FCF into a trough balance sheet. <b>Watch:</b> capex / sales turning back above 40% without matching backlog.</div>
+        </div>
+        <div class="risk-cell t-bear">
+          <div class="score-label">Severity</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        </div>
+        <div class="risk-cell t-bear">
+          <div class="score-label">Likelihood</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="risk">
+        <div class="risk-no">4</div>
+        <div>
+          <div class="risk-title">Hyperscaler digestion</div>
+          <div class="risk-desc">HBM demand is derived demand. A year of flat AI server budgets moves Micron toward the $160B bear revenue path faster than NVIDIA, because memory ASPs reprice. <b>Watch:</b> aggregate 2027 AI capex in late January.</div>
+        </div>
+        <div class="risk-cell t-bear">
+          <div class="score-label">Severity</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+        </div>
+        <div class="risk-cell t-neutral">
+          <div class="score-label">Likelihood</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="risk">
+        <div class="risk-no">5</div>
+        <div>
+          <div class="risk-title">China / export policy and geo concentration</div>
+          <div class="risk-desc">Billing locations show US strength and softer Taiwan/China CAGRs — but rules on advanced memory can rewrite addressable demand overnight. <b>Watch:</b> any rule change covering HBM, tools, or re-export.</div>
+        </div>
+        <div class="risk-cell t-neutral">
+          <div class="score-label">Severity</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        </div>
+        <div class="risk-cell t-bear">
+          <div class="score-label">Likelihood</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="risk">
+        <div class="risk-no">6</div>
+        <div>
+          <div class="risk-title">Customer concentration / ASP collapse</div>
+          <div class="risk-desc">A handful of hyperscalers fund most of the HBM upside. Losing one socket, or a coordinated ASP reset, compresses the 65.8% TTM operating margin without a revenue miss. <b>Watch:</b> customer mix commentary and sequential ASP.</div>
+        </div>
+        <div class="risk-cell t-neutral">
+          <div class="score-label">Severity</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        </div>
+        <div class="risk-cell t-neutral">
+          <div class="score-label">Likelihood</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ OWNERSHIP AS EVIDENCE ══════════ -->
+  <section class="band cols-2w">
+    <div>
+      <div class="band-head">
+        <div class="band-title">Who Sold, And How Much</div>
+        <div class="band-note">Form 4 filings, last twelve months</div>
+      </div>
+      <div class="band-body">
+        <table class="dtable compact">
+          <thead>
+            <tr><th style="width:40mm">Insider</th><th>Role</th><th>Filings</th><th>Value</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Sanjay Mehrotra</td><td>CEO</td><td>252</td><td>$227M</td></tr>
+            <tr><td>April Arnzen</td><td>EVP People</td><td>44</td><td>$72M</td></tr>
+            <tr><td>Mark Murphy</td><td>CFO</td><td>27</td><td>$43M</td></tr>
+            <tr><td>Sumit Sadana</td><td>EVP CBO</td><td>24</td><td>$38M</td></tr>
+            <tr class="em"><td>All insiders</td><td>19 people</td><td>490</td><td class="neg">$463M</td></tr>
+          </tbody>
+        </table>
+
+        <div class="micro" style="margin-top:3.6mm">Net Insider Value By Month</div>
+        <div class="chart" style="margin-top:1.6mm">
+          <!-- fig:insider-activity -->
+<svg viewBox="0 0 404.49 88" role="img" aria-label="Net value of insider transactions by month over the last twelve months">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="34" y1="66.88" x2="398.49" y2="66.88"/><line x1="34" y1="41.28" x2="398.49" y2="41.28"/></g>
+<line x1="40.07" y1="15.68" x2="58.3" y2="15.68" stroke="#A8ADB2" stroke-width="1"/>
+<rect x="70.45" y="15.68" width="18.22" height="2.66" fill="#8E2C22"/>
+<rect x="100.82" y="15.68" width="18.22" height="49.56" fill="#8E2C22"/>
+<rect x="131.2" y="15.68" width="18.22" height="0.77" fill="#8E2C22"/>
+<rect x="161.57" y="15.68" width="18.22" height="1.41" fill="#8E2C22"/>
+<rect x="191.95" y="15.68" width="18.22" height="4.17" fill="#8E2C22"/>
+<rect x="222.32" y="15.68" width="18.22" height="2.74" fill="#8E2C22"/>
+<line x1="252.7" y1="15.68" x2="270.92" y2="15.68" stroke="#A8ADB2" stroke-width="1"/>
+<rect x="283.07" y="15.68" width="18.22" height="6.99" fill="#8E2C22"/>
+<rect x="313.45" y="15.68" width="18.22" height="16.77" fill="#8E2C22"/>
+<rect x="343.82" y="15.68" width="18.22" height="12.24" fill="#8E2C22"/>
+<rect x="374.19" y="15.68" width="18.22" height="21.09" fill="#8E2C22"/>
+<line x1="34" y1="15.68" x2="398.49" y2="15.68" stroke="#DEDBD4" stroke-width="1"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.4" text-anchor="end"><text x="29" y="69.88">−$200M</text><text x="29" y="44.28">−$100M</text><text x="29" y="18.68">0</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.2" text-anchor="middle"><text x="49.19" y="85">A</text><text x="79.56" y="85">S</text><text x="109.94" y="85">O</text><text x="140.31" y="85">N</text><text x="170.69" y="85">D</text><text x="201.06" y="85">J</text><text x="231.43" y="85">F</text><text x="261.81" y="85">M</text><text x="292.18" y="85">A</text><text x="322.56" y="85">M</text><text x="352.93" y="85">J</text><text x="383.31" y="85">J</text></g>
+</svg>
+<!-- /fig:insider-activity -->
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="band-head">
+        <div class="band-title">Reading The Signals</div>
+        <div class="band-note">Evidence, not trivia</div>
+      </div>
+      <div class="band-body">
+        <dl class="kvlist">
+          <div class="kv"><dt>Disposals / open-market buys</dt><dd class="neg">405 / limited</dd></div>
+          <div class="kv"><dt>Net insider value, 12m</dt><dd class="neg">−$463M</dd></div>
+          <div class="kv"><dt>As share of market cap</dt><dd>0.05%</dd></div>
+          <div class="kv"><dt>Insiders in sample</dt><dd>19 people</dd></div>
+          <div class="kv"><dt>Free float</dt><dd>99.6% · ~1.13B sh</dd></div>
+          <div class="kv"><dt>Analyst ratings</dt><dd>57 buy · 11 hold · 2 sell</dd></div>
+        </dl>
+        <p style="margin:3mm 0 0;font-size:7.1pt;line-height:1.5;color:var(--ink-soft)">
+          Read this as texture, not signal. Disposals run through plans after a +677% year, and $463M
+          is five basis points of a $982B company. The strip shows persistent selling into strength —
+          consistent with a cycle peak, not proof of one.
+        </p>
+        <p class="pull tight" style="margin-top:2.4mm">
+          Bullish, but cycle-aware. A base below the Street is the point — not a soft rating.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ METHODOLOGY ══════════ -->
+  <section class="method">
+    <div class="micro">Methodology &amp; Limitations</div>
+    <div class="method-cols">
+      <div>
+        <h4>How the targets are built</h4>
+        <p>
+          Each case sets revenue, margin and multiple independently, then values primarily on FY27E EPS
+          at a twelve-month horizon with cyclical exit multiples (8–9×). The headline is the base case.
+        </p>
+      </div>
+      <div>
+        <h4>Where the data comes from</h4>
+        <p>
+          Prices, consensus, targets and Form 4s from Financial Modeling Prep; fundamentals from Micron
+          SEC filings. Peer medians use the ten-name set on page 4. Data as of 7 August 2026.
+        </p>
+      </div>
+      <div>
+        <h4>What this cannot do</h4>
+        <p>
+          Generated from structured data — it cannot interview management or price an untold event.
+          Institutional ownership was unavailable and is omitted rather than estimated.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        This report is for informational purposes only. It is not investment advice, an offer, or a
+        solicitation to buy or sell any security, and it does not consider the objectives or
+        circumstances of any individual. Past performance does not indicate future results.
+        Ticker Alpha holds no position in the securities discussed. Micron fiscal years end in late August;
+        scenario targets are model outputs.
+      </div>
+      <div class="footer-page">Page 8 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<section class="ta-cta">
+  <h2>This report was generated on demand.</h2>
+  <p>
+    Every figure above comes from Micron Technology, Inc.&rsquo;s own filings and live market
+    data, assembled and written up automatically. Ticker Alpha is building this for
+    any listed company &mdash; so the research you need on a Tuesday afternoon takes
+    a minute, not a week.
+  </p>
+  <div class="ta-cta-row">
+    <a class="ta-btn" href="../reports.html">See the other reports</a>
+    <a class="ta-btn ghost" href="../company.html?t=MU">Explore MU&rsquo;s filed financials</a>
+  </div>
+  <div class="ta-cta-note">Free while in preview. No account needed to read.</div>
+</section>
+
+<script>
+(function () {
+  var A4 = 210 * 96 / 25.4;
+  function fit() {
+    var pad = window.innerWidth < 640 ? 8 : 48;
+    var s = Math.min(1, (window.innerWidth - pad) / A4);
+    document.documentElement.style.setProperty("--fit", s);
+  }
+  addEventListener("resize", fit, { passive: true });
+  addEventListener("orientationchange", fit);
+  fit();
+})();</script>
+</body>
+</html>

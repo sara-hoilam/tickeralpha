@@ -45,7 +45,7 @@ cp reports.html   public/reports.html
 # The report is a finished artefact -- its own stylesheet, its own fonts, its
 # own A4 sheet -- so it is copied whole rather than folded into the app shell.
 mkdir -p public/reports
-for r in nvda spcx; do
+for r in nvda spcx mu pltr; do
   cp "reports/$r.html" "reports/$r.pdf" "reports/$r-cover.png" public/reports/
 done
 cp nav.js nav.css public/
