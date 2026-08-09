@@ -3467,6 +3467,35 @@ const marginOf = k => {
   return (r && v !== null) ? v / r * 100 : null;
 };
 /** The last n quarters up to and including the selected one, oldest first. */
+/** The SEC stores registered names in capitals -- "SPACE EXPLORATION
+    TECHNOLOGIES CORP" -- which reads as a different company from the one the
+    rest of the site calls Space Exploration Technologies Corp. The market feed
+    carries the same name properly cased, including the capitals inside a word
+    that no title-casing rule could recover: AstraZeneca, not Astrazeneca.
+
+    So the heading is corrected from the quote rather than transformed. It only
+    replaces a name that is entirely uppercase, so a company already cased in
+    its filings keeps exactly what it filed. */
+function applyQuoteName(){
+  const nice = PRICE.quote && PRICE.quote.name;
+  if (!nice || !S.company) return;
+  const shown = String(S.company.name || "").trim();
+  // Patching the heading in the DOM was not enough: the report re-renders once
+  // the quarter is set and wrote the filed name back over it. Correcting the
+  // company record instead means every later render uses the cased name.
+  if (!shown || /[a-z]/.test(shown)) return;
+  // Guard against a feed name for a different listing: require the same words.
+  const words = t => String(t).toUpperCase().replace(/[^A-Z0-9 ]/g, " ")
+                     .split(/\s+/).filter(w => w.length > 2);
+  const a = words(shown), b = new Set(words(nice));
+  const overlap = a.filter(w => b.has(w)).length;
+  if (a.length && overlap / a.length < 0.6) return;
+
+  S.company.name = nice;
+  const h1 = document.querySelector(".ident h1");
+  if (h1) h1.textContent = nice;                 // already on screen
+}
+
 function recentQuarters(n){
   const qs = S.company.quarters;
   const i = qs.indexOf(S.quarter);
@@ -5013,6 +5042,7 @@ async function loadPrices(){
   PRICE.symbol = sym;
   PRICE.bars = d.bars || [];
   PRICE.quote = d.quote || null;
+  applyQuoteName();
   PRICE.view = null;
 
   if (!PRICE.bars.length || d.stale) {
@@ -5054,6 +5084,7 @@ function pollPrices(sym){
     try { d = await API.prices(sym); } catch {}
     if (d && (d.bars || []).length) {
       PRICE.bars = d.bars; PRICE.quote = d.quote;
+      applyQuoteName();
       restorePriceRow();
       return paintPrices();
     }
