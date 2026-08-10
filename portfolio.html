@@ -1243,10 +1243,21 @@ async function loadPortfolio(){
     if (d && !d.error) {
       const remoteTx = mapRemoteTxns(d.transactions);
       const remotePos = mapRemotePositions(d.positions);
-      // Remote empty but local still has drafts — keep showing local and
-      // retry merge next time rather than bouncing to the empty state.
-      if (!remotePos.length && !remoteTx.length && local.length) {
-        applyLocalPortfolio();
+      // Remote empty but local still has genuine unsynced drafts — keep
+      // showing those and retry the merge next time rather than bouncing to
+      // the empty state.
+      //
+      // "Drafts" is load-bearing and used to be missing. Mirrored rows carry
+      // the database's own numeric ids, so an untouched mirror of somebody
+      // else's account satisfied `local.length` just as well as a draft did —
+      // which is how a brand-new account, whose remote is legitimately empty,
+      // was shown the previous account's holdings. nav.js now drops the mirror
+      // when the account changes; this makes the fallback itself unable to
+      // resurrect anything that is not ours regardless.
+      const drafts = local.filter(t => isLocalDraftId(t.id));
+      if (!remotePos.length && !remoteTx.length && drafts.length) {
+        S.transactions = withRealizedPl(drafts);
+        S.positions = positionsFromTxns(S.transactions);
         return;
       }
       S.transactions = withRealizedPl(remoteTx);
