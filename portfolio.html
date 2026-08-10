@@ -1526,7 +1526,15 @@ async function lookupBuyPrice(symbol, date){
 }
 
 /* ---- metrics ------------------------------------------------------------- */
-/** Resolve Stocks / ETFs / Crypto for the Total Assets donut. */
+/** True for a fund whose NAV is pinned to $1.00 by mandate. */
+function isMoneyMarket(p){
+  const symbol = typeof p === "string" ? p : (p && p.symbol) || "";
+  const kind = (typeof p === "object" && p && p.assetKind)
+    || S.assetKindBySym[symbol] || null;
+  return kind === "money_market";
+}
+
+/** Resolve Stocks / ETFs / Crypto / Funds for the Total Assets donut. */
 function assetClass(p){
   const symbol = typeof p === "string" ? p : (p && p.symbol) || "";
   const name = typeof p === "object" && p ? (p.name || "") : "";
@@ -1535,6 +1543,10 @@ function assetClass(p){
     || null;
   if (kind === "etf") return "ETFs";
   if (kind === "crypto") return "Crypto";
+  // A money market fund is cash in a fund wrapper -- pinned to $1.00, paying
+  // its return out monthly -- so it belongs beside the mutual funds rather
+  // than among the stocks, which is where an unclassified symbol landed.
+  if (kind === "fund" || kind === "money_market") return "Funds";
   if (ETF_SET.has(symbol)) return "ETFs";
   // Crypto tickers are rare in this universe; keep the bucket for the UI.
   if (/USD$|-USD$/.test(symbol) || ["BTC","ETH","SOL","DOGE"].includes(symbol)) return "Crypto";

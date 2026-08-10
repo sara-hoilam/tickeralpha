@@ -16,6 +16,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py prices [TICKER...] fill price requests, or named symbols
     python worker.py analyst [TICKER...] fill coverage requests, or named symbols
     python worker.py intraday TICKER    refresh one chart series
+    python worker.py funds             refresh the mutual / money market fund list
     python worker.py long-closes [T...] 10y closes for the correlation heatmap
     python worker.py stats              coverage summary
     python worker.py run                the long-running loop (this is what
@@ -91,6 +92,19 @@ def sync_market_symbols() -> int:
         log(f"  cryptocurrency-list: {exc}")
     except store.StoreError as exc:
         log(f"  cryptocurrency-list write: {exc}")
+    try:
+        funds = market.fund_list()
+        n = store.upsert_market_symbols(funds)
+        total += n
+        mm = sum(1 for f in funds if f.get("kind") == "money_market")
+        log(f"market symbols: {len(funds):,} funds, {mm} money market "
+            f"({n:,} rows written)")
+    except market.MarketError as exc:
+        log(f"  fund screen: {exc}")
+    except store.StoreError as exc:
+        # 0057 not applied yet: the kind check still refuses 'fund'. Everything
+        # else in this sync has already been written.
+        log(f"  fund write (apply 0057_funds.sql): {exc}")
     return total
 
 
@@ -1260,6 +1274,15 @@ def main(argv: list[str]) -> int:
             return 2
         for t in argv[1:]:
             log(f"{t}: {'ok' if refresh_intraday(t.upper()) else 'no data'}")
+    elif cmd == "funds":
+        try:
+            funds = market.fund_list()
+        except market.MarketError as exc:
+            print(f"fund screen failed: {exc}")
+            return 1
+        n = store.upsert_market_symbols(funds)
+        mm = sum(1 for f in funds if f.get("kind") == "money_market")
+        log(f"funds: {len(funds):,} fetched ({mm} money market), {n:,} rows written")
     elif cmd == "long-closes":
         # Named symbols, or drain whatever the portfolio pages have queued.
         if len(argv) > 1:

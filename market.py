@@ -855,6 +855,80 @@ def _clean_market_symbol(raw: str) -> str | None:
     return sym
 
 
+# Money market funds sit at $1.00 by design, which is exactly why the fund
+# screen misses them: it ranks by market capitalisation and they have none worth
+# ranking. They are also among the most commonly held, so the well-known ones
+# are named here and typed separately from an ordinary mutual fund. The
+# portfolio uses that distinction to treat them as cash-like rather than
+# reporting a holding that never moves.
+MONEY_MARKET_FUNDS = {
+    "SPAXX": "Fidelity Government Money Market Fund",
+    "FDRXX": "Fidelity Cash Reserves",
+    "SPRXX": "Fidelity Money Market Fund",
+    "FZFXX": "Fidelity Treasury Money Market Fund",
+    "VMFXX": "Vanguard Federal Money Market Fund",
+    "VMRXX": "Vanguard Cash Reserves Federal Money Market",
+    "VUSXX": "Vanguard Treasury Money Market Fund",
+    "SWVXX": "Schwab Value Advantage Money Fund",
+    "SNAXX": "Schwab Value Advantage Money Fund Ultra",
+    "SNSXX": "Schwab U.S. Treasury Money Fund",
+}
+
+
+def fund_list(pages: int = 8) -> list[dict]:
+    """Mutual funds, from the screener rather than a list endpoint.
+
+    FMP publishes no ``mutual-fund-list``; ``company-screener`` with
+    ``isFund=true`` is the only bulk source, and it returns at most 1,000 rows
+    per call ordered by market capitalisation. Walking a descending cap ceiling
+    pages through it: each request asks for funds smaller than the smallest seen
+    so far, so the largest funds arrive first and the walk stops when a page
+    comes back short.
+    """
+    out: dict[str, dict] = {}
+    ceiling: float | None = None
+    for _ in range(max(1, pages)):
+        params = {"isFund": "true", "limit": 1000}
+        if ceiling is not None:
+            params["marketCapLowerThan"] = int(ceiling)
+        try:
+            rows = _get("company-screener", **params) or []
+        except MarketError:
+            break
+        if not rows:
+            break
+        caps = []
+        for r in rows:
+            sym = _clean_market_symbol(r.get("symbol") or "")
+            name = (r.get("companyName") or "").strip()
+            cap = r.get("marketCap")
+            if cap is not None:
+                caps.append(float(cap))
+            if not sym or not name or sym in out:
+                continue
+            out[sym] = {
+                "symbol": sym,
+                "name": name,
+                "kind": "money_market" if sym in MONEY_MARKET_FUNDS else "fund",
+                "exchange": (r.get("exchangeShortName") or r.get("exchange") or "") or None,
+            }
+        if len(rows) < 1000 or not caps:
+            break
+        low = min(caps)
+        # A page that cannot lower the ceiling would repeat for ever.
+        if ceiling is not None and low >= ceiling:
+            break
+        ceiling = low
+
+    # The named money market funds, whether or not the screen reached them.
+    for sym, name in MONEY_MARKET_FUNDS.items():
+        out.setdefault(sym, {"symbol": sym, "name": name,
+                             "kind": "money_market", "exchange": None})
+        out[sym]["kind"] = "money_market"
+
+    return sorted(out.values(), key=lambda x: x["symbol"])
+
+
 def etf_list() -> list[dict]:
     """All ETFs from FMP ``/etf-list`` (symbol + name)."""
     rows = _get("etf-list") or []

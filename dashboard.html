@@ -3385,6 +3385,29 @@ async function load(ticker, source){
       if (!j || !j.ticker) {
         const meta = await marketSymbolMeta(ticker);
         if (meta) return openMarketSymbol(ticker, meta);
+
+        // A foreign private issuer is in EDGAR but files 20-F under IFRS, not
+        // 10-Q under US GAAP, so the backfill has nothing to find and the page
+        // used to spend two minutes discovering that -- which is why HSBC, SAP
+        // and Toyota were slow. They do have a price. Show it at once, and let
+        // the ingest run behind the page so filings appear if any ever land.
+        let px = null;
+        try { px = await API.prices(ticker); } catch {}
+        if (!px || !(px.quote || (px.bars || []).length)) {
+          // Nothing cached: ask for both and give prices a moment, since they
+          // arrive in seconds where filings take a minute or more.
+          try { await API.requestPrices(ticker); } catch {}
+          await new Promise(r => setTimeout(r, 2500));
+          try { px = await API.prices(ticker); } catch {}
+        }
+        if (px && (px.quote || (px.bars || []).length)) {
+          API.requestBackfill(ticker).catch(() => {});
+          return openMarketSymbol(ticker, {
+            symbol: ticker,
+            name: (px.quote && px.quote.name) || ticker,
+            exchange: (px.quote && (px.quote.exchange || px.quote.exchangeShortName)) || "",
+          });
+        }
       }
 
       busy(`${ticker} has not been read yet — fetching it from SEC EDGAR…`);
