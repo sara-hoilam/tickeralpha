@@ -163,6 +163,26 @@ tbody tr:hover td{background:var(--sunk)}
   .daycard{padding:8px 6px}
   .daycard .dom{font-size:15px}
   .elist{max-height:none}
+
+  /* The market-cap / watchlist list belongs on a wide screen beside the
+     calendar. Stacked under it on a phone it is a second, unrelated table
+     between the reader and the rest of the week. */
+  .side{display:none}
+
+  /* The calendar is the page here, so the week strip scrolls rather than
+     squeezing seven columns into 366px. */
+  .week{overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+  .week::-webkit-scrollbar{display:none}
+  .daycard{flex:0 0 auto;min-width:46px}
+
+  .pagehead h1{font-size:19px}
+  /* The card is the tap target, not the small "Company report →" link at the
+     foot of it. The anchor is stretched over the whole card and its text is
+     pushed out of view, so the visible layout is unchanged and the destination
+     is still a real href a browser can open in a new tab. */
+  .elist .ecard{position:relative;padding:11px 12px}
+  .elist .ecard .more{position:absolute;inset:0;z-index:1;
+    text-indent:-9999px;overflow:hidden;white-space:nowrap}
 }
 </style>
 </head>

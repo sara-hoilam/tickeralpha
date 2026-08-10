@@ -187,6 +187,40 @@ tbody tr:hover td{background:var(--sunk)}
   .side-r{position:static}
   .grid{grid-template-columns:minmax(0,1fr)}
 }
+
+/* ---- mobile news: a headline list, search first ---------------------------
+   The three-column reading layout stacks into market summary, then topics,
+   then stories -- so the news was third on a page called News. This puts the
+   search and the stories first and turns each card into a headline with a
+   small thumbnail beside it, which is how a phone news list reads. */
+@media (max-width:720px){
+  .cols{display:flex;flex-direction:column;gap:12px}
+  /* Stories second; the search form is moved above them in script, because it
+     lives inside the left column and CSS order cannot lift a descendant out of
+     its own parent. */
+  .news-search-top{order:0}
+  .side-l,.side-r{order:3}
+  /* The sidebar sets a fixed width on this input; at the top of a phone list
+     it should span the column. */
+  .news-search-top{width:100%}
+  .news-search-top .tsearch{display:flex;width:100%}
+  .news-search-top .tsearch input{width:100%!important;min-width:0;flex:1}
+
+  .story{
+    display:grid;grid-template-columns:minmax(0,1fr) 84px;
+    gap:10px;align-items:start;padding:12px 0;
+    border-bottom:1px solid var(--rule-2);border-radius:0;background:none;
+  }
+  .story .thumb{
+    grid-column:2;grid-row:1 / span 3;width:84px;aspect-ratio:1/1;
+    border-radius:7px;margin:0;
+  }
+  .story h2{grid-column:1;font-size:14.5px;line-height:1.35;font-weight:600}
+  /* The summary is a second paragraph of the headline on a phone; the headline
+     alone is what a list is scanned by. */
+  .story p{display:none}
+  .story .by{grid-column:1;font-size:11px;margin-top:5px}
+}
 </style>
 </head>
 <body>
@@ -559,6 +593,37 @@ function startFeedDrift(){
     S.page++;
     loadNews(false);
   }, { passive: true });
+})();
+</script>
+<script>
+/* The reading layout puts the market summary and topics above the stories once
+   the three columns stack, so News opened on everything except news. The search
+   belongs at the top of a phone list, and it lives inside the left column, so it
+   is relocated rather than reordered. Reversible, because the desktop layout
+   wants it back where it was. */
+(function () {
+  var mq = matchMedia("(max-width:720px)");
+  var holder = null, home = null, form = null;
+  function apply() {
+    var cols = document.querySelector(".cols");
+    form = form || document.querySelector(".tsearch");
+    if (!cols || !form) return;
+    if (mq.matches) {
+      if (holder) return;
+      home = form.parentNode;
+      holder = document.createElement("div");
+      holder.className = "news-search-top";
+      cols.insertBefore(holder, cols.firstChild);
+      holder.appendChild(form);
+    } else if (holder) {
+      home.appendChild(form);
+      holder.remove();
+      holder = null;
+    }
+  }
+  addEventListener("DOMContentLoaded", apply);
+  mq.addEventListener("change", apply);
+  apply();
 })();
 </script>
 <script src="nav.js"></script>
