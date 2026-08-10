@@ -814,6 +814,36 @@ tr.on td{background:var(--accent-soft)}
   body.pf-assets .pulse .v{font-size:19px;white-space:normal}
   body.pf-assets .pf-assets-hint{display:none}
 }
+/* Asset-type tabs above the holdings table. The label is "Securities" with
+   room for it and "Stocks" when there is not -- same tab, shorter word. */
+.asset-tabs{
+  display:flex; gap:4px; align-items:center; flex-wrap:nowrap;
+  overflow-x:auto; scrollbar-width:none; -ms-overflow-style:none;
+  margin:0 0 10px; padding-bottom:2px;
+}
+.asset-tabs::-webkit-scrollbar{display:none}
+.asset-tabs button{
+  flex:0 0 auto; display:inline-flex; align-items:center; gap:5px;
+  padding:6px 11px; border:1px solid var(--rule); border-radius:999px;
+  background:transparent; color:var(--ink-2); cursor:pointer;
+  font:inherit; font-size:12.5px; font-weight:500; line-height:1;
+  white-space:nowrap; transition:background .12s, color .12s, border-color .12s;
+}
+.asset-tabs button:hover{color:var(--ink); background:var(--sunk)}
+.asset-tabs button[aria-selected="true"]{
+  background:var(--accent); border-color:var(--accent); color:#fff;
+}
+.asset-tabs .at-n{
+  font-size:11px; font-weight:600; opacity:.62;
+  font-variant-numeric:tabular-nums;
+}
+.asset-tabs .at-short{display:none}
+@media (max-width:720px){
+  .asset-tabs{margin-bottom:8px}
+  .asset-tabs button{padding:5px 10px; font-size:12px}
+  .asset-tabs .at-long{display:none}
+  .asset-tabs .at-short{display:inline}
+}
 </style>
 </head>
 <body>
@@ -1026,6 +1056,7 @@ const S = {
   transactions: [],
   positions: [],
   view: "portfolio",
+  assetTab: "all",
   selected: "PORTFOLIO",
   indexes: Object.fromEntries(INDEXES.map(i => [i.sym, i.sym === "SPY" || i.sym === "QQQ"])),
   range: "YTD",
@@ -1637,6 +1668,18 @@ function isMoneyMarket(p){
 }
 
 /** Resolve Stocks / ETFs / Crypto / Funds for the Total Assets donut. */
+/* The portfolio table's asset-type tabs, in display order. `classes` are the
+   assetClass() buckets each tab collects; "all" ignores them. Bonds has no
+   bucket yet -- market_symbol.kind knows stock/etf/crypto/fund/money_market --
+   so the tab is present but empty until a bond kind exists. */
+const ASSET_TABS = [
+  { id: "all",    label: "All",        classes: null },
+  { id: "sec",    label: "Securities", short: "Stocks", classes: ["Stocks", "ETFs"] },
+  { id: "funds",  label: "Funds",      classes: ["Funds", "Cash"] },
+  { id: "bonds",  label: "Bonds",      classes: ["Bonds"] },
+  { id: "crypto", label: "Crypto",     classes: ["Crypto"] },
+];
+
 function assetClass(p){
   const symbol = typeof p === "string" ? p : (p && p.symbol) || "";
   const name = typeof p === "object" && p ? (p.name || "") : "";
@@ -2309,8 +2352,16 @@ async function renderList(){
       return;
     }
 
-    const rows = S.positions.slice().sort((a, b) =>
+    const allRows = S.positions.slice().sort((a, b) =>
       ((markPrice(b) || 0) * b.quantity) - ((markPrice(a) || 0) * a.quantity));
+    // Asset-type tabs. "Securities" is stocks plus ETFs -- a holder thinks of
+    // both as shares they own, and splitting them would leave two thin tabs.
+    // Every tab that has nothing in it is still shown, so the row of tabs does
+    // not reflow as positions come and go.
+    const tabRows = ASSET_TABS.find(t => t.id === S.assetTab) || ASSET_TABS[0];
+    const rows = tabRows.id === "all"
+      ? allRows
+      : allRows.filter(p => tabRows.classes.includes(assetClass(p)));
     const penSvg = `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none"
       stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12.5 3.5 16.5 7.5M4 16l.8-3.5L13.5 4a1.4 1.4 0 0 1 2 2L6.8 14.7 4 16Z"/></svg>`;
@@ -2346,6 +2397,38 @@ async function renderList(){
     const totalDivRet = holdingsMv > 0 && totalDiv > 0 ? (totalDiv / holdingsMv) * 100 : null;
     const cashWeight = totalMv > 0 ? (Math.max(0, cash) / totalMv) * 100 : null;
     const dash = `<div class="stack-cell"><span class="top">—</span><span class="bot">—</span></div>`;
+    const counts = {};
+    for (const t of ASSET_TABS) {
+      counts[t.id] = t.classes
+        ? allRows.filter(p => t.classes.includes(assetClass(p))).length
+        : allRows.length;
+    }
+    // The strip goes in the bar *above* #rows, not inside it: #rows scrolls,
+    // and tabs that scroll out from over their own table are unreachable.
+    if (searchHost) {
+      searchHost.innerHTML = `<div class="asset-tabs" id="asset-tabs" role="tablist">${
+        ASSET_TABS.map(t => `<button type="button" role="tab" data-at="${t.id}"
+          aria-selected="${S.assetTab === t.id}"><span class="at-long">${esc(t.label)}</span
+          ><span class="at-short">${esc(t.short || t.label)}</span
+          ><span class="at-n">${counts[t.id]}</span></button>`).join("")
+      }</div>`;
+    }
+    const wireAssetTabs = () => {
+      document.querySelectorAll("#asset-tabs [data-at]").forEach(btn => {
+        btn.onclick = () => {
+          const id = btn.dataset.at;
+          if (id === S.assetTab) return;
+          S.assetTab = id;
+          renderList();
+        };
+      });
+    };
+    if (!rows.length && allRows.length) {
+      host.innerHTML = `<div class="note pf-notab">No ${
+        esc(tabRows.label.toLowerCase())} in this portfolio yet.</div>`;
+      wireAssetTabs();
+      return;
+    }
     host.innerHTML = `<table>
       <thead><tr>
         <th class="idcol">Symbol</th>
@@ -2444,6 +2527,7 @@ async function renderList(){
         }).join("")}
       </tbody></table>`;
 
+    wireAssetTabs();
     host.querySelectorAll("[data-act]").forEach(btn => {
       btn.onclick = e => {
         e.stopPropagation();
