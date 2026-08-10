@@ -764,18 +764,30 @@ tr.on td{background:var(--accent-soft)}
 
    So the page becomes two views over the same DOM, no duplicated markup:
      default        the total-assets banner, then holdings, news, trades
-     body.pf-assets the arc, the index comparison and the P/L calendar
+     body.pf-assets the arc, the index comparison and the earnings calendar
    Tapping the banner opens the second; a back bar returns. */
 @media (max-width:720px){
-  /* --- the banner --- */
-  .pulse .cell:first-child{position:relative;cursor:pointer}
-  .pulse .cell:first-child::after{
-    content:"›";position:absolute;top:8px;right:8px;
-    font-size:15px;line-height:1;color:var(--ink-3)
+  /* --- the banner: total assets is the headline, not one cell of five ---
+     It spans the row and the other four metrics sit beneath it, so the number
+     you open the page for is the first thing on the screen at a readable size
+     rather than squeezed into a 70px column. */
+  body:not(.pf-assets) .pulse{grid-template-columns:repeat(4,minmax(0,1fr))}
+  body:not(.pf-assets) .pulse .cell:first-child{
+    grid-column:1/-1;position:relative;cursor:pointer;
+    border-right:0;border-bottom:1px solid var(--rule);padding:12px 14px 11px
+  }
+  body:not(.pf-assets) .pulse .cell:first-child .k{font-size:10.5px}
+  body:not(.pf-assets) .pulse .cell:first-child .v{
+    font-size:27px;line-height:1.1;margin-top:2px
+  }
+  body:not(.pf-assets) .pulse .cell:first-child .chg{font-size:12px;margin-top:4px}
+  body:not(.pf-assets) .pulse .cell:first-child::after{
+    content:"›";position:absolute;top:50%;right:12px;transform:translateY(-50%);
+    font-size:22px;line-height:1;color:var(--ink-3)
   }
   .pf-assets-hint{
-    display:block;font-size:9px;color:var(--accent);font-weight:600;
-    letter-spacing:.02em;margin-top:3px
+    display:block;font-size:10.5px;color:var(--accent);font-weight:600;
+    letter-spacing:.02em;margin-top:5px
   }
 
   /* --- screen A: chart and calendar are on the other view --- */
@@ -822,6 +834,8 @@ tr.on td{background:var(--accent-soft)}
   margin:0 0 10px; padding-bottom:2px;
 }
 .asset-tabs::-webkit-scrollbar{display:none}
+/* Desktop already names the scope in the Portfolio/Watchlist control. */
+.pf-scope{display:none}
 .asset-tabs button{
   flex:0 0 auto; display:inline-flex; align-items:center; gap:5px;
   padding:6px 11px; border:1px solid var(--rule); border-radius:999px;
@@ -843,6 +857,13 @@ tr.on td{background:var(--accent-soft)}
   .asset-tabs button{padding:5px 10px; font-size:12px}
   .asset-tabs .at-long{display:none}
   .asset-tabs .at-short{display:inline}
+  /* "All Account" -- the scope the tabs below it filter within. This has to
+     sit after the base `display:none` above: same specificity, source order
+     decides. */
+  .pf-scope{
+    display:block; margin:14px 0 8px;
+    font-size:13px; font-weight:600; color:var(--ink);
+  }
 }
 </style>
 </head>
@@ -2406,7 +2427,8 @@ async function renderList(){
     // The strip goes in the bar *above* #rows, not inside it: #rows scrolls,
     // and tabs that scroll out from over their own table are unreachable.
     if (searchHost) {
-      searchHost.innerHTML = `<div class="asset-tabs" id="asset-tabs" role="tablist">${
+      searchHost.innerHTML = `<span class="pf-scope">All Account</span>
+        <div class="asset-tabs" id="asset-tabs" role="tablist">${
         ASSET_TABS.map(t => `<button type="button" role="tab" data-at="${t.id}"
           aria-selected="${S.assetTab === t.id}"><span class="at-long">${esc(t.label)}</span
           ><span class="at-short">${esc(t.short || t.label)}</span
