@@ -194,6 +194,9 @@ tbody tr:hover td{background:var(--sunk)}
    search and the stories first and turns each card into a headline with a
    small thumbnail beside it, which is how a phone news list reads. */
 @media (max-width:720px){
+  /* "Latest" is what the page obviously is; the story count below it carries
+     the only information in that block. */
+  .newshead h1{display:none}
   .cols{display:flex;flex-direction:column;gap:12px}
   /* Stories second; the search form is moved above them in script, because it
      lives inside the left column and CSS order cannot lift a descendant out of

@@ -886,6 +886,9 @@ tr.on td{background:var(--accent-soft)}
   body.pf-assets .grid2,
   body.pf-assets .split > div:first-child{display:none}
   body.pf-assets .chartwrap{display:block}
+  /* The chart's heading repeats the panel above it; the value carries it. */
+  body.pf-assets #c-sym,
+  body.pf-assets #c-logo{display:none}
   /* ...and the calendar is not part of the analysis view any more. */
   body.pf-assets .cal-section{display:none}
   body.pf-assets .split{display:block}
@@ -903,8 +906,16 @@ tr.on td{background:var(--accent-soft)}
   body.pf-assets .pulse .donut{
     width:100%;max-width:none;height:auto;aspect-ratio:120 / 70;align-self:stretch
   }
+  /* The total moves inside the arc, so the cell's own copy of it goes. */
+  body.pf-assets .pulse .cell:first-child > .v{display:none}
+  body.pf-assets .donut .donut-centre{
+    display:block;fill:var(--ink);font-size:11px;font-weight:600;
+    font-family:"IBM Plex Mono",monospace;letter-spacing:-.02em
+  }
+  /* Legend centred under the arc rather than stretched across the panel. */
   body.pf-assets .pulse .donut-legend{
-    grid-template-columns:1fr 1fr;gap:5px 14px;font-size:12px;margin-top:2px
+    grid-template-columns:auto auto;gap:5px 18px;font-size:12px;margin-top:2px;
+    width:max-content;max-width:100%;margin-left:auto;margin-right:auto
   }
   body.pf-assets .pulse .divgauge svg{display:block}
   body.pf-assets .pulse .divgauge{width:104px;height:104px;margin-top:6px}
@@ -937,6 +948,9 @@ tr.on td{background:var(--accent-soft)}
 
 /* The bare event count is the phone's form of the label; desktop spells it. */
 .cal-daycard .n-short{display:none}
+
+/* The arc's centre label is for the mobile analysis view only. */
+.donut .donut-centre{display:none}
 .asset-tabs button{
   flex:0 0 auto; display:inline-flex; align-items:center; gap:5px;
   padding:6px 11px; border:1px solid var(--rule); border-radius:999px;
@@ -2069,7 +2083,7 @@ function volatilityScore(positions){
 }
 
 /* ---- half-donut ---------------------------------------------------------- */
-function halfDonutSvg(parts){
+function halfDonutSvg(parts, centre){
   const live = parts.filter(p => p.value > 0);
   const R = 50, CX = 60, CY = 60, SW = 12;
   if (!live.length) {
@@ -2090,7 +2104,13 @@ function halfDonutSvg(parts){
     offset += len;
     return el;
   }).join("");
-  return `<svg class="donut" viewBox="0 0 120 70" aria-hidden="true">${arcs}</svg>`;
+  // `centre` sits inside the arc. Only the mobile analysis view shows it; on
+  // desktop the same figure is already the cell's own headline, so CSS hides
+  // it rather than stating the number twice.
+  const label = centre
+    ? `<text class="donut-centre" x="60" y="56" text-anchor="middle">${esc(centre)}</text>`
+    : "";
+  return `<svg class="donut" viewBox="0 0 120 70">${arcs}${label}</svg>`;
 }
 
 /* ---- render: empty helpers ---------------------------------------------- */
@@ -2146,7 +2166,7 @@ function pulseLiveHtml(alloc, day, book, vol, div){
         <div class="k">Total Assets · USD</div>
         <div class="v num">${esc(money(alloc.sum).replace("$",""))}</div>
         <div class="donut-wrap">
-          ${halfDonutSvg(alloc.parts)}
+          ${halfDonutSvg(alloc.parts, money(alloc.sum).replace("$",""))}
           <div class="donut-legend">${alloc.parts.map(p => `
             <span><i style="background:${p.colour}"></i>${esc(p.name)}
               <b>${p.value > 0 ? p.pct.toFixed(1) + "%" : "—"}</b></span>`).join("")}</div>
@@ -3069,6 +3089,7 @@ async function drawRightChart(){
   // sleeve being charted, not the whole book.
   const alloc = allocation(assetTabRows(S.positions));
   const lines = [];
+  let metaRange = null;
 
   if (live && S.selected === "CASH") {
     setSym("Cash", { logo: false });
@@ -3083,8 +3104,11 @@ async function drawRightChart(){
     const book = bookReturn(scoped, { keep });
     const rangeBook = bookReturn(scoped, { fromISO: from, keep });
     const rangeLabel = S.range === "YTD" ? "YTD" : S.range;
+    metaRange = rangeLabel;
+    // The percentage is filled in from the drawn series below, so it describes
+    // the selected range. Book return stands in until that resolves.
     metaEl.innerHTML =
-      `Total <span class="${dir(book.pct)}">${esc(pct(book.pct))}</span>` +
+      `<span id="c-ret">Total <span class="${dir(book.pct)}">${esc(pct(book.pct))}</span></span>` +
       ` · ${esc(rangeLabel)} realized <span class="${dir(rangeBook.realized)}">${esc(moneySigned(rangeBook.realized))}</span>` +
       ` · chart = current mix (simulated) vs indexes`;
   } else {
@@ -3099,6 +3123,16 @@ async function drawRightChart(){
     const portBars = toPctSeries(await portfolioSeries(from));
     if (portBars.length) {
       lines.push({ id: "Portfolio", colour: "#38b37d", points: portBars });
+      // Restate the return over the selected range. Taken from the series that
+      // is actually drawn, so the number and the line cannot disagree -- the
+      // book return it replaces was all-time and ignored the range buttons.
+      const retEl = document.getElementById("c-ret");
+      const last = portBars[portBars.length - 1];
+      const rangePct = last && Number.isFinite(last.c) ? last.c : null;
+      if (retEl && metaRange && rangePct != null) {
+        retEl.innerHTML = `${esc(metaRange)} <span class="${dir(rangePct)}">${
+          esc(pct(rangePct))}</span>`;
+      }
     }
   }
   for (const ix of INDEXES) {
