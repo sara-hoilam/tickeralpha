@@ -811,7 +811,6 @@ tr.on td{background:var(--accent-soft)}
   .chartwrap,.cal-section{display:none}
 
   /* --- screen B --- */
-  .pf-back{display:none}
   body.pf-assets .pf-back{
     display:flex;align-items:center;gap:8px;width:100%;
     background:none;border:0;padding:2px 0 10px;
@@ -864,6 +863,13 @@ tr.on td{background:var(--accent-soft)}
 .asset-tabs::-webkit-scrollbar{display:none}
 /* Desktop already names the scope in the Portfolio/Watchlist control. */
 .pf-scope{display:none}
+
+/* The "My Assets" back button belongs to the mobile analysis view only. This
+   hide has to be global: it lived inside the max-width:720px block, which left
+   no rule at all on desktop, so the button rendered over the page heading.
+   body.pf-assets .pf-back is more specific and still reveals it on mobile --
+   and that class is only ever set when the mobile query matches. */
+.pf-back{display:none}
 .asset-tabs button{
   flex:0 0 auto; display:inline-flex; align-items:center; gap:5px;
   padding:6px 11px; border:1px solid var(--rule); border-radius:999px;
