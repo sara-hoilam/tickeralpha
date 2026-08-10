@@ -551,6 +551,64 @@
     setTimeout(announce, 0);
   })();
 
+  /* ---- account-scoped local data ----------------------------------------
+     The portfolio and watchlist are mirrored into this browser so a page can
+     paint before the network answers. That mirror belongs to exactly one
+     account, and until now nothing tied it to one.
+
+     Signing out anywhere except the portfolio page left it behind -- the only
+     cleanup lived in portfolio.html's boot, behind a flag that starts null on
+     every page load, so it could only fire if you happened to be standing on
+     that page when the session dropped. The next account to sign in then
+     inherited the mirror, and the portfolio page rendered it: an empty remote
+     plus a non-empty mirror is indistinguishable from unsynced drafts.
+
+     So the mirror is stamped with the account that owns it and dropped the
+     moment a different one appears -- including "nobody", so a shared browser
+     does not hand one person's holdings to the next.
+
+     Device preferences (theme, consent) are deliberately not in this list:
+     they belong to the browser, not the account. Nor is the GA account list,
+     which exists precisely to span accounts so sign_up is not double-counted. */
+  const OWNER_KEY = "alphaticker-cache-owner";
+  const ACCOUNT_LOCAL = [
+    "alphaticker-portfolio",
+    "alphaticker-watchlist",
+    "ta.calendar.subs.v1",
+  ];
+  const ACCOUNT_SESSION = ["alphaticker-portfolio-merged", "alphaticker-ga-ids"];
+
+  function dropAccountCaches() {
+    ACCOUNT_LOCAL.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+    ACCOUNT_SESSION.forEach(k => { try { sessionStorage.removeItem(k); } catch {} });
+  }
+
+  /** Drop the mirror whenever the account behind it changes.
+
+      A session whose id has not been filled in yet is left alone rather than
+      treated as signed out. Sessions stored before the id was kept at all
+      exist, hydrateUser() repairs them a moment later, and wiping on that
+      half-read would throw away any holding added but not yet synced. */
+  function syncCacheOwner() {
+    const s = session();
+    if (s && s.user && !s.user.id) return;      // wait for hydrateUser()
+    const now = (s && s.user && s.user.id) || "";
+    let prev = "";
+    try { prev = localStorage.getItem(OWNER_KEY) || ""; } catch {}
+    if (prev === now) return;
+    dropAccountCaches();
+    try {
+      if (now) localStorage.setItem(OWNER_KEY, now);
+      else localStorage.removeItem(OWNER_KEY);
+    } catch {}
+  }
+
+  // Before anything reads the mirror, and again on every change of account.
+  syncCacheOwner();
+  addEventListener("ta-auth", syncCacheOwner);
+  window.TA.dropAccountCaches = dropAccountCaches;
+  window.TA.syncCacheOwner = syncCacheOwner;
+
   renderAuth();
 
   // The redirect flow only ever sees the access token, and that carries the

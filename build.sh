@@ -50,6 +50,9 @@ for r in nvda spcx mu pltr; do
   cp "reports/$r.html" "reports/$r.pdf" "reports/$r-cover.png" public/reports/
 done
 cp nav.js nav.css public/
+# Tells Cloudflare Pages to make the pages and the shared, unversioned
+# scripts revalidate, so a deploy is visible without clearing a cache.
+cp _headers public/
 # gate.js is loaded by the app pages *and* by the reports, which reach it as
 # ../gate.js from public/reports/. One copy at the root serves both.
 cp gate.js public/

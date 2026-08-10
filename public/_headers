@@ -1,0 +1,39 @@
+# Cloudflare Pages headers.
+#
+# The pages and the shared scripts have unversioned names -- nav.js is always
+# nav.js -- so a browser that cached one has no way to learn it changed. A phone
+# kept showing yesterday's navigation after a deploy for exactly that reason.
+#
+# max-age=0 with must-revalidate does not mean "download every time": the
+# browser sends a conditional request and gets a 304 when nothing changed, so
+# the cost is one round trip, and a deploy is visible immediately.
+#
+# Images, PDFs and the report covers are deliberately not listed. Those are
+# large, they change rarely, and a stale cover is not a broken page.
+
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/nav.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/nav.css
+  Cache-Control: public, max-age=0, must-revalidate
+
+/logo.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/gate.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/config.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/analytics.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/clarity-init.js
+  Cache-Control: public, max-age=0, must-revalidate
