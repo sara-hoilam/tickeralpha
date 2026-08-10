@@ -750,7 +750,24 @@ tr.on td{background:var(--accent-soft)}
      sideways instead of being clipped -- which is what it was doing: MV, price,
      %portfolio and the rest were simply unreachable. */
   #rows{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
-  #rows table{min-width:620px}
+  #rows table{min-width:560px}
+  /* ...and it was not scrolling. `1fr` is minmax(auto,1fr), whose floor is
+     min-content, so the table's own min-width became the column's floor: the
+     grid track grew to 560px and the *page* overflowed instead of the table.
+     minmax(0,...) lets the track shrink, which is what makes overflow-x work.
+     The wrapper needs min-width:0 for the same reason. */
+  .split{grid-template-columns:minmax(0,1fr)}
+  .split > div:first-child{min-width:0}
+
+  /* Narrower symbol column, so price and % change clear the fold before any
+     scrolling is needed. The company name truncates rather than wrapping the
+     row to two lines. */
+  #rows .idcol{max-width:132px}
+  #rows .tsym-n{
+    display:block;max-width:96px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap
+  }
+  #rows th.idcol,#rows td.idcol{padding-left:10px;padding-right:8px}
 
   /* Parity with the market page's news rail (it had these two lines). */
   .disc-card .body{padding:8px 9px 9px;gap:6px}
@@ -815,9 +832,20 @@ tr.on td{background:var(--accent-soft)}
   /* The arc is inside the first pulse cell; show it here and only here. */
   body.pf-assets .pulse{grid-template-columns:minmax(0,1fr);border-radius:var(--r)}
   body.pf-assets .pulse .cell{border-right:0;border-top:1px solid var(--rule)}
-  body.pf-assets .pulse .cell:first-child{border-top:0}
+  /* The analysis view is the breakdown. The day's return and the other metric
+     cards are already on screen A, and repeating them here pushed the arc --
+     the thing this view exists for -- below the fold. */
+  body.pf-assets .pulse .cell:not(:first-child){display:none}
+  body.pf-assets .pulse .cell:first-child{border-top:0;padding:14px 16px 16px}
   body.pf-assets .pulse .cell:first-child::after{content:none}
   body.pf-assets .pulse .donut-wrap{display:flex}
+  /* Full chart width: the arc carries a 0 0 120 70 viewBox, so it scales. */
+  body.pf-assets .pulse .donut{
+    width:100%;max-width:none;height:auto;aspect-ratio:120 / 70;align-self:stretch
+  }
+  body.pf-assets .pulse .donut-legend{
+    grid-template-columns:1fr 1fr;gap:5px 14px;font-size:12px;margin-top:2px
+  }
   body.pf-assets .pulse .divgauge svg{display:block}
   body.pf-assets .pulse .divgauge{width:104px;height:104px;margin-top:6px}
   body.pf-assets .pulse .divinner{position:absolute;inset:0;align-items:center;
@@ -1701,6 +1729,19 @@ const ASSET_TABS = [
   { id: "crypto", label: "Crypto",     classes: ["Crypto"] },
 ];
 
+/* The positions the active asset tab covers. One definition for the holdings
+   table and the portfolio series both, so the chart can never disagree with
+   the rows it sits beside. */
+function assetTabRows(list){
+  const tab = ASSET_TABS.find(t => t.id === S.assetTab) || ASSET_TABS[0];
+  return tab.classes ? list.filter(p => tab.classes.includes(assetClass(p))) : list;
+}
+
+function assetTabLabel(){
+  const tab = ASSET_TABS.find(t => t.id === S.assetTab) || ASSET_TABS[0];
+  return tab.id === "all" ? "Portfolio" : tab.label;
+}
+
 function assetClass(p){
   const symbol = typeof p === "string" ? p : (p && p.symbol) || "";
   const name = typeof p === "object" && p ? (p.name || "") : "";
@@ -2380,9 +2421,7 @@ async function renderList(){
     // Every tab that has nothing in it is still shown, so the row of tabs does
     // not reflow as positions come and go.
     const tabRows = ASSET_TABS.find(t => t.id === S.assetTab) || ASSET_TABS[0];
-    const rows = tabRows.id === "all"
-      ? allRows
-      : allRows.filter(p => tabRows.classes.includes(assetClass(p)));
+    const rows = assetTabRows(allRows);
     const penSvg = `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none"
       stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12.5 3.5 16.5 7.5M4 16l.8-3.5L13.5 4a1.4 1.4 0 0 1 2 2L6.8 14.7 4 16Z"/></svg>`;
@@ -2424,6 +2463,7 @@ async function renderList(){
         ? allRows.filter(p => t.classes.includes(assetClass(p))).length
         : allRows.length;
     }
+
     // The strip goes in the bar *above* #rows, not inside it: #rows scrolls,
     // and tabs that scroll out from over their own table are unreachable.
     if (searchHost) {
@@ -2441,7 +2481,15 @@ async function renderList(){
           const id = btn.dataset.at;
           if (id === S.assetTab) return;
           S.assetTab = id;
+          // A row selected under the old tab may not exist under the new one;
+          // fall back to the portfolio series rather than charting a symbol
+          // that is no longer listed.
+          if (S.selected !== "PORTFOLIO" && S.selected !== "CASH"
+              && !assetTabRows(S.positions).some(p => p.symbol === S.selected)) {
+            S.selected = "PORTFOLIO";
+          }
           renderList();
+          drawRightChart().catch(() => {});
         };
       });
     };
@@ -2651,7 +2699,9 @@ async function seriesForSymbol(sym, fromISO){
  *  This is a simulated “current mix” path — not the user’s personal return
  *  before they logged the portfolio. Book P/L in the table uses avg buy cost. */
 async function portfolioSeries(fromISO){
-  const positions = S.positions.filter(p => p.quantity > 0);
+  // Scoped to the active asset tab, so switching to Crypto charts the crypto
+  // sleeve rather than the whole book against the indexes.
+  const positions = assetTabRows(S.positions).filter(p => p.quantity > 0);
   if (!positions.length) return [];
   const series = await Promise.all(positions.map(async p => ({
     qty: p.quantity,
@@ -2878,7 +2928,9 @@ async function drawRightChart(){
   });
 
   const live = signedIn() && hasHoldings();
-  const alloc = allocation(S.positions);
+  // Scoped like the series above: the headline value must describe the
+  // sleeve being charted, not the whole book.
+  const alloc = allocation(assetTabRows(S.positions));
   const lines = [];
 
   if (live && S.selected === "CASH") {
@@ -2886,7 +2938,7 @@ async function drawRightChart(){
     priceEl.textContent = money(alloc.cash).replace("$", "");
     metaEl.innerHTML = `${alloc.sum > 0 ? ((alloc.cash / alloc.sum) * 100).toFixed(1) : "0.0"}% of total assets`;
   } else if (live) {
-    setSym("Portfolio", { logo: false });
+    setSym(assetTabLabel(), { logo: false });
     priceEl.textContent = money(alloc.sum).replace("$", "");
     const book = bookReturn(S.positions);
     const rangeBook = bookReturn(S.positions, { fromISO: from });
