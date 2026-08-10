@@ -32,8 +32,13 @@ GA4 keeps an event parameter only if a custom dimension has been registered
 under exactly that name, and drops anything else **without reporting an error**.
 These are registered on the property:
 
-- event-scoped: `ticker`, `source`, `screener_name`, `range`
+- event-scoped: `ticker`, `source`, `screener_name`, `range`, `gate`
 - user-scoped: `plan_tier`, `signup_cohort`
+
+`gate` is new and **still has to be registered** in GA4 Admin → Custom
+definitions before any of the wall events carry it. Until it is, `gate_view`
+and friends arrive with the parameter silently dropped, which reads as every
+wall performing identically.
 
 `search_term`, `method` and `content_type` are built in and need no
 registration. Renaming any of the six above in the code without also renaming

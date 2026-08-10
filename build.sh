@@ -15,6 +15,7 @@
 #   reports.html  the research index
 #   reports/      full-length reports, self-contained
 #   nav.js/.css   the top bar every page injects
+#   gate.js       the sign-in walls (app pages and reports both load it)
 #   brand-logo-*  light/dark brand mark for the nav
 #   favicon-*     the same mark at tab size; nav.js picks one by the
 #                 browser's colour scheme, favicon.ico is the fallback
@@ -49,6 +50,9 @@ for r in nvda spcx mu pltr; do
   cp "reports/$r.html" "reports/$r.pdf" "reports/$r-cover.png" public/reports/
 done
 cp nav.js nav.css public/
+# gate.js is loaded by the app pages *and* by the reports, which reach it as
+# ../gate.js from public/reports/. One copy at the root serves both.
+cp gate.js public/
 cp brand-logo-light.png brand-logo-dark.png public/
 cp favicon.ico favicon-light.png favicon-dark.png public/
 cp analytics.js public/
