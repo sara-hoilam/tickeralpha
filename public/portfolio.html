@@ -385,7 +385,7 @@ tr.on td{background:var(--accent-soft)}
   .pulse .cell:nth-child(5){grid-column:1 / -1;border-top:1px solid var(--rule)}
   .pulse .cell:nth-child(2){border-right:0}
   .pulse .cell:nth-child(n+3){border-top:1px solid var(--rule)}
-  .grid2{grid-template-columns:1fr}
+  .grid2{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:720px){
   main{padding:16px 14px 56px}
@@ -600,7 +600,7 @@ tr.on td{background:var(--accent-soft)}
 .cal-today:hover{color:var(--accent)}
 .cal-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,0.9fr);
   gap:20px;align-items:start}
-@media (max-width:980px){.cal-layout{grid-template-columns:1fr}}
+@media (max-width:980px){.cal-layout{grid-template-columns:minmax(0,1fr)}}
 .cal-week-wrap,.cal-day{
   display:flex;flex-direction:column;min-height:0;overflow:hidden;
 }

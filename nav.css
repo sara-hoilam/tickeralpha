@@ -184,8 +184,45 @@
 }
 .nav .nav-menu button:hover { background: var(--sunk); color: var(--down); }
 
+/* ---- bottom tab bar ------------------------------------------------------
+   The top links vanish below 1080px, so below 1080px this takes over. Fixed to
+   the bottom because that is where a thumb is, and because it then survives a
+   long scroll -- which a top bar on a 3,700px page does not. */
+.tabbar { display: none; }
+
 @media (max-width: 1080px) {
   .nav-links { display: none; }
+
+  .tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    background: color-mix(in srgb, var(--card) 96%, transparent);
+    backdrop-filter: blur(14px);
+    border-top: 1px solid var(--rule);
+    /* Clears the iPhone home indicator without padding on other devices. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .tabbar a {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; padding: 7px 2px 6px; text-decoration: none;
+    color: var(--ink-3); font-size: 10px; font-weight: 600; letter-spacing: -.005em;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tabbar a svg { width: 21px; height: 21px; }
+  .tabbar a.on { color: var(--accent); }
+  .tabbar a.on svg { stroke-width: 2.2; }
+  .tabbar a:active { background: var(--sunk); }
+
+  /* Content must not end underneath the bar. 54px is the bar, plus the inset. */
+  body { padding-bottom: calc(54px + env(safe-area-inset-bottom, 0px)); }
+
+  /* The ticker tape is decoration; on a phone it is 33px of the viewport spent
+     on something nobody navigates by, and it pushed real content below the
+     fold on every page. */
+  .nav-strip { display: none; }
+
+  .nav-in { padding: 8px 12px; gap: 10px; }
+  .nav .nav-search input { padding: 8px 12px; font-size: 13px; }
 }
 @media (max-width: 720px) {
   .nav-in { padding: 10px 14px; gap: 10px; }

@@ -50,7 +50,7 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:22px 28px 72px}
 @keyframes sp{to{transform:rotate(360deg)}}
 
 .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);gap:20px;align-items:start}
-@media (max-width:1080px){.layout{grid-template-columns:1fr}}
+@media (max-width:1080px){.layout{grid-template-columns:minmax(0,1fr)}}
 
 .pagehead{display:flex;justify-content:space-between;align-items:center;gap:14px;
   margin-bottom:14px;flex-wrap:wrap}

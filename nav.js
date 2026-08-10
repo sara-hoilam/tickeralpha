@@ -111,6 +111,17 @@
       </div>
     </div></nav>
     <div class="nav-onetap" id="nav-onetap" hidden></div>
+
+    <!-- Phones get a tab bar instead of the links, which are hidden below
+         1080px. Without it every section but Markets was unreachable except by
+         typing a URL. Thumb-reachable and fixed, the way a trading app does it. -->
+    <nav class="tabbar" aria-label="Sections">
+        <a href="index.html" class="${here("index.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3.5 5-8"/><path d="M14 6.5h4v4"/><path d="M3 21h18"/></svg><span>Markets</span></a>
+        <a href="news.html" class="${here("news.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h11v14H4z"/><path d="M15 9h5v8a2 2 0 0 1-2 2h-3"/><path d="M7 8.5h5M7 12h5M7 15.5h3"/></svg><span>News</span></a>
+        <a href="earnings.html" class="${here("earnings.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17"/><path d="M8 3.5v3M16 3.5v3"/></svg><span>Earnings</span></a>
+        <a href="reports.html" class="${here("reports.html") || here("company.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8l4 4V20a.5.5 0 0 1-.5.5h-11A.5.5 0 0 1 6 20z"/><path d="M14 3.5V8h4"/><path d="M9 13h6M9 16.5h4"/></svg><span>Reports</span></a>
+        <a href="portfolio.html" class="${here("portfolio.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5h17V19a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/><path d="M9 8.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2.5"/><path d="M3.5 13h17"/></svg><span>Portfolio</span></a>
+    </nav>
   `);
 
   // Publish the bar's height so a page's own sticky elements can sit below it

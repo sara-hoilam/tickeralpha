@@ -269,7 +269,7 @@ tbody tr:hover td{background:var(--sunk)}
 @keyframes sp{to{transform:rotate(360deg)}}
 .hidden{display:none!important}
 
-@media (max-width:1180px){ .kpis{grid-template-columns:repeat(3,1fr)} .grid2{grid-template-columns:1fr} }
+@media (max-width:1180px){ .kpis{grid-template-columns:repeat(3,1fr)} .grid2{grid-template-columns:minmax(0,1fr)} }
 @media (max-width:640px){ .ident h1{font-size:25px} main{padding:16px 14px 60px} .bar-in{padding:10px 14px} }
 /* ---- the empty state: ask for a company ---------------------------------- */
 .hero{display:grid;place-items:center;padding:clamp(48px,12vh,120px) 24px 90px}
@@ -312,7 +312,7 @@ tbody tr:hover td{background:var(--sunk)}
    deliberately lopsided rather than even. */
 .pricerow{display:grid;grid-template-columns:minmax(0,1fr) 292px;gap:18px;margin-bottom:20px}
 .pricerow[hidden]{display:none}
-.pricerow.waiting{grid-template-columns:1fr}
+.pricerow.waiting{grid-template-columns:minmax(0,1fr)}
 .pricechart{padding-bottom:10px}
 .pricechart .phead p{font-family:"IBM Plex Mono",monospace;font-size:11.5px;
   color:var(--ink-3);letter-spacing:-.01em}
@@ -430,7 +430,7 @@ tbody tr:hover td{background:var(--sunk)}
 .wst-k b{font-family:"IBM Plex Mono",monospace;color:var(--ink-2);font-weight:600}
 
 @media (max-width:1080px){
-  .pricerow{grid-template-columns:1fr}
+  .pricerow{grid-template-columns:minmax(0,1fr)}
   .pstats{grid-template-columns:1fr 1fr 1fr}
 }
 @media (max-width:640px){ .pstats{grid-template-columns:1fr 1fr} }
@@ -528,7 +528,7 @@ tbody tr:hover td{background:var(--sunk)}
   background:linear-gradient(to bottom, var(--dd-band-50), var(--dd-band-deep));
 }
 @media (max-width:980px){
-  .idx-split{grid-template-columns:1fr}
+  .idx-split{grid-template-columns:minmax(0,1fr)}
 }
 
 /* ---- industry benchmark, seasonality, bollinger, news -------------------- */
@@ -607,7 +607,7 @@ tbody tr:hover td{background:var(--sunk)}
   padding:10px 12px;font-size:12px;line-height:1.45;color:var(--ink-2)}
 .helptip[hidden]{display:none}
 
-@media (max-width:1000px){ .pairrow{grid-template-columns:1fr} }
+@media (max-width:1000px){ .pairrow{grid-template-columns:minmax(0,1fr)} }
 
 /* ---- mobile report: Futu-style tabs, full-bleed charts, pinch zoom -------- */
 .mtabs{display:none}
@@ -616,7 +616,37 @@ tbody tr:hover td{background:var(--sunk)}
 .zoom-layer{transform-origin:0 0;will-change:transform}
 
 @media (max-width:720px){
-  main{padding:12px 0 72px}
+  main{padding:12px 12px 72px}
+
+  /* The identity block was 32% of the screen, and the chip row alone was 22%
+     of it -- taller than the company name -- because four chips wrapped onto
+     three lines. One line that scrolls sideways instead: the ticker and
+     exchange are what matter, and the CIK and SIC stay reachable. */
+  .ident .sub{
+    flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
+    margin-top:5px;padding-bottom:2px;font-size:11.5px;gap:6px;
+  }
+  .ident .sub::-webkit-scrollbar{display:none}
+  .ident .sub > *{flex:0 0 auto}
+  .ident h1{line-height:1.1}
+  .ident .chip{padding:2px 7px;font-size:11px}
+  /* The star is a 44px control beside a 20px title; shrink it to match. */
+  .wstar{transform:scale(.85);transform-origin:left center}
+
+  /* Cards keep a gutter so there is somewhere to start a scroll that is not a
+     chart, and so a card reads as a card. */
+  .card,.panel{border-radius:var(--r)}
+
+  /* Type scale: these were desktop sizes inherited down. */
+  h2{font-size:17px}
+  h3.grouphead{font-size:15px}
+  .phead h2{font-size:13.5px}
+  .note{font-size:12.5px}
+
+  /* No chart takes more than about 40% of the viewport. The price chart was
+     490px on an 844px screen, which left nothing else in view. */
+  .lwrap > svg,.scroll > svg,.lchart,#price-chart svg{max-height:40vh}
+  .swrap{max-height:44vh}
   /* Period pickers sit top-right under the nav Log In control. */
   .ident{
     display:flex;justify-content:space-between;align-items:flex-start;
@@ -671,7 +701,9 @@ tbody tr:hover td{background:var(--sunk)}
   }
   .pricechart{border-bottom:0}
   .pricechart .phead{padding:12px 14px 0}
-  #price-chart{padding:0;min-height:52vh}
+  /* Was 52vh, which left nothing else on screen beside it. 40vh is still a
+     chart you can read and leaves room for the metrics below it. */
+  #price-chart{padding:0;min-height:40vh}
   .pchart{width:100%;height:min(58vh,560px);max-width:none}
   .chart-fs-btn{
     display:inline-grid;place-items:center;width:32px;height:32px;margin-left:6px;
