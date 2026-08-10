@@ -428,13 +428,36 @@
       `?provider=google&redirect_to=${encodeURIComponent(redirect)}`;
   }
 
-  /** Google-only signup sheet — shown when someone adds to a watchlist
-      without an account. Matches the conversion modal pattern: one CTA,
-      privacy link, dismiss. */
+  /** What each gate is actually offering. A modal that names the thing the
+      visitor just reached for converts; one that says "unlock the full
+      potential" is wallpaper, and was what every gate used to say. Keep the
+      keys in step with the `gate` values sent to analytics. */
+  const SIGNUP_REASONS = {
+    watchlist: "Sign up to follow this company",
+    report:    "Sign up to read the full report",
+    earnings:  "Sign up to see the full earnings calendar",
+    seasonality: "Sign up to see 10 years of monthly returns",
+    correlation: "Sign up to compare this against any other ticker",
+    drawdown:  "Sign up to see the full drawdown history",
+    portfolio: "Sign up to save this portfolio",
+  };
+  const SIGNUP_NOTES = {
+    watchlist: "Your list follows you across devices, with earnings dates.",
+    report:    "Eight pages of valuation, peers and what would break the thesis.",
+    earnings:  "Every company reporting, not just the first two.",
+  };
+
+  /** Google-only signup sheet — shown when someone reaches a gate without an
+      account. Matches the conversion modal pattern: one CTA, privacy link,
+      dismiss. */
   function showSignupModal(opts) {
     if (window.TA.signedIn()) return;
     if (document.getElementById("auth-modal")) return;
-    const title = "Sign up below to unlock the full potential of Ticker Alpha";
+    const reason = (opts && opts.reason) || "generic";
+    const title = SIGNUP_REASONS[reason] ||
+      "Sign up below to unlock the full potential of Ticker Alpha";
+    const note = SIGNUP_NOTES[reason] || "";
+    GA.track("signup_modal_view", { gate: reason });
 
     const el = document.createElement("div");
     el.id = "auth-modal";
@@ -446,6 +469,7 @@
       <div class="auth-modal-card">
         <button type="button" class="auth-modal-x" aria-label="Close">×</button>
         <h2 id="auth-modal-title">${esc(title)}</h2>
+        ${note ? `<p class="auth-why">${esc(note)}</p>` : ""}
         <p class="auth-legal">By continuing, you agree to our
           <a href="privacy.html" target="_blank" rel="noopener">privacy policy</a>.</p>
         <button type="button" class="auth-google" id="auth-google">
@@ -465,13 +489,19 @@
     const shut = () => {
       el.remove();
       document.removeEventListener("keydown", onKey);
+      GA.track("signup_modal_dismiss", { gate: reason });
     };
     const onKey = e => { if (e.key === "Escape") shut(); };
     document.addEventListener("keydown", onKey);
     el.querySelector(".auth-modal-x").onclick = shut;
     el.querySelector(".auth-modal-close").onclick = shut;
     el.addEventListener("click", e => { if (e.target === el) shut(); });
-    el.querySelector("#auth-google").onclick = () => { shut(); signIn(); };
+    el.querySelector("#auth-google").onclick = () => {
+      el.remove();
+      document.removeEventListener("keydown", onKey);
+      GA.track("signup_modal_accept", { gate: reason });
+      signIn();
+    };
     try { el.querySelector("#auth-google").focus(); } catch {}
   }
 

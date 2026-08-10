@@ -1291,14 +1291,15 @@ async function toggleWatch(symbol, source){
   if (!sym) return false;
   const report = watching => GA.track(
     watching ? "add_to_watchlist" : "remove_from_watchlist", { ticker: sym, source });
+  // The watchlist is the gate. This used to save to localStorage and *then*
+  // ask for an account, which meant the visitor already had what they came
+  // for and the modal was pure interruption -- the reason it converted at
+  // nothing. Now the ask comes first and the star does not move until it is
+  // answered.
   if (!signedIn()) {
-    const added = localWatch.toggle(sym);
-    if (added) {
-      askWatchPrices(sym);
-      if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
-    }
-    dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching: added } }));
-    return added;
+    GA.track("gate_view", { gate: "watchlist", ticker: sym, source });
+    if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
+    return false;
   }
   try {
     const d = await rpc("toggle_watchlist", { p_symbol: sym });

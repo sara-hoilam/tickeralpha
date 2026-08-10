@@ -2340,7 +2340,7 @@ body { background: #55585C; }
     <a class="ta-btn" href="../reports.html">See the other reports</a>
     <a class="ta-btn ghost" href="../company.html?t=PLTR">Explore PLTR&rsquo;s filed financials</a>
   </div>
-  <div class="ta-cta-note">Free while in preview. No account needed to read.</div>
+  <div class="ta-cta-note">Free while in preview — sign up to read the full report.</div>
 </section>
 
 <script>
@@ -2355,5 +2355,36 @@ body { background: #55585C; }
   addEventListener("orientationchange", fit);
   fit();
 })();</script>
+<script src="../config.js"></script>
+<script src="../gate.js"></script>
+<script>
+/* The first page reads in full; the other seven are walled.
+
+   One page is enough to see the format, the sourcing and the standard of the
+   work -- which is what someone needs before an account is worth opening --
+   and it is not enough to act on, which is what makes the account worth
+   opening. The PDF link goes with it: the PDF is the whole report in one
+   file, so leaving it downloadable would make the wall decorative. */
+(function () {
+  if (!window.TAGate) return;
+  function wall() {
+    var inn = window.TAGate.signedIn();
+    var pdf = document.querySelector(".bar a[download]");
+    if (pdf) pdf.hidden = !inn;
+    if (inn) return;
+    window.TAGate.gate(document.body, {
+      items: ":scope > .sheet",
+      keep: 1,
+      peek: 460,
+      reason: "report",
+      title: "Read the rest of this report",
+      note: "Seven more pages \u2014 valuation, peers, and what would break the thesis.",
+      fine: "Free account \u2014 no card required",
+    });
+  }
+  wall();
+  addEventListener("ta-auth", wall);
+})();
+</script>
 </body>
 </html>

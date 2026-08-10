@@ -15,7 +15,7 @@
    exactly, and drops anything else without saying so, so these spellings are
    load-bearing:
 
-     event-scoped   ticker, source, screener_name, range
+     event-scoped   ticker, source, screener_name, range, gate
      user-scoped    plan_tier, signup_cohort
 
    search_term (search), method (login / sign_up) and content_type
@@ -35,6 +35,21 @@
      search               a search acted on                  search_term
      select_content       a news article opened              content_type, source
      login / sign_up      Supabase auth                      method
+
+   The sign-in walls, in the order one visitor meets them:
+
+     gate_view            a wall was shown                   gate, ticker
+     gate_click           its button was pressed             gate
+     signup_modal_view    the sheet opened                   gate
+     signup_modal_accept  Continue with Google pressed       gate
+     signup_modal_dismiss closed without signing in          gate
+
+   `gate` says which wall, and is the whole point of the funnel -- without it
+   there is one undifferentiated "someone saw a wall" number and no way to
+   tell which of them earns accounts. Keep it to this list:
+
+     report  watchlist  earnings  correlation  drawdown  seasonality
+     portfolio  generic
 
    `source` says where on the site an action started. Keep it to this list --
    inventing a value per button turns the dimension back into noise:

@@ -222,7 +222,9 @@
   .nav-strip { display: none; }
 
   .nav-in { padding: 8px 12px; gap: 10px; }
-  .nav .nav-search input { padding: 8px 12px; font-size: 13px; }
+  /* Keep the 34px left inset: the magnifier is absolutely positioned at
+     left:11px, so a symmetric padding puts the placeholder underneath it. */
+  .nav .nav-search input { padding: 8px 12px 8px 34px; font-size: 13px; }
 }
 @media (max-width: 720px) {
   .nav-in { padding: 10px 14px; gap: 10px; }
@@ -277,6 +279,11 @@
   font-family: "IBM Plex Serif", Georgia, serif;
   font-size: 24px; font-weight: 600; letter-spacing: -.02em;
   line-height: 1.25; margin: 8px 8px 12px; color: var(--ink);
+}
+/* What the account buys, in one line, between the headline and the legal
+   note. Only shown for the gates that have something concrete to promise. */
+.auth-modal-card .auth-why {
+  font-size: 14px; color: var(--ink-2); margin: 0 8px 16px; line-height: 1.5;
 }
 .auth-modal-card .auth-legal {
   font-size: 13px; color: var(--ink-3); margin: 0 8px 22px; line-height: 1.45;

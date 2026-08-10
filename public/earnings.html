@@ -205,6 +205,7 @@ tbody tr:hover td{background:var(--sunk)}
 </main>
 
 <script src="nav.js"></script>
+<script src="gate.js"></script>
 <script>
 "use strict";
 
@@ -294,10 +295,11 @@ const signedIn = () => !!(window.TA && window.TA.signedIn());
 async function toggleWatch(symbol){
   const sym = String(symbol || "").toUpperCase();
   if (!sym) return false;
+  // The ask comes before the save. See the note in landing.html.
   if (!signedIn()) {
-    const added = localWatch.toggle(sym);
-    if (added && window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
-    return added;
+    GA.track("gate_view", { gate: "watchlist", ticker: sym, source: "earnings_page" });
+    if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
+    return false;
   }
   try {
     const d = await rpc("toggle_watchlist", { p_symbol: sym });
@@ -460,6 +462,20 @@ function paintDay(){
   }).join("");
   host.scrollTop = 0;
   hydrateOnScroll(host);
+
+  // Two companies is enough to show what a day on this calendar looks like --
+  // the layout, the highlights, the link through to the report -- and not
+  // enough to plan a week around, which is the thing worth an account.
+  if (window.TAGate) {
+    window.TAGate.gate(host, {
+      items: ":scope > article.ecard",
+      keep: 2,
+      peek: 300,
+      reason: "earnings",
+      title: `See all ${S.dayRows.length} companies reporting`,
+      note: "The full earnings calendar, every day, with your watchlist on it.",
+    });
+  }
 }
 
 // The calendar hides anything under $1B unless it is on the visitor's

@@ -391,39 +391,40 @@ tr.on td{background:var(--accent-soft)}
   main{padding:16px 14px 56px}
   .empty-card h1{font-size:24px}
   .empty-actions{flex-direction:column}
-  /* Overview: Total Assets (donut) left, other 3 metrics stacked right */
+  /* Overview: one compact row of five, the same shape the market page uses.
+     The two-column stack it replaced was three rows tall and pushed the
+     holdings table off the screen entirely. */
   .pulse{
-    grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
-    grid-template-rows:repeat(3,minmax(0,auto));
-    align-items:stretch
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    grid-template-rows:auto;
+    overflow-x:auto;scrollbar-width:none;
   }
+  .pulse::-webkit-scrollbar{display:none}
   .pulse .cell{
-    padding:10px 12px;border-right:0;border-top:0;
-    display:flex;flex-direction:column;min-width:0;overflow:hidden
+    padding:10px 6px 9px;border-right:1px solid var(--rule);border-top:0;
+    min-width:0;display:flex;flex-direction:column;overflow:hidden;
   }
-  .pulse .cell:first-child{
-    grid-column:1;grid-row:1 / span 3;
-    border-right:1px solid var(--rule);padding:12px;
-    justify-content:flex-start
-  }
-  .pulse .cell:nth-child(n+2){
-    grid-column:2;border-top:1px solid var(--rule);
-    justify-content:center;gap:2px
-  }
-  .pulse .cell:nth-child(2){border-top:0}
+  .pulse .cell:last-child{border-right:0}
   .pulse .k{
-    font-size:9.5px;letter-spacing:.05em;margin-bottom:4px;
-    line-height:1.25;gap:4px
+    font-size:8px;letter-spacing:.04em;margin-bottom:4px;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;gap:3px
   }
   .pulse .v{
-    font-size:15px;line-height:1.2;
+    font-size:12.5px;line-height:1.2;letter-spacing:-.02em;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap
   }
-  .pulse .cell:first-child .v{font-size:17px;white-space:normal}
-  .pulse .v .dim{font-size:12px}
-  .pulse .chg{margin-top:3px;font-size:11px}
-  .pulse .scale{margin-top:7px;height:5px;flex-shrink:0}
-  .pulse .scale i{width:10px;height:10px}
+  .pulse .v .dim{font-size:9.5px}
+  .pulse .chg{margin-top:3px;font-size:9.5px}
+  .pulse .scale{margin-top:6px;height:4px;flex-shrink:0}
+  .pulse .scale i{width:8px;height:8px}
+  /* The donut and the diversification ring do not fit a 70px column; the
+     numbers do, and they are what a glance is for. */
+  .pulse .donut-wrap,.pulse .divgauge svg{display:none}
+  .pulse .divgauge{width:auto;height:auto}
+  .pulse .divinner{position:static;padding:0;align-items:flex-start;text-align:left}
+  .pulse .divnum{font-size:12.5px}
+  .pulse .divlabel{font-size:9px;max-width:none}
+
   .donut-wrap{
     flex-direction:column;align-items:stretch;gap:6px;margin-top:6px;flex:1;
     justify-content:flex-start;min-height:0
@@ -723,6 +724,38 @@ tr.on td{background:var(--accent-soft)}
 .cal-sub.locked{cursor:default}
 .cal-sub.locked:hover{background:transparent}
 .cal-check svg{width:12px;height:12px}
+
+/* ---- mobile, after the base rules ---------------------------------------
+   These have to live below the unprefixed declarations they override. The
+   earlier mobile block sits above `.grid2{grid-template-columns:1fr 1fr}`, so
+   its collapse never applied and Congress and Insiders stayed side by side on
+   a phone -- two half-width tables, neither readable. Equal specificity, so
+   source order decides. */
+@media (max-width:720px){
+  /* One above the other, each full width. */
+  .grid2,.grid2.wide{grid-template-columns:minmax(0,1fr);gap:12px}
+
+  /* The 980px block spans the fifth cell across the whole row, which put
+     Diversification on a second line. Undo it: five in one row means five. */
+  .pulse .cell:nth-child(5){grid-column:auto;border-top:0}
+  .pulse .cell:nth-child(n+3){border-top:0}
+  .pulse .cell:nth-child(2){border-right:1px solid var(--rule)}
+
+  /* Four rows then scroll, so neither table buries what follows it. Sized in
+     rows rather than vh: a row is what a reader counts. */
+  #insiders.scroll,#congress.scroll,
+  .panel #insiders,.panel #congress{max-height:190px;overflow-y:auto}
+
+  /* The holdings table has eight columns and cannot fit 366px, so it scrolls
+     sideways instead of being clipped -- which is what it was doing: MV, price,
+     %portfolio and the rest were simply unreachable. */
+  #rows{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+  #rows table{min-width:620px}
+
+  /* Parity with the market page's news rail (it had these two lines). */
+  .disc-card .body{padding:8px 9px 9px;gap:6px}
+  .disc-dots{margin-top:12px}
+}
 </style>
 </head>
 <body>
@@ -2346,8 +2379,12 @@ async function loadWatchlistItems(){
 }
 
 async function toggleWatch(sym){
+  // The same watchlist gate as everywhere else: the modal says what the
+  // account buys, rather than jumping straight to Google with no explanation.
   if (!signedIn()) {
-    promptSignIn();
+    GA.track("gate_view", { gate: "watchlist", ticker: sym, source: "watchlist" });
+    if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
+    else promptSignIn();
     return;
   }
   try { await rpc("toggle_watchlist", { p_symbol: sym }); } catch {}
