@@ -743,8 +743,48 @@ tr.on td{background:var(--accent-soft)}
 
   /* Four rows then scroll, so neither table buries what follows it. Sized in
      rows rather than vh: a row is what a reader counts. */
+  /* Six rows then scroll. Measured, not guessed: 10px top pad + 22px sticky
+     header + 6 x 34px row = 236, which leaves the seventh row clipped so it is
+     visible that there is more to scroll to. */
   #insiders.scroll,#congress.scroll,
-  .panel #insiders,.panel #congress{max-height:190px;overflow-y:auto}
+  .panel #insiders,.panel #congress{max-height:236px;overflow-y:auto}
+
+  /* --- Discover: swipe, no arrows ---
+     The mobile discover rules up at ~448 are all dead: every one of them sits
+     above the unprefixed `.disc-rail` / `.disc-viewport` / `.disc-card` block,
+     same specificity, so the base won. The rail kept its 48px arrow gutters,
+     the viewport kept `overflow:hidden` -- which is why swiping did nothing at
+     all -- and the cards kept sizing for five across. Re-declared here. */
+  .disc-rail{padding:0}
+  .disc-nav{display:none}
+  .disc-viewport{
+    overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none
+  }
+  .disc-viewport::-webkit-scrollbar{display:none}
+  .disc-track{gap:10px}
+  .disc-card{flex-basis:min(42vw,168px);scroll-snap-align:start}
+
+  /* --- Congress & Insiders: one table at a time ---
+     Two full-width tables stacked meant a lot of scrolling past the first to
+     reach the second. Arrows either side of the heading swap between them. */
+  .grid2.tswap > .panel{display:none}
+  .grid2.tswap > .panel.tshow{display:block}
+  .grid2.tswap .hmhead{display:flex;align-items:center;gap:8px}
+  .grid2.tswap .htitle{min-width:0}
+  .grid2.tswap .htitle h3{
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+  }
+  /* Scoped to .grid2.tswap so it out-specifies the base `display:none`, which
+     sits further down the sheet -- at equal specificity that one would win. */
+  .grid2.tswap .tswap-nav{
+    display:grid;place-items:center;flex:0 0 auto;
+    width:28px;height:28px;padding:0;
+    border:1px solid var(--rule);border-radius:50%;
+    background:var(--card);color:var(--ink);cursor:pointer;
+    font:inherit;font-size:15px;line-height:1
+  }
+  .grid2.tswap .tswap-nav.next{margin-left:auto}
 
   /* The holdings table has eight columns and cannot fit 366px, so it scrolls
      sideways instead of being clipped -- which is what it was doing: MV, price,
@@ -808,7 +848,9 @@ tr.on td{background:var(--accent-soft)}
   }
 
   /* --- screen A: chart and calendar are on the other view --- */
-  .chartwrap,.cal-section{display:none}
+  /* The calendar stays on the landing screen, directly above Congress &
+     Insiders where it already sits in the DOM; only the chart moves. */
+  .chartwrap{display:none}
 
   /* --- screen B --- */
   body.pf-assets .pf-back{
@@ -825,8 +867,9 @@ tr.on td{background:var(--accent-soft)}
   body.pf-assets .trades-head,
   body.pf-assets .grid2,
   body.pf-assets .split > div:first-child{display:none}
-  body.pf-assets .chartwrap,
-  body.pf-assets .cal-section{display:block}
+  body.pf-assets .chartwrap{display:block}
+  /* ...and the calendar is not part of the analysis view any more. */
+  body.pf-assets .cal-section{display:none}
   body.pf-assets .split{display:block}
   /* The arc is inside the first pulse cell; show it here and only here. */
   body.pf-assets .pulse{grid-template-columns:minmax(0,1fr);border-radius:var(--r)}
@@ -870,6 +913,9 @@ tr.on td{background:var(--accent-soft)}
    body.pf-assets .pf-back is more specific and still reveals it on mobile --
    and that class is only ever set when the mobile query matches. */
 .pf-back{display:none}
+
+/* The trades swap arrows are injected once and hidden outside the phone. */
+.tswap-nav{display:none}
 .asset-tabs button{
   flex:0 0 auto; display:inline-flex; align-items:center; gap:5px;
   padding:6px 11px; border:1px solid var(--rule); border-radius:999px;
@@ -2127,6 +2173,51 @@ function pfAssetsView(on){
   if (on) requestAnimationFrame(() => { try { drawRightChart(); } catch {} });
 }
 
+/* Congress & Insiders as one swappable pane on a phone. The arrows go into the
+   panels' own headers rather than a new bar of their own, so each table keeps
+   its info tooltip and nothing is stated twice. */
+function wireTradesSwap(){
+  const first = document.getElementById("insiders");
+  const grid = first && first.closest(".grid2");
+  if (!grid || grid.dataset.tswap) return;
+  const panels = [...grid.children].filter(el => el.classList.contains("panel"));
+  if (panels.length < 2) return;
+  grid.dataset.tswap = "1";
+
+  const show = i => {
+    panels.forEach((p, n) => p.classList.toggle("tshow", n === i));
+    grid.dataset.tswapAt = String(i);
+  };
+  const step = d => {
+    const at = Number(grid.dataset.tswapAt || 0);
+    show((at + d + panels.length) % panels.length);
+  };
+
+  panels.forEach(panel => {
+    const head = panel.querySelector(".hmhead");
+    if (!head || head.querySelector(".tswap-nav")) return;
+    const other = panels.find(p => p !== panel);
+    const name = (other.querySelector(".htitle h3") || {}).textContent || "the other table";
+    for (const dir of ["prev", "next"]) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = `tswap-nav ${dir}`;
+      b.setAttribute("aria-label", `Show ${name.trim()}`);
+      b.textContent = dir === "prev" ? "‹" : "›";
+      b.addEventListener("click", () => step(dir === "prev" ? -1 : 1));
+      if (dir === "prev") head.prepend(b); else head.append(b);
+    }
+  });
+
+  const apply = on => {
+    grid.classList.toggle("tswap", on);
+    if (on) show(Number(grid.dataset.tswapAt || 0));
+    else panels.forEach(p => p.classList.remove("tshow"));
+  };
+  apply(PF_MOBILE.matches);
+  PF_MOBILE.addEventListener("change", e => apply(e.matches));
+}
+
 function wirePfAssets(){
   const banner = document.querySelector("#pulse .cell:first-child");
   if (banner && !banner.dataset.pfWired) {
@@ -2332,6 +2423,7 @@ function renderDashboard(){
   // renderDashboard rebuilds #pulse, so the banner's handler is attached here
   // rather than once at boot.
   wirePfAssets();
+  wireTradesSwap();
 }
 
 async function renderList(){
