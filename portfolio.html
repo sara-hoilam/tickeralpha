@@ -756,6 +756,64 @@ tr.on td{background:var(--accent-soft)}
   .disc-card .body{padding:8px 9px 9px;gap:6px}
   .disc-dots{margin-top:12px}
 }
+
+/* ---- mobile: two screens over one page ------------------------------------
+   A phone cannot hold the banner, the holdings, the allocation arc, the index
+   comparison and the calendar at once -- stacked they were five screens of
+   scrolling with the table, the thing you open the page for, third.
+
+   So the page becomes two views over the same DOM, no duplicated markup:
+     default        the total-assets banner, then holdings, news, trades
+     body.pf-assets the arc, the index comparison and the P/L calendar
+   Tapping the banner opens the second; a back bar returns. */
+@media (max-width:720px){
+  /* --- the banner --- */
+  .pulse .cell:first-child{position:relative;cursor:pointer}
+  .pulse .cell:first-child::after{
+    content:"›";position:absolute;top:8px;right:8px;
+    font-size:15px;line-height:1;color:var(--ink-3)
+  }
+  .pf-assets-hint{
+    display:block;font-size:9px;color:var(--accent);font-weight:600;
+    letter-spacing:.02em;margin-top:3px
+  }
+
+  /* --- screen A: chart and calendar are on the other view --- */
+  .chartwrap,.cal-section{display:none}
+
+  /* --- screen B --- */
+  .pf-back{display:none}
+  body.pf-assets .pf-back{
+    display:flex;align-items:center;gap:8px;width:100%;
+    background:none;border:0;padding:2px 0 10px;
+    font:inherit;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer
+  }
+  body.pf-assets .pf-back svg{width:18px;height:18px}
+  /* Everything that is not the analysis goes away, including the holdings
+     panel's own chrome -- the table lives inside the same section as the
+     chart, so the section stays and its table is hidden instead. */
+  body.pf-assets .sumhead,
+  body.pf-assets .discover,
+  body.pf-assets .trades-head,
+  body.pf-assets .grid2,
+  body.pf-assets .split > div:first-child{display:none}
+  body.pf-assets .chartwrap,
+  body.pf-assets .cal-section{display:block}
+  body.pf-assets .split{display:block}
+  /* The arc is inside the first pulse cell; show it here and only here. */
+  body.pf-assets .pulse{grid-template-columns:minmax(0,1fr);border-radius:var(--r)}
+  body.pf-assets .pulse .cell{border-right:0;border-top:1px solid var(--rule)}
+  body.pf-assets .pulse .cell:first-child{border-top:0}
+  body.pf-assets .pulse .cell:first-child::after{content:none}
+  body.pf-assets .pulse .donut-wrap{display:flex}
+  body.pf-assets .pulse .divgauge svg{display:block}
+  body.pf-assets .pulse .divgauge{width:104px;height:104px;margin-top:6px}
+  body.pf-assets .pulse .divinner{position:absolute;inset:0;align-items:center;
+    justify-content:center;text-align:center}
+  body.pf-assets .pulse .k{font-size:9.5px}
+  body.pf-assets .pulse .v{font-size:19px;white-space:normal}
+  body.pf-assets .pf-assets-hint{display:none}
+}
 </style>
 </head>
 <body>
@@ -1943,6 +2001,46 @@ function pulseLiveHtml(alloc, day, book, vol, div){
       </div>`;
 }
 
+/* ---- mobile: banner <-> assets analysis ----------------------------------
+   One DOM, two views, switched by a class on <body>. The panels are the ones
+   the desktop page already builds, so nothing is duplicated and nothing needs
+   redrawing -- except the charts, which size themselves from their container
+   and so are redrawn once the container is visible. */
+const PF_MOBILE = matchMedia("(max-width:720px)");
+
+function pfAssetsView(on){
+  if (!PF_MOBILE.matches) return;
+  document.body.classList.toggle("pf-assets", !!on);
+  scrollTo({ top: 0, behavior: "instant" });
+  // The chart measures its host, which was display:none a moment ago.
+  if (on) requestAnimationFrame(() => { try { drawRightChart(); } catch {} });
+}
+
+function wirePfAssets(){
+  const banner = document.querySelector("#pulse .cell:first-child");
+  if (banner && !banner.dataset.pfWired) {
+    banner.dataset.pfWired = "1";
+    banner.addEventListener("click", () => pfAssetsView(true));
+    // The affordance says what the tap does, rather than leaving a chevron to
+    // be guessed at.
+    if (!banner.querySelector(".pf-assets-hint")) {
+      const hint = document.createElement("span");
+      hint.className = "pf-assets-hint";
+      hint.textContent = "P/L analysis ›";
+      banner.appendChild(hint);
+    }
+  }
+  const back = document.getElementById("pf-back");
+  if (back && !back.dataset.pfWired) {
+    back.dataset.pfWired = "1";
+    back.addEventListener("click", () => pfAssetsView(false));
+  }
+  // Leaving phone width must not strand the reader in a half-hidden desktop.
+  PF_MOBILE.addEventListener("change", e => {
+    if (!e.matches) document.body.classList.remove("pf-assets");
+  });
+}
+
 /* ---- render: dashboard --------------------------------------------------- */
 function renderDashboard(){
   const app = document.getElementById("app");
@@ -1962,6 +2060,11 @@ function renderDashboard(){
       <h2>Portfolio Overview</h2>
       <div class="sub"><button type="button" class="btn btn-primary" id="dash-add" style="min-height:34px;padding:0 14px;font-size:12.5px">+ Add Asset</button></div>
     </div>
+    <button type="button" class="pf-back" id="pf-back">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      My Assets
+    </button>
     <div class="pulse" id="pulse">
       ${live ? pulseLiveHtml(alloc, day, book, vol, div) : pulsePlaceholderHtml()}
     </div>
@@ -2115,6 +2218,9 @@ function renderDashboard(){
   loadPortfolioCalendar();
   bootTrades();
   wireInfoTips(document.getElementById("pulse"));
+  // renderDashboard rebuilds #pulse, so the banner's handler is attached here
+  // rather than once at boot.
+  wirePfAssets();
 }
 
 async function renderList(){
