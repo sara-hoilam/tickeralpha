@@ -258,7 +258,12 @@ tr.on td{background:var(--accent-soft)}
 .rows table{font-size:12.5px;width:100%;border-collapse:collapse}
 .rows th,.rows td{padding:9px 10px;white-space:nowrap}
 .rows th:first-child,.rows td:first-child{padding-left:10px}
-.rows .idcol{white-space:normal;width:1%;max-width:152px;padding-right:8px;text-align:left}
+.rows .idcol{white-space:normal;width:1%;max-width:124px;padding-right:8px;text-align:left}
+/* Narrower symbol column, so the numeric columns get the width back. The
+   company name truncates rather than wrapping the row onto a second line. */
+.rows .idcol .tsym-n{
+  display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%
+}
 /* Numeric columns: right-align headers and values (Symbol stays left). */
 .rows th.col-num,.rows td.col-num,
 .rows th.col-px,.rows td.col-px,
@@ -614,9 +619,12 @@ tr.on td{background:var(--accent-soft)}
   padding:12px;flex:1;min-height:0;height:100%;align-items:stretch;
 }
 @media (max-width:720px){
-  .cal-week{gap:6px;padding:10px}
+  .cal-week{gap:6px;padding:8px}
   .cal-daycard .dom{font-size:15px}
-  .cal-week-wrap{height:152px}
+  /* The wrap's fixed height is what sets the day boxes, not their own padding:
+     the cards are height:100% of a grid row sized from it. Content measures
+     55px, so 88px covers it plus both paddings. */
+  .cal-week-wrap{height:88px}
   .cal-day{height:180px}
 }
 .cal-daycard{
@@ -786,6 +794,16 @@ tr.on td{background:var(--accent-soft)}
   }
   .grid2.tswap .tswap-nav.next{margin-left:auto}
 
+  /* --- My Calendar: shorter day boxes, bare counts ---
+     Prefixed with #cal-week so both rules out-specify their base declarations
+     wherever those sit in the sheet. */
+  #cal-week .cal-daycard{padding:6px 5px 5px;gap:1px}
+  #cal-week .cal-daycard .dow{font-size:9px;letter-spacing:.05em}
+  #cal-week .cal-daycard .dom{font-size:15px;margin:0 0 3px}
+  #cal-week .cal-daycard .avatars{min-height:14px}
+  #cal-week .cal-daycard .n-long{display:none}
+  #cal-week .cal-daycard .n-short{display:inline}
+
   /* The holdings table has eight columns and cannot fit 366px, so it scrolls
      sideways instead of being clipped -- which is what it was doing: MV, price,
      %portfolio and the rest were simply unreachable. */
@@ -802,7 +820,7 @@ tr.on td{background:var(--accent-soft)}
   /* Narrower symbol column, so price and % change clear the fold before any
      scrolling is needed. The company name truncates rather than wrapping the
      row to two lines. */
-  #rows .idcol{max-width:132px}
+  #rows .idcol{max-width:108px}
   #rows .tsym-n{
     display:block;max-width:96px;overflow:hidden;
     text-overflow:ellipsis;white-space:nowrap
@@ -916,6 +934,9 @@ tr.on td{background:var(--accent-soft)}
 
 /* The trades swap arrows are injected once and hidden outside the phone. */
 .tswap-nav{display:none}
+
+/* The bare event count is the phone's form of the label; desktop spells it. */
+.cal-daycard .n-short{display:none}
 .asset-tabs button{
   flex:0 0 auto; display:inline-flex; align-items:center; gap:5px;
   padding:6px 11px; border:1px solid var(--rule); border-radius:999px;
@@ -1315,13 +1336,18 @@ function withRealizedPl(txns){
 }
 
 /** Realized gains/losses whose sell date falls in [fromISO, toISO] (inclusive). */
-function realizedPlInRange(fromISO, toISO){
+/* `keep` optionally restricts which symbols count, so an asset tab can scope
+   realized gains. It filters on the transaction's own symbol rather than the
+   open positions: a holding sold out entirely has no position left, but its
+   realized gain still belongs to whichever sleeve it traded in. */
+function realizedPlInRange(fromISO, toISO, keep = null){
   const today = todayISO();
   const to = toISO || today;
   let realized = 0;
   let soldCost = 0;
   for (const t of withRealizedPl(S.transactions)) {
     if (t.kind !== "sell") continue;
+    if (keep && !keep(String(t.symbol || "").toUpperCase())) continue;
     const d = t.tradeDate || "";
     if (fromISO && d < fromISO) continue;
     if (to && d > to) continue;
@@ -1789,6 +1815,14 @@ function assetTabRows(list){
   return tab.classes ? list.filter(p => tab.classes.includes(assetClass(p))) : list;
 }
 
+/* A symbol predicate for the active tab, or null for All. Takes a symbol
+   string, so it also classifies holdings that are fully sold and therefore
+   have no position row left. */
+function assetTabKeep(){
+  const tab = ASSET_TABS.find(t => t.id === S.assetTab) || ASSET_TABS[0];
+  return tab.classes ? sym => tab.classes.includes(assetClass(sym)) : null;
+}
+
 function assetTabLabel(){
   const tab = ASSET_TABS.find(t => t.id === S.assetTab) || ASSET_TABS[0];
   return tab.id === "all" ? "Portfolio" : tab.label;
@@ -1979,7 +2013,7 @@ function dailyReturn(positions){
 }
 
 /** Book return: unrealized on open holdings + dividends + all realized sells. */
-function bookReturn(positions, { fromISO = null, toISO = null } = {}){
+function bookReturn(positions, { fromISO = null, toISO = null, keep = null } = {}){
   let cost = 0, current = 0, div = 0;
   for (const p of positions) {
     const px = markPrice(p);
@@ -1990,7 +2024,7 @@ function bookReturn(positions, { fromISO = null, toISO = null } = {}){
   }
   // Period filter applies to realized gains by sell date (e.g. YTD vs 1M).
   // Unrealized + dividends stay as of now for the open book.
-  const { realized, soldCost } = realizedPlInRange(fromISO, toISO);
+  const { realized, soldCost } = realizedPlInRange(fromISO, toISO, keep);
   const unrealized = current - cost;
   const amount = unrealized + div + realized;
   const basis = cost + soldCost;
@@ -2546,8 +2580,13 @@ async function renderList(){
       if (r.avgCost != null && r.quantity) totalCost += r.avgCost * r.quantity;
       totalDiv += holdingDiv(r);
     }
-    const { realized: realizedAll, soldCost } = realizedPlInRange(null, todayISO());
-    const { realized: realizedToday } = realizedPlInRange(todayISO(), todayISO());
+    // Same tab scope as `rows`, or the totals line would fold in realized
+    // gains from sleeves the table is not showing.
+    const keepTab = assetTabKeep();
+    const { realized: realizedAll, soldCost } =
+      realizedPlInRange(null, todayISO(), keepTab);
+    const { realized: realizedToday } =
+      realizedPlInRange(todayISO(), todayISO(), keepTab);
     if (Math.abs(realizedAll) > 1e-9) { totalPl += realizedAll; plN++; }
     if (Math.abs(realizedToday) > 1e-9) { totalDay += realizedToday; dayN++; }
     const totalBasis = totalCost + soldCost;
@@ -2602,10 +2641,10 @@ async function renderList(){
         <th class="idcol">Symbol</th>
         <th class="col-num">MV/Qty</th>
         <th class="col-px">Price/Cost</th>
-        <th class="col-num">%Portfolio</th>
         <th class="col-num">Today's P/L</th>
         <th class="col-num"><span class="th-with-tip">P/L ${infoTip(plTip)}</span></th>
         <th class="col-num"><span class="th-with-tip">Dividend ${infoTip(divTip)}</span></th>
+        <th class="col-num">%Portfolio</th>
         <th class="col-act">
           <button type="button" class="icon-btn" id="pf-reset" title="Reset portfolio"
                   aria-label="Reset portfolio">${resetSvg}</button>
@@ -2620,7 +2659,6 @@ async function renderList(){
             <span class="bot">${esc(String(Number(totalQty.toFixed(4))))}</span>
           </div></td>
           <td class="col-px">${dash}</td>
-          <td class="col-num num">${totalMv > 0 ? "100.0%" : "—"}</td>
           <td class="col-num num ${dayN ? dir(totalDay) : ""}">${dayN ? esc(moneySigned(totalDay)) : "—"}</td>
           <td class="col-num"><div class="stack-cell">
             <span class="top ${plN ? dir(totalPl) : ""}">${plN ? esc(moneySigned(totalPl)) : "—"}</span>
@@ -2630,6 +2668,7 @@ async function renderList(){
             <span class="top ${totalDiv > 0 ? "up" : ""}">${totalDiv > 0 ? esc(moneySigned(totalDiv)) : "—"}</span>
             <span class="bot ${dir(totalDivRet)}">${totalDiv > 0 ? esc(retPct(totalDivRet)) : ""}</span>
           </div></td>
+          <td class="col-num num">${totalMv > 0 ? "100.0%" : "—"}</td>
           <td class="col-act"></td>
         </tr>
         <tr data-sym="CASH" class="cash-row ${S.selected === "CASH" ? "on" : ""}">
@@ -2640,10 +2679,10 @@ async function renderList(){
             <span class="bot">—</span>
           </div></td>
           <td class="col-px">${dash}</td>
-          <td class="col-num num">${cashWeight != null ? esc(cashWeight.toFixed(1) + "%") : "—"}</td>
           <td class="col-num num">—</td>
           <td class="col-num">${dash}</td>
           <td class="col-num">${dash}</td>
+          <td class="col-num num">${cashWeight != null ? esc(cashWeight.toFixed(1) + "%") : "—"}</td>
           <td class="col-act"><div class="row-actions">
             <button type="button" class="icon-btn" data-act="edit-cash"
                     title="Edit cash" aria-label="Edit cash">${penSvg}</button>
@@ -2675,7 +2714,6 @@ async function renderList(){
               <span class="top">${esc(priceFmt(livePx != null ? livePx : markPrice(r)))}</span>
               <span class="bot">${avg != null ? esc(priceFmt(avg)) : "—"}</span>
             </div></td>
-            <td class="col-num num">${weight != null ? esc(weight.toFixed(1) + "%") : "—"}</td>
             <td class="col-num num ${dir(day)}">${esc(moneySigned(day))}</td>
             <td class="col-num"><div class="stack-cell">
               <span class="top ${dir(pl)}">${esc(moneySigned(pl))}</span>
@@ -2685,6 +2723,7 @@ async function renderList(){
               <span class="top ${div > 0 ? "up" : ""}">${div > 0 ? esc(moneySigned(div)) : "—"}</span>
               <span class="bot ${dir(divRet)}">${div > 0 ? esc(retPct(divRet)) : ""}</span>
             </div></td>
+            <td class="col-num num">${weight != null ? esc(weight.toFixed(1) + "%") : "—"}</td>
             <td class="col-act"><div class="row-actions">
               <button type="button" data-act="buy" data-s="${esc(r.symbol)}">Buy</button>
               <button type="button" data-act="sell" data-s="${esc(r.symbol)}">Sell</button>
@@ -3038,8 +3077,11 @@ async function drawRightChart(){
   } else if (live) {
     setSym(assetTabLabel(), { logo: false });
     priceEl.textContent = money(alloc.sum).replace("$", "");
-    const book = bookReturn(S.positions);
-    const rangeBook = bookReturn(S.positions, { fromISO: from });
+    // Scoped to the active tab, like the series and the headline value above.
+    const scoped = assetTabRows(S.positions);
+    const keep = assetTabKeep();
+    const book = bookReturn(scoped, { keep });
+    const rangeBook = bookReturn(scoped, { fromISO: from, keep });
     const rangeLabel = S.range === "YTD" ? "YTD" : S.range;
     metaEl.innerHTML =
       `Total <span class="${dir(book.pct)}">${esc(pct(book.pct))}</span>` +
@@ -4155,7 +4197,10 @@ function renderCalWeek(){
   host.innerHTML = days.map(day => {
     const { chips, total } = weekAvatars(day.iso);
     const on = day.iso === CAL.selected;
-    const countLabel = total === 1 ? "1 event" : `${total} events`;
+    // Both forms are rendered and CSS picks one: a phone has room for the
+    // count but not the word.
+    const countLabel = `<span class="n-long">${
+      total === 1 ? "1 event" : `${total} events`}</span><span class="n-short">${total}</span>`;
     return `<button type="button" class="cal-daycard${on ? " on" : ""}" data-iso="${day.iso}"
         role="tab" aria-selected="${on}" aria-pressed="${on}">
       <div class="dow">${day.dow}</div>
@@ -4166,7 +4211,7 @@ function renderCalWeek(){
           const logo = c.symbol ? ` data-logo="${esc(c.symbol)}"` : "";
           return `<span class="av"${logo} style="background:${c.colour}">${esc(c.letter)}</span>`;
         }).join("")}</div>
-        ${total ? `<span class="n">${esc(countLabel)}</span>` : ""}
+        ${total ? `<span class="n">${countLabel}</span>` : ""}
       </div>
     </button>`;
   }).join("");
