@@ -2350,6 +2350,16 @@ async function renderList(){
   host.querySelectorAll("tr[data-sym]").forEach(tr => {
     tr.onclick = e => {
       if (e.target.closest("a,button")) return;
+      // On a phone the chart this row selects is far below the fold, so the tap
+      // appeared to do nothing. Open the company instead, which is what tapping
+      // a holding is for on a small screen.
+      if (matchMedia("(max-width:720px)").matches) {
+        const sym = tr.dataset.sym;
+        if (sym && sym !== "PORTFOLIO" && sym !== "CASH") {
+          location.href = `company.html?t=${encodeURIComponent(sym)}&src=portfolio`;
+          return;
+        }
+      }
       S.selected = tr.dataset.sym;
       host.querySelectorAll("tr").forEach(x => x.classList.toggle("on", x.dataset.sym === S.selected));
       drawRightChart();

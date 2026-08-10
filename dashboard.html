@@ -637,6 +637,10 @@ tbody tr:hover td{background:var(--sunk)}
      chart, and so a card reads as a card. */
   .card,.panel{border-radius:var(--r)}
 
+  /* The news tab leads with analyst coverage before any news, which is a lot
+     of screen before the thing the tab is named for. Hidden here only. */
+  #mtab-news #analyst-home,#mtab-news #analyst{display:none}
+
   /* Type scale: these were desktop sizes inherited down. */
   h2{font-size:17px}
   h3.grouphead{font-size:15px}
@@ -650,8 +654,13 @@ tbody tr:hover td{background:var(--sunk)}
   /* Period pickers sit top-right under the nav Log In control. */
   .ident{
     display:flex;justify-content:space-between;align-items:flex-start;
-    flex-wrap:nowrap;gap:8px 10px;padding:0 14px;margin-bottom:4px;
+    /* wrap, not nowrap. .unlockrow is flex-basis:100% so it can take its own
+       line on desktop; with nowrap it could not wrap, so it consumed the whole
+       line and crushed its siblings to zero width -- the title then overflowed
+       its own box and rendered on top of the fiscal-year pickers. */
+    flex-wrap:wrap;gap:8px 10px;padding:0 14px;margin-bottom:4px;
   }
+  .ident > .unlockrow{flex-basis:100%;order:3;margin-top:6px;top:0}
   .ident > div:first-child{flex:1;min-width:0}
   .ident h1{font-size:20px;padding-right:4px}
   .ident .period{
