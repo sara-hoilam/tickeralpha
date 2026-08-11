@@ -418,6 +418,43 @@ tbody tr:hover td{background:var(--sunk)}
   font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;
   color:var(--ink-2)}
 .wst-h span{font-weight:500;color:var(--ink-3);white-space:nowrap}
+/* The analyst count opens the ratings. Styled as the label it replaced, with
+   an underline so it reads as something you can press rather than a caption. */
+.wst-n{
+  font:inherit;font-size:inherit;letter-spacing:inherit;text-transform:inherit;
+  font-weight:500;color:var(--ink-3);white-space:nowrap;
+  background:none;border:0;padding:0;cursor:pointer;
+  text-decoration:underline;text-underline-offset:2px;
+  text-decoration-color:var(--rule);
+}
+.wst-n:hover{color:var(--accent);text-decoration-color:currentColor}
+.wst-n:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+
+/* ---- analyst ratings dialog --------------------------------------------- */
+.amodal{
+  position:fixed;inset:0;z-index:400;display:grid;place-items:center;padding:20px;
+  background:rgba(17,24,32,.48);backdrop-filter:blur(4px);
+}
+.amodal[hidden]{display:none}
+.amodal-card{
+  position:relative;width:min(660px,100%);max-height:min(78vh,720px);
+  overflow:auto;background:var(--card);border-radius:var(--r);
+  box-shadow:0 18px 50px -20px rgba(17,24,32,.55);
+}
+/* The card inside is already a .panel; a second border would double it. */
+.amodal-card .acol>.panel{border:0;box-shadow:none;margin:0}
+.amodal-card .ascroll{max-height:none}
+.amodal-x{
+  position:absolute;top:10px;right:10px;z-index:2;
+  width:30px;height:30px;border:0;border-radius:8px;
+  background:var(--sunk);color:var(--ink-3);cursor:pointer;
+  font-size:19px;line-height:1;display:grid;place-items:center;
+}
+.amodal-x:hover{background:var(--rule);color:var(--ink)}
+@media (max-width:720px){
+  .amodal{padding:12px}
+  .amodal-card{max-height:86vh}
+}
 .wst-t{display:flex;align-items:baseline;gap:10px;margin-top:6px}
 .wst-t b{font-family:"IBM Plex Mono",monospace;font-size:22px;font-weight:600;
   letter-spacing:-.02em;font-variant-numeric:tabular-nums}
@@ -640,10 +677,6 @@ tbody tr:hover td{background:var(--sunk)}
   /* Cards keep a gutter so there is somewhere to start a scroll that is not a
      chart, and so a card reads as a card. */
   .card,.panel{border-radius:var(--r)}
-
-  /* The news tab leads with analyst coverage before any news, which is a lot
-     of screen before the thing the tab is named for. Hidden here only. */
-  #mtab-news #analyst-home,#mtab-news #analyst{display:none}
 
   /* Type scale: these were desktop sizes inherited down. */
   h2{font-size:17px}
@@ -877,9 +910,6 @@ tbody tr:hover td{background:var(--sunk)}
   /* Moved under the price panel -- see placeAnalyst. It follows a card with
      no bottom edge, so it brings its own gap. */
   #mtab-chart>.acol{margin:10px 0 0}
-  /* Alone in its tab, the feed is titled twice over by the tab itself. */
-  #mtab-news .grouphead,
-  #conews-panel .phead{display:none}
 }
 .ascroll{max-height:330px;overflow-y:auto;scrollbar-width:thin;
   scrollbar-color:var(--rule) transparent}
@@ -2067,7 +2097,8 @@ function consensusSummary(spot){
   return `
     <div class="wst">
       <div class="wst-h">Wall Street consensus${call
-        ? `<span>${call.total} analyst${call.total === 1 ? "" : "s"}</span>` : ""}</div>
+        ? `<button type="button" class="wst-n" data-analysts>${call.total} analyst${
+            call.total === 1 ? "" : "s"}</button>` : ""}</div>
       ${mid == null ? "" : `<div class="wst-t"><b>$${mid.toFixed(2)}</b>${to === null ? ""
         : `<span class="${to >= 0 ? "up" : "down"}">${to >= 0 ? "+" : ""}${to.toFixed(1)}%</span>`}
       </div>`}
@@ -2084,17 +2115,49 @@ function consensusSummary(spot){
     The card is moved rather than drawn twice, so there is only ever one of
     it, and moved rather than restyled, because the two homes are different
     tabs and no rule can put an element in another panel. */
-function placeAnalyst(){
-  const card = document.getElementById("analyst");
-  const home = document.getElementById("analyst-home");
-  const chart = document.getElementById("mtab-chart");
-  if (!card || !home || !chart) return;      // market-only: it has its own tab
-  const wanted = MOBILE_MQ.matches ? chart : home;
-  if (card.parentElement === wanted) return;
-  if (wanted === home) home.prepend(card); else chart.append(card);
-}
+/* The ratings card used to migrate between the news tab and the chart tab by
+   breakpoint. It now lives in its dialog at every width, so there is nothing
+   to place -- kept as a no-op because the market-only layout still calls it. */
+function placeAnalyst(){}
 
 MOBILE_MQ.addEventListener("change", placeAnalyst);
+
+/* ---- the analyst ratings dialog -----------------------------------------
+   Opened from the "N analysts" count beside the Wall Street consensus. The
+   count is rebuilt every time the price panel redraws, so the click is bound
+   once on the document rather than to a button that keeps being replaced. */
+function openAnalystModal(){
+  const el = document.getElementById("amodal");
+  if (!el) return;
+  el.hidden = false;
+  document.body.style.overflow = "hidden";
+  // The ratings may never have been fetched: the tab that used to trigger the
+  // load is gone, so the dialog asks for them itself.
+  try { loadAnalyst(); } catch {}
+  const x = document.getElementById("amodal-x");
+  if (x) x.focus();
+}
+
+function closeAnalystModal(){
+  const el = document.getElementById("amodal");
+  if (!el || el.hidden) return;
+  el.hidden = true;
+  document.body.style.overflow = "";
+}
+
+addEventListener("click", e => {
+  const t = e.target;
+  if (!t || !t.closest) return;
+  if (t.closest("[data-analysts]")) { e.preventDefault(); openAnalystModal(); return; }
+  if (t.closest("#amodal-x")) { closeAnalystModal(); return; }
+  // Clicking the backdrop, but not the card sitting on it.
+  const back = t.closest("#amodal");
+  if (back && !t.closest(".amodal-card")) closeAnalystModal();
+});
+
+addEventListener("keydown", e => {
+  if (e.key === "Escape") closeAnalystModal();
+});
 
 /** Where each house covering the company stands now: one row per firm, its
     latest grade, and what it did to arrive at it. */
@@ -3698,7 +3761,6 @@ function render(){
       <button type="button" role="tab" data-mtab="chart" aria-selected="true">Chart</button>
       <button type="button" role="tab" data-mtab="filing" aria-selected="false">Filing</button>
       <button type="button" role="tab" data-mtab="market" aria-selected="false">Market</button>
-      <button type="button" role="tab" data-mtab="news" aria-selected="false">News</button>
       <button type="button" role="tab" data-mtab="custom" aria-selected="false">Custom</button>
     </nav>
 
@@ -3749,11 +3811,15 @@ function render(){
       </section>
 
       <div class="grid2">
-        <section class="card panel" id="mix-panel">
-          <div class="phead">
-            <div><h2>Where the revenue came from ${helpIcon("mix")}</h2></div>
-          </div>
-          <div class="scroll" id="mix"></div>
+        <!-- The news feed was a tab of its own, below everything. It reads
+             better beside the quarter it is reporting on, in the slot the
+             revenue-mix donut used to hold. -->
+        <section class="card panel" id="conews-panel">
+          <div class="phead"><div>
+            <h2>News ${helpIcon("news")}</h2>
+            <p id="news-scope">Recent stories.</p>
+          </div></div>
+          <div class="newswrap" id="co-news"><div class="note">Loading news…</div></div>
         </section>
 
         <section class="card panel">
@@ -3859,19 +3925,18 @@ function render(){
       </div>
     </div>
 
-    <div class="mtab-panel" data-mtab="news" id="mtab-news" role="tabpanel">
-      <h3 class="grouphead">News</h3>
-      <div class="pairrow" id="analyst-home">
+    <!-- Analyst coverage is no longer a section of its own. It keeps the same
+         #analyst host -- so loadAnalyst and drawAnalyst are untouched -- but
+         that host now lives in a dialog opened from the "N analysts" count in
+         the Wall Street consensus block, which is where a reader asking who
+         the analysts are actually is. -->
+    <div class="amodal" id="amodal" role="dialog" aria-modal="true"
+         aria-label="Analyst ratings" hidden>
+      <div class="amodal-card">
+        <button type="button" class="amodal-x" id="amodal-x"
+                aria-label="Close">&times;</button>
         <div class="acol" id="analyst"><section class="card panel"><div class="note">
           <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>
-
-        <section class="card panel" id="conews-panel">
-          <div class="phead"><div>
-            <h2>News ${helpIcon("news")}</h2>
-            <p id="news-scope">Recent stories.</p>
-          </div></div>
-          <div class="newswrap" id="co-news"><div class="note">Loading news…</div></div>
-        </section>
       </div>
     </div>
 
@@ -4322,27 +4387,35 @@ function renderSankey(){
 function renderMix(){
   const host = document.getElementById("mix");
   const cuts = document.getElementById("mix-cuts");
-  if (!host) return;
+
+  /* The breakdown selector belongs to the Sankey panel, not to the donut this
+     function draws -- so it has to be built even though the donut is gone.
+     Returning early on a missing #mix, as this used to, left the Sankey with
+     no way to switch cut. */
+  const note = html => { if (host) host.innerHTML = html; };
 
   if (S.breakdowns === null){
-    cuts.innerHTML = "";
-    host.innerHTML = `<div class="note"><span class="load"></span> &nbsp;Reading the segment note from the filing…</div>`;
+    if (cuts) cuts.innerHTML = "";
+    note(`<div class="note"><span class="load"></span> &nbsp;Reading the segment note from the filing…</div>`);
     return;
   }
   if (!S.breakdowns.length){
-    cuts.innerHTML = "";
-    host.innerHTML = `<div class="note">This filing's revenue note could not be reconciled to
-      total revenue, so no breakdown is shown rather than an approximate one.</div>`;
+    if (cuts) cuts.innerHTML = "";
+    note(`<div class="note">This filing's revenue note could not be reconciled to
+      total revenue, so no breakdown is shown rather than an approximate one.</div>`);
     return;
   }
 
   const cut = S.breakdowns[S.cut];
   const rev = S.quarter.lines.revenue;
-  cuts.innerHTML = S.breakdowns.map((b,i) =>
-    `<button aria-pressed="${i===S.cut}" data-i="${i}">${esc(b.name)}</button>`).join("");
-  cuts.querySelectorAll("button").forEach(b => b.onclick = () => {
-    S.cut = +b.dataset.i; renderMix(); renderSankey();
-  });
+  if (cuts) {
+    cuts.innerHTML = S.breakdowns.map((b,i) =>
+      `<button aria-pressed="${i===S.cut}" data-i="${i}">${esc(b.name)}</button>`).join("");
+    cuts.querySelectorAll("button").forEach(b => b.onclick = () => {
+      S.cut = +b.dataset.i; renderMix(); renderSankey();
+    });
+  }
+  if (!host) return;                 // selector kept current; no donut to draw
 
   // A donut carries the part-to-whole reading; the ranked rows beside it
   // carry the comparison, and every slice is labelled so colour is never the
