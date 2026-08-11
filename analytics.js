@@ -356,35 +356,84 @@
      they do GA4 sends cookieless pings. The wording here is the minimum that
      is accurate; the copy and the policy it links to belong to whoever owns
      privacy for the business. */
+  /* A centred sheet rather than the strip this used to be.
+
+     The strip lost on non-response, not on rejection: it sat at the bottom of
+     the page looking like a notification, most people never answered it, and
+     an unanswered banner leaves consent at the denied default forever. A sheet
+     that asks the question in the middle of the screen gets answered.
+
+     Accept is the primary action and looks like it -- full width, filled,
+     first. Decline is a real button of the same size directly beneath it, one
+     click, no menu to open and nothing to hunt for. That asymmetry is emphasis
+     and it is allowed; making the refusal harder to reach than the acceptance
+     is not, and is where regulators draw the line. Do not "improve" this by
+     moving Decline behind a preferences screen.
+
+     There is no close button and no dismiss-on-backdrop, so the question does
+     get an answer -- but declining costs one click and the whole site works
+     afterwards, which is what keeps this a consent prompt and not a cookie
+     wall. */
   const CONSENT_CSS = `
+.ta-consent-veil {
+  position: fixed; inset: 0; z-index: 400;
+  display: grid; place-items: center; padding: 20px;
+  background: rgba(17, 24, 32, .5);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  animation: ta-consent-fade .18s ease;
+}
+@keyframes ta-consent-fade { from { opacity: 0 } to { opacity: 1 } }
 .ta-consent {
-  position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 200;
-  max-width: 620px; margin: 0 auto;
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  padding: 14px 18px;
-  background: var(--card, #fff); color: var(--ink, #111);
-  border: 1px solid var(--rule, #e3e3e3); border-radius: 12px;
-  box-shadow: var(--shadow, 0 8px 30px rgba(0,0,0,.12));
-  font-size: 13px; line-height: 1.5;
+  width: min(440px, 100%);
+  background: var(--card, #fff); color: var(--ink, #111820);
+  border: 1px solid var(--rule, #dde2e8); border-radius: 16px;
+  box-shadow: 0 18px 50px -20px rgba(17, 24, 32, .55);
+  padding: 26px 26px 20px; text-align: center;
+  font-size: 14px; line-height: 1.6;
+  animation: ta-consent-up .22s cubic-bezier(.22,.61,.36,1);
 }
-.ta-consent p { margin: 0; flex: 1; min-width: 220px; color: var(--ink-2, #444); }
-.ta-consent-btns { display: flex; gap: 8px; flex-shrink: 0; }
+@keyframes ta-consent-up {
+  from { opacity: 0; transform: translateY(10px) scale(.985) }
+  to   { opacity: 1; transform: none }
+}
+.ta-consent h2 {
+  margin: 0 0 9px; font-size: 20px; line-height: 1.3; font-weight: 600;
+  letter-spacing: -.02em; color: var(--ink, #111820);
+  font-family: "IBM Plex Serif", Georgia, serif;
+}
+.ta-consent p { margin: 0 0 6px; color: var(--ink-2, #4a5866); font-size: 14px; }
+.ta-consent .ta-consent-fine {
+  margin: 0 0 18px; font-size: 12.5px; color: var(--ink-3, #78889a);
+}
+.ta-consent .ta-consent-fine a { color: var(--ink-2, #4a5866); }
+.ta-consent-btns { display: flex; flex-direction: column; gap: 9px; }
 .ta-consent button {
-  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-  border-radius: 8px; padding: 8px 16px;
+  font: inherit; cursor: pointer; border-radius: 10px; width: 100%;
 }
-.ta-consent button[data-decline] {
-  background: transparent; color: var(--ink-2, #444);
-  border: 1px solid var(--rule, #e3e3e3);
-}
-.ta-consent button[data-decline]:hover { border-color: var(--ink-3, #888); }
 .ta-consent button[data-accept] {
-  background: var(--accent, #2a78d6); color: #fff; border: 0;
+  background: var(--accent, #1e4fbf); color: #fff; border: 0;
+  padding: 14px 18px; font-size: 15.5px; font-weight: 650;
+  letter-spacing: -.005em;
+  box-shadow: 0 6px 16px -8px var(--accent, #1e4fbf);
 }
 .ta-consent button[data-accept]:hover { filter: brightness(1.08); }
+.ta-consent button[data-decline] {
+  background: transparent; color: var(--ink-2, #4a5866);
+  border: 1px solid var(--rule, #dde2e8);
+  padding: 11px 18px; font-size: 14px; font-weight: 500;
+}
+.ta-consent button[data-decline]:hover {
+  border-color: var(--ink-3, #78889a); color: var(--ink, #111820);
+}
+.ta-consent button:focus-visible {
+  outline: 2px solid var(--accent, #1e4fbf); outline-offset: 2px;
+}
 @media (max-width: 520px) {
-  .ta-consent { flex-direction: column; align-items: stretch; }
-  .ta-consent-btns button { flex: 1; }
+  .ta-consent { padding: 22px 18px 16px; border-radius: 14px; }
+  .ta-consent h2 { font-size: 18.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ta-consent-veil, .ta-consent { animation: none }
 }`;
 
   function setConsent(choice) {
@@ -411,25 +460,46 @@
   addEventListener("load", applyClarityConsent);
 
   function showBanner() {
-    const style = document.createElement("style");
-    style.textContent = CONSENT_CSS;
-    document.head.appendChild(style);
+    if (document.querySelector(".ta-consent-veil")) return;
+    if (!document.getElementById("ta-consent-css")) {
+      const style = document.createElement("style");
+      style.id = "ta-consent-css";
+      style.textContent = CONSENT_CSS;
+      document.head.appendChild(style);
+    }
+
+    const veil = document.createElement("div");
+    veil.className = "ta-consent-veil";
 
     const el = document.createElement("div");
     el.className = "ta-consent";
     el.setAttribute("role", "dialog");
-    el.setAttribute("aria-label", "Cookie choices");
+    el.setAttribute("aria-modal", "true");
+    el.setAttribute("aria-labelledby", "ta-consent-title");
+    // Accept first in the DOM as well as visually, so it is also what the
+    // keyboard reaches first. Both choices are one press either way.
     el.innerHTML = `
-      <p>We use cookies to measure how this site is used, so we can see which
-         pages are worth building on. Nothing is shared with advertisers.</p>
+      <h2 id="ta-consent-title">Help us build the right things</h2>
+      <p>We use cookies to measure which pages people actually find useful, so
+         we know what to improve next.</p>
+      <p class="ta-consent-fine">Measurement only &mdash; nothing is sold or
+         shared with advertisers. See our
+         <a href="privacy.html" target="_blank" rel="noopener">privacy policy</a>.</p>
       <div class="ta-consent-btns">
-        <button type="button" data-decline>Decline</button>
         <button type="button" data-accept>Accept</button>
+        <button type="button" data-decline>Decline</button>
       </div>`;
-    const answer = choice => { setConsent(choice); el.remove(); };
+
+    veil.appendChild(el);
+    document.body.appendChild(veil);
+    try { el.querySelector("[data-accept]").focus(); } catch {}
+
+    // Deliberately no Escape handler and no click-through on the backdrop:
+    // dismissing without answering would leave consent at the default and put
+    // us straight back where this started, with a question nobody answered.
+    const answer = choice => { setConsent(choice); veil.remove(); };
     el.querySelector("[data-decline]").onclick = () => answer("denied");
     el.querySelector("[data-accept]").onclick = () => answer("granted");
-    document.body.appendChild(el);
   }
 
   // Only where consent has to come first. Everywhere else the default is
