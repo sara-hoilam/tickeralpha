@@ -672,9 +672,9 @@ svg{display:block;max-width:100%}
             <button data-p="1W"  aria-pressed="false">1W</button>
             <button data-p="1M"  aria-pressed="false">1M</button>
             <button data-p="YTD" aria-pressed="false">YTD</button>
-            <button data-p="1Y"  aria-pressed="false">1Y</button>
+            <button data-p="1Y"  aria-pressed="true">1Y</button>
             <button data-p="5Y"  aria-pressed="false">5Y</button>
-            <button data-p="10Y" aria-pressed="true">10Y</button>
+            <button data-p="10Y" aria-pressed="false">10Y</button>
             <button data-p="ALL" aria-pressed="false">ALL</button>
           </div>
           <div class="drop" id="risk-interval-wrap">
@@ -684,10 +684,10 @@ svg{display:block;max-width:100%}
             </button>
             <div class="dropmenu" id="risk-interval-menu" role="listbox" hidden>
               <div class="dropcap">Interval</div>
-              <button type="button" role="option" data-i="daily">Daily</button>
+              <button type="button" role="option" data-i="daily" aria-selected="true">Daily</button>
               <button type="button" role="option" data-i="weekly">Weekly</button>
               <button type="button" role="option" data-i="monthly">Monthly</button>
-              <button type="button" role="option" data-i="annual" aria-selected="true">Annual</button>
+              <button type="button" role="option" data-i="annual">Annual</button>
             </div>
           </div>
         </div>
@@ -2055,7 +2055,10 @@ const PERF = { days: 7, history: null };
 /* ---- Risk & Return ---------------------------------------------------------
    Every period/interval pair is precomputed by the worker, so switching a
    filter is a redraw of numbers already in hand rather than a fetch. */
-const RISK = { period: "10Y", interval: "annual", sectors: null };
+// 1Y daily: the window most readers are actually asking about, at the
+// resolution that shows how a sector really moved rather than a decade
+// averaged into eleven points.
+const RISK = { period: "1Y", interval: "daily", sectors: null };
 
 const RISK_PERIOD_LABEL = {
   "1W": "the last week", "1M": "the last month", "YTD": "the year so far",
