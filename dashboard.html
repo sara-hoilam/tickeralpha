@@ -1358,7 +1358,6 @@ async function loadExtras(){
   if (!EXTRA.data) return;
   row.hidden = false;
   drawSeasonality();          // needs only the monthly closes
-  gateDeepTail();
   loadTickerNews();
   marketPanels();             // the rest wait on the price bars
   // Profile / headcount arrive with extras; redraw panels that use them.
@@ -1634,53 +1633,6 @@ const seasonStyle = v => swatch(SEASON_RAMP[v >= 0 ? "up" : "down"], Math.abs(v)
 // realistic band across the whole ramp is what makes the row readable.
 const positiveStyle = pct => swatch(SEASON_RAMP.pos, (pct - 20) / 60);
 
-
-/* ---- the walled panels ----------------------------------------------------
-   Correlation, drawdown and seasonality are the three panels a serious reader
-   comes back for and a first visit does not miss, so they are where the wall
-   goes. Everything above them -- the price chart, the headline figures, the
-   flow diagram, the revenue breakdown, the income statement -- stays open,
-   because that is what a visitor needs in order to know what this is, and it
-   is what the search engines index.
-
-   The heading and its one-line description stay readable in every case. The
-   wall goes over the body only: the offer has to be legible as an offer, not
-   an unexplained blank. */
-function gatePanel(anchorId, opts){
-  const el = document.getElementById(anchorId);
-  const panel = el && el.closest("section.card");
-  if (!panel || !window.TAGate) return;
-  window.TAGate.gate(panel, Object.assign({
-    items: ":scope > :not(.phead)",
-    keep: 0,
-    peek: 240,
-    cta: "Continue with Google",
-  }, opts));
-}
-
-/** Every deep-tail panel on whichever of the two page shapes is rendered. */
-function gateDeepTail(){
-  gatePanel("corr-chart", {
-    reason: "correlation",
-    title: "See how this moves with anything else",
-    note: "Plot this company's daily returns against any other ticker.",
-  });
-  gatePanel("co-dd-chart", {
-    reason: "drawdown",
-    title: "See the full drawdown history",
-    note: "Every fall from an all-time high, and how often each depth happens.",
-  });
-  gatePanel("idx-dd-chart", {
-    reason: "drawdown",
-    title: "See the full drawdown history",
-    note: "Every fall from an all-time high, and how often each depth happens.",
-  });
-  gatePanel("season-grid", {
-    reason: "seasonality",
-    title: "See ten years of monthly returns",
-    note: "Which months this has historically risen in, year by year.",
-  });
-}
 
 function drawSeasonality(){
   const host = document.getElementById("season-grid");
@@ -2705,10 +2657,6 @@ async function loadIndexSeasonality(symbol){
     return;
   }
   drawSeasonality();
-  // The index shape of the page carries the same drawdown and seasonality
-  // panels, and is the same URL. Leaving them open here would mean the wall
-  // appears on AAPL but not on SPY, which reads as a bug rather than an offer.
-  gateDeepTail();
 }
 
 function wireIndexRange(hostId, getRange, setRange, onChange){
@@ -5321,10 +5269,6 @@ function marketPanels(){
   if (!CORR.wired) { CORR.wired = true; wireCorrelation(); }
   else drawCorrelation();
   wireHelp();
-  // After the draws, not before: the wall covers what was rendered, and the
-  // panels are redrawn on every price refresh. gate() is a no-op once a panel
-  // is already walled, so calling it again here costs nothing.
-  gateDeepTail();
 }
 
 /** Index window over PRICE.bars for the active range button. */
@@ -6134,6 +6078,5 @@ addEventListener("popstate", () => {
 })();
 </script>
 <script src="nav.js"></script>
-<script src="gate.js"></script>
 </body>
 </html>

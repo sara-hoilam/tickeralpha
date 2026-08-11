@@ -441,9 +441,6 @@
     watchlist: "Sign up to follow this company",
     report:    "Sign up to read the full report",
     earnings:  "Sign up to see the full earnings calendar",
-    seasonality: "Sign up to see 10 years of monthly returns",
-    correlation: "Sign up to compare this against any other ticker",
-    drawdown:  "Sign up to see the full drawdown history",
     portfolio: "Sign up to save this portfolio",
   };
   const SIGNUP_NOTES = {

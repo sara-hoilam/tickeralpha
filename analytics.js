@@ -48,8 +48,11 @@
    there is one undifferentiated "someone saw a wall" number and no way to
    tell which of them earns accounts. Keep it to this list:
 
-     report  watchlist  earnings  correlation  drawdown  seasonality
-     portfolio  generic
+     report  watchlist  earnings  portfolio  generic
+
+   The company page's correlation, drawdown and seasonality panels were walled
+   too and are not any more, so those three values stop appearing rather than
+   going to zero. Historical rows keep them.
 
    `source` says where on the site an action started. Keep it to this list --
    inventing a value per button turns the dimension back into noise:
