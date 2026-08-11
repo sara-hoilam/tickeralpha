@@ -470,6 +470,8 @@
     const CODE_LEN = 8;
     const CODE_WORD = { 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten" };
     const codeWord = CODE_WORD[CODE_LEN] || String(CODE_LEN);
+    // "an 8-digit code", "a 6-digit code" -- 8, 11 and 18 take "an".
+    const codeArticle = /^(8|11|18)/.test(String(CODE_LEN)) ? "an" : "a";
     if (document.getElementById("auth-modal")) return;
     const reason = (opts && opts.reason) || "generic";
     const title = SIGNUP_REASONS[reason] ||
@@ -593,7 +595,8 @@
         GA.track("signup_modal_accept", { gate: reason, method: "email" });
         emailForm.hidden = true;
         codeForm.hidden = false;
-        say(`We sent a ${CODE_LEN}-digit code to ${email}. It expires in an hour.`, "ok");
+        say(`We sent ${codeArticle} ${CODE_LEN}-digit code to ${email}. It expires in an hour.`,
+            "ok");
         try { codeIn.focus(); } catch {}
       } catch {
         sending = false;
@@ -630,7 +633,7 @@
       if (verifying) return;
       const email = emailIn.value.trim();
       const token = codeIn.value.replace(/\D/g, "");
-      if (token.length !== 6) {
+      if (token.length !== CODE_LEN) {
         say(`The code is ${codeWord} digits.`, "bad");
         codeIn.focus();
         return;
