@@ -2117,10 +2117,19 @@ function renderRisk(payload){
   // Labels sit on the bubbles, so the top and side margins carry a little
   // more room than the plot itself needs -- a label on the highest or
   // widest bubble would otherwise run off the frame.
-  // H is set so this panel finishes level with Sector Performance beside it.
-  // Its header wraps to two rows at half-width where that one's does not, so
-  // the plot is the shorter of the two to make the panels the same height.
-  const W = 570, H = 310, ml = 52, mr = 16, mt = 20, mb = 40;
+  //
+  // The viewBox scales to the column, and this panel sits in the 1.7fr side
+  // of the pair, so its height on screen is well over what these numbers
+  // suggest: 310 rendered at ~386px and made the row taller than the content
+  // needed. 250 brings it to ~310px.
+  //
+  // It cannot usefully go much below ~215. Sector Performance beside it has
+  // an intrinsic height of about 347px, and once this panel drops under that
+  // the row stops shrinking and this one just gains white space instead --
+  // the two are levelled by whichever is taller, and that is currently this
+  // one. Bubble radii are in viewBox units and do not shrink with H, so the
+  // plot also crowds vertically as this comes down.
+  const W = 570, H = 250, ml = 52, mr = 16, mt = 16, mb = 36;
   const pw = W - ml - mr, ph = H - mt - mb;
 
   // Pad the extents so no bubble is clipped by the frame, and always include
