@@ -146,11 +146,13 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin-bottom:12px}
 /* Tiles are placed in whole pixels, so the rightmost can land a hair past the
    canvas. Clipping that is right; a scrollbar for two pixels is not. */
 #heatmap{overflow:hidden}
-table{width:100%;border-collapse:collapse;font-size:13.5px}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
+thead{position:relative;z-index:2}
 thead th{
-  position:sticky;top:0;background:var(--card);z-index:1;
+  position:sticky;top:0;background:var(--card);z-index:2;
+  background-clip:padding-box;box-shadow:0 1px 0 var(--rule);
   font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
-  font-weight:600;text-align:right;padding:8px 18px 8px 0;border-bottom:1px solid var(--rule);
+  font-weight:600;text-align:right;padding:8px 18px 8px 0;
 }
 thead th:first-child{text-align:left;padding-left:18px}
 tbody td{padding:9px 0 9px 0;border-bottom:1px solid var(--rule-2);text-align:right;
@@ -239,9 +241,12 @@ svg{display:block;max-width:100%}
   scrollbar-gutter:stable; overscroll-behavior:contain;
 }
 #insiders .mini thead th, #congress .mini thead th{
-  position:sticky; top:0; z-index:1; background:var(--card);
-  box-shadow:0 1px 0 var(--rule);
+  position:sticky; top:0; z-index:2; background:var(--card);
+  background-clip:padding-box; box-shadow:0 1px 0 var(--rule);
 }
+#insiders.scroll, #congress.scroll{ padding-top:0 }
+#insiders .mini, #congress .mini{ border-collapse:separate; border-spacing:0 }
+#insiders .mini thead, #congress .mini thead{ position:relative; z-index:2 }
 #insiders .trade-more, #congress .trade-more{
   text-align:center; font-size:11.5px; color:var(--ink-3); padding:10px 0 2px;
 }

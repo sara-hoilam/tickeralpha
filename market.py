@@ -1478,8 +1478,21 @@ def insider_trades(days: int = 7, store_cap: int = 400,
             price = float(r.get("price") or 0)
             if price > MAX_PLAUSIBLE_SHARE_PRICE:
                 continue                  # see MAX_PLAUSIBLE_SHARE_PRICE
-            code = (r.get("transactionType") or r.get("acquisitionOrDisposition") or "")
-            buy = str(code).upper().startswith(("P", "A"))
+            code = str(r.get("transactionType")
+                       or r.get("acquisitionOrDisposition") or "").upper()
+            # Open-market conviction only: P is a purchase, S a sale. Every
+            # other Form 4 code is compensation plumbing -- M exercises, F tax
+            # withholding, A awards, G gifts -- and treating it as trading is
+            # how Musk's 2018-package exercise became "$21B of insider selling":
+            # the exercise rows priced 304M shares at the $23.34 strike, and
+            # the 17.5M shares Tesla withheld to cover it counted as a sale,
+            # when no share was sold on the open market at all.
+            if code.startswith("P"):
+                buy = True
+            elif code.startswith("S"):
+                buy = False
+            else:
+                continue
             amount = (shares * price) * (1 if buy else -1)
             sym = r.get("symbol")
             if not sym:
@@ -1497,6 +1510,19 @@ def insider_trades(days: int = 7, store_cap: int = 400,
             })
         if len(rows) < page_size:
             break
+
+    # The feed repeats filings verbatim from time to time -- the same Musk
+    # exercise arrived twice, doubling a $7B row. One copy of each is enough.
+    seen: set[tuple] = set()
+    deduped: list[dict] = []
+    for r in raw_rows:
+        k = (r["filed"], r["symbol"], r["person"], r["side"],
+             round(float(r["shares"] or 0), 4), round(float(r["price"] or 0), 4))
+        if k in seen:
+            continue
+        seen.add(k)
+        deduped.append(r)
+    raw_rows = deduped
 
     # Quote only names that need the 1%-of-float test (amount alone is not enough).
     need_out: dict[str, float] = {}

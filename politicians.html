@@ -121,11 +121,19 @@ h2.sect:first-of-type{margin-top:8px}
 .ptabs button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
 .pnote{padding:10px 18px 0;font-size:12px;color:var(--ink-3)}
 
-/* Ten rows and then it scrolls; the header stays put. */
-.ttable{overflow:auto;padding:6px 0 4px}
+/* Ten rows and then it scrolls; the header stays put.
+
+   separate + spacing 0, background-clip and a shadow underline: with
+   border-collapse the body rows paint through a sticky header's background
+   in Chromium, and the scroller's own top padding held the pinned header a
+   band below its top edge, rows showing through the gap. Same fix the
+   index-holdings table already carries. */
+.ttable{overflow:auto;padding:0 0 4px}
 .profile .ttable{max-height:548px}
-table{width:100%;border-collapse:collapse;font-size:13px}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+thead{position:relative;z-index:2}
 thead th{position:sticky;top:0;z-index:2;background:var(--card);
+  background-clip:padding-box;box-shadow:0 1px 0 var(--rule);
   font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
   font-weight:600;text-align:right;padding:9px 14px 9px 0;border-bottom:1px solid var(--rule);
   white-space:nowrap}
@@ -211,11 +219,11 @@ tr[aria-expanded=true] .caret{transform:rotate(180deg)}
   <div class="pagehead">
     <h1>Insider &amp; Congress</h1>
     <p>Every trade disclosed by members of Congress and company insiders over the
-       last 60 days — who traded, what, and how much of it. Straight from the
+       last 90 days — who traded, what, and how much of it. Straight from the
        disclosure feeds, updated through the day.</p>
   </div>
 
-  <h2 class="sect">Congress</h2>
+  <h2 class="sect">Politicians</h2>
   <div class="psearch">
     <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
       stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
@@ -233,9 +241,9 @@ tr[aria-expanded=true] .caret{transform:rotate(180deg)}
   </div>
 
   <h2 class="sect">Where insiders are trading</h2>
-  <p class="sect-sub">Officers and directors trading their own company's stock — Form 4
-     filings over the last 60 days, above $1M or 1% of shares outstanding. Click a
-     company for who was buying and selling.</p>
+  <p class="sect-sub">Officers and directors trading their own company's stock — bought
+     or sold on the open market over the last 90 days, above $1M or 1% of shares
+     outstanding. Click a company for who was buying and selling.</p>
   <div class="ins-grid">
     <section class="panel">
       <div class="ibars" id="ins-chart"><div class="note"><span class="load"></span></div></div>
@@ -329,8 +337,9 @@ const PHOTO = b => `https://unitedstates.github.io/images/congress/225x275/${enc
 function faceHTML(p){
   const initials = String(p.person || "?").trim().split(/\s+/)
     .map(w => w[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
+  const src = p.photo || (p.bioguide ? PHOTO(p.bioguide) : null);
   return `<span class="facewrap">
-    ${p.bioguide ? `<img alt="" data-face src="${PHOTO(p.bioguide)}">` : ""}
+    ${src ? `<img alt="" data-face src="${esc(src)}">` : ""}
     <span class="fb" style="background:${avatarColour(p.person)}">${esc(initials)}</span>
   </span>`;
 }
@@ -352,11 +361,14 @@ const seatHTML = p => `
 /* ---- who to show before anyone searches --------------------------------- */
 const FEATURED = [
   { person: "Nancy Pelosi",     bioguide: "P000197", party: "D", chamber: "House",  district: "CA-11" },
+  { person: "Donald Trump",     party: "R", chamber: "President",
+    photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Donald_Trump_official_portrait.jpg/250px-Donald_Trump_official_portrait.jpg" },
+  { person: "Tommy Tuberville", bioguide: "T000278", party: "R", chamber: "Senate", district: "AL"    },
+  { person: "Josh Gottheimer",  bioguide: "G000583", party: "D", chamber: "House",  district: "NJ-5"  },
   { person: "Ro Khanna",        bioguide: "K000389", party: "D", chamber: "House",  district: "CA-17" },
   { person: "Michael McCaul",   bioguide: "M001157", party: "R", chamber: "House",  district: "TX-10" },
-  { person: "Josh Gottheimer",  bioguide: "G000583", party: "D", chamber: "House",  district: "NJ-5"  },
   { person: "Dan Crenshaw",     bioguide: "C001120", party: "R", chamber: "House",  district: "TX-2"  },
-  { person: "Tommy Tuberville", bioguide: "T000278", party: "R", chamber: "Senate", district: "AL"    },
+  { person: "Rick Scott",       bioguide: "S001217", party: "R", chamber: "Senate", district: "FL"    },
 ];
 const nameKey = s => {
   const w = String(s || "").toLowerCase().trim().split(/\s+/);
@@ -374,7 +386,7 @@ const S = {
 async function pageTrades(kind, want, symbols){
   const out = [];
   for (let off = 0; out.length < want; off += 100) {
-    const d = await rpc("get_trades", { p_limit: 100, p_offset: off, p_days: 60,
+    const d = await rpc("get_trades", { p_limit: 100, p_offset: off, p_days: 90,
                                         p_kind: kind, ...(symbols ? { p_symbols: symbols } : {}) });
     const rows = (kind === "insider" ? d.insiders : d.congress) || [];
     out.push(...rows);
@@ -413,23 +425,22 @@ async function loadPeople(){
   // The profile panel sits beside the cards now, so it should never open
   // empty: start on the most active trader.
   if (!S.selected) {
-    const first = S.people.find(p => p.trades > 0);
+    const cards = railCards();
+    const first = cards.find(p => p.trades > 0) || cards[0];
     if (first) openProfile(first.person, first, { quiet: true });
   }
 }
 
 function railCards(){
+  // Exactly the pinned eight — the names people come looking for. Everyone
+  // else is a keystroke away in the search box, which covers every member
+  // who has filed in the window.
   const have = new Map(S.people.map(p => [nameKey(p.person), p]));
-  const cards = [];
-  FEATURED.forEach(f => {
+  return FEATURED.map(f => {
     const live = have.get(nameKey(f.person));
-    cards.push({ ...f, ...(live || {}), person: f.person });
+    return { ...f, ...(live || {}), person: f.person,
+             party: f.party, chamber: f.chamber, district: f.district };
   });
-  S.people.forEach(p => {
-    if (cards.length >= 12) return;
-    if (!cards.some(c => nameKey(c.person) === nameKey(p.person))) cards.push(p);
-  });
-  return cards;
 }
 
 function paintPeople(){
@@ -446,7 +457,7 @@ function paintPeople(){
       <b>${esc(p.person)}</b>
       <span class="seat">${seatHTML(p)}</span>
       <span class="n">${p.trades
-        ? `<b>${p.trades}</b> disclosure${p.trades === 1 ? "" : "s"} · 60d`
+        ? `<b>${p.trades}</b> disclosure${p.trades === 1 ? "" : "s"} · 90d`
         : `<span style="color:var(--ink-3)">No recent disclosures</span>`}</span>
     </div>`).join("");
   wireFaces(host);
@@ -564,19 +575,24 @@ function paintProfile(){
     <div class="ptabs" role="tablist">
       <button role="tab" data-t="tx" aria-pressed="${S.tab === "tx"}">Transactions</button>
       <button role="tab" data-t="agg" aria-pressed="${S.tab === "agg"}">Most traded</button>
+      <button role="tab" data-t="hold" aria-pressed="${S.tab === "hold"}">Holdings</button>
     </div>
     ${S.tab === "agg" ? `<p class="pnote">Estimated from the ranges disclosure rules require —
-       a filing says "$15K–$50K", not an exact figure. Full holdings come from annual
-       disclosures, which aren't ingested yet; this is the last 60 days of reported trades.</p>` : ""}
+       a filing says "$15K–$50K", not an exact figure. This is the last 90 days of
+       reported trades.</p>` : ""}
+    ${S.tab === "hold" ? `<div class="note" style="padding:44px 18px">
+        <b style="display:block;font-size:15px;color:var(--ink);margin-bottom:6px">Coming soon</b>
+        Full holdings come from members' annual financial disclosures — a different
+        dataset from the trade feed. We're working on it.</div>` : `
     <div class="ttable">
-      ${n === 0 ? `<div class="note">No disclosures from ${esc(p.person)} in the last 60 days.</div>`
+      ${n === 0 ? `<div class="note">No disclosures from ${esc(p.person)} in the last 90 days.</div>`
       : S.tab === "tx" ? `<table><thead><tr>
           <th>Company</th><th>Traded</th><th>Type</th><th>Filed after</th><th>Amount</th><th></th>
         </tr></thead><tbody>${txRows}</tbody></table>`
       : `<table><thead><tr>
           <th>Company</th><th>Buys</th><th>Sells</th><th>Est. total</th><th>Last traded</th>
         </tr></thead><tbody>${aggRows}</tbody></table>`}
-    </div>`;
+    </div>`}`;
 
   wireFaces(el);
   el.querySelectorAll(".ptabs button").forEach(b => b.onclick = () => {
@@ -601,7 +617,7 @@ function wireSearch(){
       <div role="option" data-i="${i}" aria-selected="${i === S.acIdx}">
         ${faceHTML(p)}
         <b>${esc(p.person)}</b>
-        <span class="meta">${p.trades ? `${p.trades} · 60d` : ""}</span>
+        <span class="meta">${p.trades ? `${p.trades} · 90d` : ""}</span>
       </div>`).join("");
     ac.classList.add("open");
     q.setAttribute("aria-expanded","true");

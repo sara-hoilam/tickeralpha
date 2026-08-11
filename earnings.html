@@ -142,13 +142,16 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:22px 28px 72px}
    simply pushed the width out -- and the whole thing took a horizontal
    scrollbar. The sidebar is 300-380px depending on the window, so no fixed
    name width fits it; the column has to be the elastic one. */
-table{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;
+  table-layout:fixed}
+thead{position:relative;z-index:2}
 thead th:nth-child(2){width:74px}
 thead th:nth-child(3){width:64px}
 thead th:nth-child(4){width:74px}
-thead th{position:sticky;top:0;background:var(--card);z-index:1;
+thead th{position:sticky;top:0;background:var(--card);z-index:2;
+  background-clip:padding-box;box-shadow:0 1px 0 var(--rule);
   font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
-  font-weight:600;text-align:right;padding:8px 12px 8px 0;border-bottom:1px solid var(--rule)}
+  font-weight:600;text-align:right;padding:8px 12px 8px 0}
 thead th:first-child{text-align:left;padding-left:12px}
 /* The right padding has to match the header's. Without it the body cells ran
    flush into each other -- a price and the date beside it read as one number

@@ -65,10 +65,12 @@ h3{font-size:14px;font-weight:600;letter-spacing:-.005em}
 .rows::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
 
 .side-l{display:flex;flex-direction:column;gap:18px;align-items:stretch}
-table{width:100%;border-collapse:collapse;font-size:13px}
-thead th{position:sticky;top:0;background:var(--card);z-index:1;
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+thead{position:relative;z-index:2}
+thead th{position:sticky;top:0;background:var(--card);z-index:2;
+  background-clip:padding-box;box-shadow:0 1px 0 var(--rule);
   font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
-  font-weight:600;text-align:right;padding:7px 15px 7px 0;border-bottom:1px solid var(--rule)}
+  font-weight:600;text-align:right;padding:7px 15px 7px 0}
 thead th:first-child{text-align:left;padding-left:15px}
 tbody td{padding:8px 0;border-bottom:1px solid var(--rule-2);text-align:right;
   font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}

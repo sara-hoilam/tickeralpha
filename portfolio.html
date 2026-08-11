@@ -202,10 +202,12 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 .seg button:last-child{border-right:0}
 .seg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:500}
 .rows{border-right:1px solid var(--rule);overflow-y:auto;overflow-x:auto;max-height:520px}
-table{width:100%;border-collapse:collapse;font-size:13.5px}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
+thead{position:relative;z-index:2}
 th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--ink-3);font-weight:600;padding:8px 14px;border-bottom:1px solid var(--rule);
-  position:sticky;top:0;background:var(--card);z-index:1}
+  color:var(--ink-3);font-weight:600;padding:8px 14px;
+  position:sticky;top:0;background:var(--card);z-index:2;
+  background-clip:padding-box;box-shadow:0 1px 0 var(--rule)}
 td{padding:10px 14px;border-bottom:1px solid var(--rule-2);vertical-align:middle}
 tr{cursor:pointer} tr:hover td{background:var(--sunk)}
 tr.on td{background:var(--accent-soft)}
@@ -259,7 +261,9 @@ tr.on td{background:var(--accent-soft)}
 .stack-cell .bot.down{color:var(--down)}
 .stack-cell .top.up{color:var(--up)}
 .stack-cell .top.down{color:var(--down)}
-.rows table{font-size:12.5px;width:100%;border-collapse:collapse}
+/* separate, not collapse: this table's header is sticky, and a collapsed
+   border lets the scrolled rows paint through it. */
+.rows table{font-size:12.5px;width:100%;border-collapse:separate;border-spacing:0}
 .rows th,.rows td{padding:9px 10px;white-space:nowrap}
 .rows th:first-child,.rows td:first-child{padding-left:10px}
 .rows .idcol{white-space:normal;width:1%;max-width:124px;padding-right:8px;text-align:left}
@@ -561,9 +565,12 @@ tr.on td{background:var(--accent-soft)}
   scrollbar-gutter:stable; overscroll-behavior:contain;
 }
 #insiders .mini thead th, #congress .mini thead th{
-  position:sticky; top:0; z-index:1; background:var(--card);
-  box-shadow:0 1px 0 var(--rule);
+  position:sticky; top:0; z-index:2; background:var(--card);
+  background-clip:padding-box; box-shadow:0 1px 0 var(--rule);
 }
+#insiders.scroll, #congress.scroll{ padding-top:0 }
+#insiders .mini, #congress .mini{ border-collapse:separate; border-spacing:0 }
+#insiders .mini thead, #congress .mini thead{ position:relative; z-index:2 }
 #insiders .trade-more, #congress .trade-more{
   text-align:center; font-size:11.5px; color:var(--ink-3); padding:10px 0 2px;
 }

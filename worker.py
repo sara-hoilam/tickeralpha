@@ -880,16 +880,19 @@ def refresh_sections() -> bool:
         # Pull sixty days once. FMP caps page at 100, so the worker uses
         # limit=1000 (see market._trade_list_page_size) — limit=100 only
         # reached ~10 days and left the inflow/outflow charts nearly empty.
-        flow_days = 60
+        # 90 days: the widest window get_trades can serve, and what the
+        # Insider & Congress page reads. The flow chart still requests its
+        # own 60 through get_trade_flow.
+        flow_days = 90
         ins_all = market.insider_trades(
-            days=flow_days, store_cap=10000, collapse=False)
-        con_all = market.congress_trades(days=flow_days, store_cap=5000)
+            days=flow_days, store_cap=15000, collapse=False)
+        con_all = market.congress_trades(days=flow_days, store_cap=8000)
 
-        # Persist the full 60-day material pulls. Tables still request 7 / 14
+        # Persist the full 90-day material pulls. Tables still request 7 / 14
         # days via get_trades; flow charts and fallbacks need the longer set.
         # No congress amount floor (MIN_CONGRESS_AMOUNT = 0).
-        ins_store = ins_all[:5000]
-        con_store = con_all[:2000]
+        ins_store = ins_all[:8000]
+        con_store = con_all[:3500]
         store.replace_trades(ins_store, con_store)
         log(f"  trades pulled: {len(ins_all)} insider / {len(con_all)} congress "
             f"over {flow_days}d; stored {len(ins_store)} / {len(con_store)}")
@@ -897,12 +900,12 @@ def refresh_sections() -> bool:
         log(f"  trades: {exc}")
         ins = con = []
         ins_all = con_all = []
-        flow_days = 60
+        flow_days = 90
     except Exception as exc:
         log(f"  trades: {exc}")
         ins = con = []
         ins_all = con_all = []
-        flow_days = 60
+        flow_days = 90
     else:
         ins = ins_store
         con = con_store
