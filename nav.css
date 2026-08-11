@@ -316,6 +316,12 @@
   content: ""; flex: 1; height: 1px; background: var(--rule);
 }
 .auth-email { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+/* `hidden` is display:none in the UA sheet, and any author-level display wins
+   over it -- so the flex rule above silently un-hid the step it was meant to
+   hide, and the code field sat there before a code had been sent, next to a
+   "send a new code" link that invalidates whatever was already in the inbox.
+   Every [hidden] element needs this whenever its display is set by class. */
+.auth-email[hidden] { display: none !important; }
 .auth-lab {
   font-size: 12.5px; font-weight: 600; color: var(--ink-2); margin-left: 2px;
 }

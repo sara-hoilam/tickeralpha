@@ -547,7 +547,12 @@
       msg.className = "auth-msg" + (kind ? " " + kind : "");
     };
 
+    // Same single-flight reasoning as verify: the form also submits on Enter,
+    // and each request supersedes the last code issued.
+    let sending = false;
+
     async function send(resend) {
+      if (sending) return;
       const email = emailIn.value.trim();
       // Deliberately loose. The server is the real check, and a clever
       // pattern here only ever rejects somebody's genuine address.
@@ -556,6 +561,7 @@
         emailIn.focus();
         return;
       }
+      sending = true;
       sendBtn.disabled = true;
       say(resend ? "Sending a new code…" : "Sending your code…");
       try {
@@ -565,6 +571,7 @@
           body: JSON.stringify({ email, create_user: true }),
         });
         const d = await r.json().catch(() => ({}));
+        sending = false;
         if (!r.ok) {
           say(authError(d) || "That did not work. Try again in a moment.", "bad");
           sendBtn.disabled = false;
@@ -576,12 +583,38 @@
         say(`We sent a 6-digit code to ${email}. It expires in an hour.`, "ok");
         try { codeIn.focus(); } catch {}
       } catch {
+        sending = false;
         say("Could not reach the server. Check your connection.", "bad");
         sendBtn.disabled = false;
       }
     }
 
+    /* GoTrue keys the code to how it was issued, and the two cases differ:
+       an account that already exists gets a magic-link code, which verifies
+       as type `email`; a brand-new address gets a signup confirmation, which
+       verifies as type `signup`. Sending only `email` therefore worked for
+       returning visitors and failed for every genuinely new one -- the exact
+       people a signup flow exists for -- with the same "expired or invalid"
+       wording, which is why it did not look like a type problem. A rejected
+       code is not consumed, so trying the second costs nothing. */
+    async function verifyAs(type, email, token) {
+      const r = await fetch(`${CFG.supabaseUrl}/auth/v1/verify`, {
+        method: "POST",
+        headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
+        body: JSON.stringify({ email, token, type }),
+      });
+      const d = await r.json().catch(() => ({}));
+      return { ok: r.ok && !!d.access_token, d };
+    }
+
+    // One verify at a time. The field submits itself on the sixth digit and
+    // the button is still there to press, and a code is single-use: whichever
+    // call lands second was reporting "expired or invalid" about a code the
+    // first call had just legitimately spent.
+    let verifying = false;
+
     async function verify() {
+      if (verifying) return;
       const email = emailIn.value.trim();
       const token = codeIn.value.replace(/\D/g, "");
       if (token.length !== 6) {
@@ -589,17 +622,18 @@
         codeIn.focus();
         return;
       }
+      verifying = true;
       verifyBtn.disabled = true;
       say("Checking…");
       try {
-        const r = await fetch(`${CFG.supabaseUrl}/auth/v1/verify`, {
-          method: "POST",
-          headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
-          body: JSON.stringify({ email, token, type: "email" }),
-        });
-        const d = await r.json().catch(() => ({}));
-        if (!r.ok || !d.access_token) {
-          say(authError(d) || "That code was not right. Check it and try again.", "bad");
+        let res = await verifyAs("email", email, token);
+        if (!res.ok) res = await verifyAs("signup", email, token);
+        const d = res.d;
+        if (!res.ok) {
+          say(authError(d) ||
+              "That code was not right. Codes are single-use — if you asked " +
+              "for more than one, only the newest works.", "bad");
+          verifying = false;
           verifyBtn.disabled = false;
           return;
         }
@@ -610,6 +644,7 @@
         document.removeEventListener("keydown", onKey);
       } catch {
         say("Could not reach the server. Check your connection.", "bad");
+        verifying = false;
         verifyBtn.disabled = false;
       }
     }
@@ -617,6 +652,10 @@
     emailForm.onsubmit = e => { e.preventDefault(); send(false); };
     codeForm.onsubmit  = e => { e.preventDefault(); verify(); };
     el.querySelector("#auth-resend").onclick = () => {
+      // Clear the old code first. Asking for a new one invalidates whatever
+      // was already sent, so leaving the previous digits in the field only
+      // sets up a "that code is invalid" that is entirely our own doing.
+      codeIn.value = "";
       codeForm.hidden = true;
       emailForm.hidden = false;
       sendBtn.disabled = false;
