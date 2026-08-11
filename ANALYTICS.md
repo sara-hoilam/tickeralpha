@@ -78,17 +78,43 @@ already reported under the old one.
 
 ## Consent
 
-Consent Mode v2, defaults denied, pushed before the tag configures itself. Only
-`analytics_storage` is ever asked for — the site runs no advertising products,
-so the three ad signals stay denied for everyone. Until a visitor answers, GA4
-sends cookieless pings and Clarity records nothing durable.
+Consent Mode v2, **decided by region**, pushed before the tag configures itself.
+Only `analytics_storage` is ever asked for — the site runs no advertising
+products, so the three ad signals stay denied for everyone.
 
-The banner's wording is the minimum that is accurate. **The copy, and the policy
-it ought to link to, need whoever owns privacy for the business to sign them
-off** — this is a compliance question, not an analytics one.
+| Visitor | Default | Banner |
+|---|---|---|
+| EEA / UK (and anything that looks like it) | `denied` | shown |
+| Everywhere else | `granted` | none |
+
+Defaulting the whole world to denied was accurate and produced no measurement
+at all: everyone started denied, few answered, and GA4 saw only cookieless
+pings. Prior consent for first-party analytics is an EEA and UK requirement,
+not a global one.
+
+Region comes from the IANA time zone, because the default has to be pushed
+before the tag configures itself and there is nowhere in that sequence to await
+a geo-IP lookup. It errs toward asking — every `Europe/*` and `Atlantic/*` zone
+plus the EU's outermost regions — because over-asking is harmless and
+under-asking is not. A visitor on a VPN or a misconfigured clock is judged by
+that time zone and nothing else; if that is not good enough, the fix is a
+Cloudflare Pages Function reading `CF-IPCountry`, which is authoritative.
+
+**An explicit choice always beats the regional default, both ways.** Someone who
+declines stays declined anywhere, and the footer's **Cookies** link reopens the
+banner so the granted-by-default regions have a visible opt-out rather than one
+buried in the policy.
+
+`gcs` on the beacon is how you read it: `G1` then `ad_storage` then
+`analytics_storage`. **`G101` is this site's success state** — `G111` can never
+occur here, because ad storage is denied for everyone by design.
+
+The banner's wording is the minimum that is accurate. **The copy, the regional
+split, and the policy it links to need whoever owns privacy for the business to
+sign them off** — this is a compliance question, not an analytics one.
 
 To re-test the flow in a browser, run `TAnalytics.resetConsent()` in the
-console.
+console, or click **Cookies** in the footer.
 
 ## Checking it works
 

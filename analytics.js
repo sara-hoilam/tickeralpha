@@ -87,20 +87,50 @@
   window.gtag = gtag;
 
   /* ---- consent ----------------------------------------------------------
-     Consent Mode v2. Defaults are denied and are pushed before the config
-     call, so nothing is stored until a visitor has said yes -- the order
-     matters more than the values, because a default that lands after the tag
-     has already run has not denied anything.
+     Consent Mode v2, decided by region.
+
+     Defaulting the whole world to denied was accurate but produced no
+     measurement at all: every visitor started denied, most never answered
+     the banner, and GA4 saw nothing but cookieless pings. Prior consent for
+     first-party analytics is an EEA and UK requirement, not a global one.
+
+     So Europe is asked, and everywhere else is granted by default and never
+     sees a banner. An explicit choice always wins over the regional default,
+     in both directions -- somebody who declined stays declined wherever they
+     are, and the footer's "Cookies" link lets anyone change their mind.
+
+     Detection is by IANA time zone because the default has to be pushed
+     before the tag configures itself, and there is no point in the sequence
+     where a geo-IP round trip could be awaited. It deliberately errs toward
+     asking: every Europe/* and Atlantic/* zone is treated as consent-first
+     even where it is not, plus the EU's outermost regions, because
+     over-asking is the harmless direction and under-asking is not.
 
      Only analytics storage is ever asked for. The site runs no advertising
      products, so the three ad signals stay denied for everyone. */
   let consent = store.get(CONSENT_KEY);           // "granted" | "denied" | null
 
+  const EU_OUTERMOST =
+    /^(Africa\/Ceuta|Indian\/(Reunion|Mayotte)|America\/(Guadeloupe|Martinique|Cayenne|Miquelon))$/;
+
+  function consentFirstRegion() {
+    let tz = "";
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch {}
+    if (!tz) return true;                         // unknown: ask
+    return /^(Europe|Atlantic)\//.test(tz) || EU_OUTERMOST.test(tz);
+  }
+
+  const askFirst = consentFirstRegion();
+  const analyticsDefault =
+    consent === "granted" ? "granted" :
+    consent === "denied"  ? "denied"  :
+    askFirst ? "denied" : "granted";
+
   gtag("consent", "default", {
     ad_storage: "denied",
     ad_user_data: "denied",
     ad_personalization: "denied",
-    analytics_storage: "denied",
+    analytics_storage: analyticsDefault,
     wait_for_update: 500,
   });
   if (consent === "granted") gtag("consent", "update", { analytics_storage: "granted" });
@@ -402,7 +432,10 @@
     document.body.appendChild(el);
   }
 
-  if (consent === null && (GA_ID || CFG.clarityProjectId)) {
+  // Only where consent has to come first. Everywhere else the default is
+  // already granted, so a banner would be asking a question whose answer has
+  // no effect -- the footer's "Cookies" link is how those visitors opt out.
+  if (consent === null && askFirst && (GA_ID || CFG.clarityProjectId)) {
     if (document.readyState === "loading")
       addEventListener("DOMContentLoaded", showBanner);
     else showBanner();

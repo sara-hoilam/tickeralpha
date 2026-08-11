@@ -458,6 +458,18 @@
       dismiss. */
   function showSignupModal(opts) {
     if (window.TA.signedIn()) return;
+    /* GoTrue mints the code, so its length is a Supabase project setting
+       (Authentication -> Sign In / Providers -> Email -> Email OTP length),
+       not the page's decision. It was 6 here against a project set to 8, and
+       maxlength was the real damage: the field swallowed the last two digits
+       and auto-submitted the truncated six on the sixth keystroke, so GoTrue
+       rejected a code that had never been typed in full while the message
+       blamed single-use codes. One constant now drives the label, the
+       placeholder, maxlength, the confirmation, the length check and the
+       auto-submit threshold -- change this and the dashboard together. */
+    const CODE_LEN = 8;
+    const CODE_WORD = { 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten" };
+    const codeWord = CODE_WORD[CODE_LEN] || String(CODE_LEN);
     if (document.getElementById("auth-modal")) return;
     const reason = (opts && opts.reason) || "generic";
     const title = SIGNUP_REASONS[reason] ||
@@ -502,10 +514,11 @@
         <!-- Step two. Hidden until a code has actually been sent, so the modal
              opens as one decision rather than a form with a mystery field. -->
         <form class="auth-email" id="auth-code-form" novalidate hidden>
-          <label class="auth-lab" for="auth-code">Enter the 6-digit code</label>
+          <label class="auth-lab" for="auth-code">Enter the ${CODE_LEN}-digit code</label>
           <input type="text" id="auth-code" name="code" required
                  inputmode="numeric" autocomplete="one-time-code"
-                 pattern="[0-9]*" maxlength="6" placeholder="123456"
+                 pattern="[0-9]*" maxlength="${CODE_LEN}"
+                 placeholder="${"1234567890".slice(0, CODE_LEN)}"
                  class="auth-code" aria-describedby="auth-msg">
           <button type="submit" class="auth-alt" id="auth-verify">Verify and continue</button>
           <button type="button" class="auth-linkbtn" id="auth-resend">Send a new code</button>
@@ -580,7 +593,7 @@
         GA.track("signup_modal_accept", { gate: reason, method: "email" });
         emailForm.hidden = true;
         codeForm.hidden = false;
-        say(`We sent a 6-digit code to ${email}. It expires in an hour.`, "ok");
+        say(`We sent a ${CODE_LEN}-digit code to ${email}. It expires in an hour.`, "ok");
         try { codeIn.focus(); } catch {}
       } catch {
         sending = false;
@@ -618,7 +631,7 @@
       const email = emailIn.value.trim();
       const token = codeIn.value.replace(/\D/g, "");
       if (token.length !== 6) {
-        say("The code is six digits.", "bad");
+        say(`The code is ${codeWord} digits.`, "bad");
         codeIn.focus();
         return;
       }
@@ -661,12 +674,12 @@
       sendBtn.disabled = false;
       send(true);
     };
-    // Digits only, and verify the moment six of them are in — a code this
+    // Digits only, and verify the moment the full code is in — a code this
     // short does not need a button press to feel finished.
     codeIn.addEventListener("input", () => {
-      const v = codeIn.value.replace(/\D/g, "").slice(0, 6);
+      const v = codeIn.value.replace(/\D/g, "").slice(0, CODE_LEN);
       if (v !== codeIn.value) codeIn.value = v;
-      if (v.length === 6) verify();
+      if (v.length === CODE_LEN) verify();
     });
 
     try { el.querySelector("#auth-google").focus(); } catch {}
@@ -956,11 +969,23 @@
         <span>© ${new Date().getFullYear()} Ticker Alpha · Logos by <a href="https://logo.dev" target="_blank" rel="noopener">Logo.dev</a></span>
         <span class="site-foot-links">
           <a href="privacy.html">Privacy Policy</a>
+          <button type="button" class="foot-link" id="foot-cookies">Cookies</button>
           <a href="news.html">News</a>
           <a href="earnings.html">Earnings</a>
           <a href="company.html">Company Report</a>
           <a href="portfolio.html">Portfolio</a>
         </span>
       </footer>`);
+
+    // Outside the EEA and the UK, analytics is on by default and no banner is
+    // shown -- so this is the opt-out, and it has to be somewhere obvious
+    // rather than only in the policy text. It reopens the same banner, so a
+    // visitor can decline (or re-accept) wherever they are.
+    const cookieBtn = document.getElementById("foot-cookies");
+    if (cookieBtn) cookieBtn.onclick = () => {
+      const A = window.TAnalytics;
+      if (A && typeof A.resetConsent === "function") A.resetConsent();
+      else location.href = "privacy.html";
+    };
   }
 })();
