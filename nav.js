@@ -74,8 +74,17 @@
     return items;
   }
 
-  const page = (location.pathname.split("/").pop() || "index.html").toLowerCase();
-  const here = p => page === p || (p === "index.html" && page === "");
+  // Cloudflare Pages serves clean URLs -- /news, not /news.html -- while a
+  // local server keeps the extension. Comparing with the extension stripped
+  // is the only version that is true in both places; comparing exactly meant
+  // no link ever highlighted in production, on any page, and nobody saw it
+  // in a local preview because there the paths still carry .html.
+  const page = (location.pathname.split("/").pop() || "index.html")
+    .toLowerCase().replace(/\.html$/, "");
+  const here = p => {
+    const want = String(p).toLowerCase().replace(/\.html$/, "");
+    return page === want || (want === "index" && page === "");
+  };
 
   document.body.insertAdjacentHTML("afterbegin", `
     <div class="nav-strip" id="nav-strip">
