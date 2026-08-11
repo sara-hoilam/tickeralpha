@@ -21,6 +21,10 @@
 <link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Every page's first act is an RPC to Supabase; warming the connection here
+     saves the DNS + TCP + TLS setup that otherwise sits in front of the first
+     byte of data. The origin is already public in config.js. -->
+<link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
 
 <!-- Four reports; a search engine should be able to find each. -->

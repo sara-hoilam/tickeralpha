@@ -1,15 +1,25 @@
 # Cloudflare Pages headers.
 #
-# The pages and the shared scripts have unversioned names -- nav.js is always
-# nav.js -- so a browser that cached one has no way to learn it changed. A phone
-# kept showing yesterday's navigation after a deploy for exactly that reason.
+# Two cache regimes:
 #
-# max-age=0 with must-revalidate does not mean "download every time": the
-# browser sends a conditional request and gets a 304 when nothing changed, so
-# the cost is one round trip, and a deploy is visible immediately.
+#   /assets/*        content-hashed names minted by build.sh (nav.a1b2c3d4.js).
+#                    The name changes when the content does, so these can be
+#                    immutable for a year -- a deploy is still instantly
+#                    visible because the pages reference the new names.
+#
+#   pages + the few  max-age=0 with must-revalidate. That does not mean
+#   unversioned      "download every time": the browser sends a conditional
+#   scripts          request and gets a 304 when nothing changed, so the cost
+#                    is one round trip, and a deploy is visible immediately.
+#                    config.js stays here because build.sh injects env values
+#                    into it; clarity-init.js because it imports ./vendor by
+#                    relative path and so keeps its name.
 #
 # Images, PDFs and the report covers are deliberately not listed. Those are
 # large, they change rarely, and a stale cover is not a broken page.
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
 
 /
   Cache-Control: public, max-age=0, must-revalidate
@@ -17,22 +27,7 @@
 /*.html
   Cache-Control: public, max-age=0, must-revalidate
 
-/nav.js
-  Cache-Control: public, max-age=0, must-revalidate
-
-/nav.css
-  Cache-Control: public, max-age=0, must-revalidate
-
-/logo.js
-  Cache-Control: public, max-age=0, must-revalidate
-
-/gate.js
-  Cache-Control: public, max-age=0, must-revalidate
-
 /config.js
-  Cache-Control: public, max-age=0, must-revalidate
-
-/analytics.js
   Cache-Control: public, max-age=0, must-revalidate
 
 /clarity-init.js

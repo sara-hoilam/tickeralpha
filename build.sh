@@ -65,6 +65,30 @@ cp node_modules/@microsoft/clarity/index.js      public/vendor/clarity/
 cp node_modules/@microsoft/clarity/package.json  public/vendor/clarity/
 cp node_modules/@microsoft/clarity/src/utils.js  public/vendor/clarity/src/
 
+# ---- content-hashed asset names -------------------------------------------
+# The shared scripts have stable names, so _headers had to make every page
+# load revalidate each of them -- five conditional round trips per navigation,
+# ~0.3s apiece on a warm connection. A content-hashed copy under /assets can
+# be cached for a year instead: the name changes when the content does, so a
+# deploy is still instantly visible, and a repeat visit skips the round trips.
+#
+# config.js stays unversioned (the env injection below edits it after this
+# point), and clarity-init.js stays put because it imports ./vendor/clarity by
+# relative path.
+mkdir -p public/assets
+for f in nav.js nav.css logo.js analytics.js gate.js; do
+  base="${f%.*}"; ext="${f##*.}"
+  h=$(md5sum "public/$f" | cut -c1-8)
+  mv "public/$f" "public/assets/$base.$h.$ext"
+  # Root pages reference "nav.js"; the reports reach gate.js as "../gate.js".
+  # The two patterns are disjoint (the bare one requires the quote right
+  # before the name), so both rewrites can run over every page.
+  for page in public/*.html public/reports/*.html; do
+    sed -i "s|\"$f\"|\"assets/$base.$h.$ext\"|g; s|\"\.\./$f\"|\"../assets/$base.$h.$ext\"|g" "$page"
+  done
+  echo "versioned $f -> assets/$base.$h.$ext"
+done
+
 if [ ! -f public/config.js ]; then
   echo "public/config.js is missing — both pages would have no data source." >&2
   exit 1
