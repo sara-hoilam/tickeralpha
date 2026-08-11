@@ -491,7 +491,10 @@
         <h2 id="auth-modal-title">${esc(title)}</h2>
         ${note ? `<p class="auth-why">${esc(note)}</p>` : ""}
         <p class="auth-legal">By continuing, you agree to our
-          <a href="privacy.html" target="_blank" rel="noopener">privacy policy</a>.</p>
+          <a href="privacy.html" target="_blank" rel="noopener">privacy policy</a>
+          and to analytics cookies. You can
+          <button type="button" class="auth-inline" id="auth-cookies">change your cookie choice</button>
+          at any time.</p>
         <button type="button" class="auth-google" id="auth-google">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -546,6 +549,15 @@
       document.removeEventListener("keydown", onKey);
       GA.track("signup_modal_accept", { gate: reason, method: "google" });
       signIn();
+    };
+
+    // The cookie line is a control, not just prose: it opens the consent sheet
+    // over this one rather than navigating away, so nobody loses a half-typed
+    // email to go and read about cookies.
+    el.querySelector("#auth-cookies").onclick = () => {
+      const A = window.TAnalytics;
+      if (A && typeof A.openConsent === "function") A.openConsent();
+      else window.open("privacy.html", "_blank", "noopener");
     };
 
     /* ---- the email route ---------------------------------------------- */
@@ -739,6 +751,7 @@
     history.replaceState(null, "", location.pathname + location.search);
     // A page that was rendered signed-out needs to hear about this.
     setTimeout(announce, 0);
+    setTimeout(grantConsentOnAuth, 0);
     // Came back from Google having started at a report? Return to it.
     setTimeout(resumeNext, 0);
   })();
@@ -892,9 +905,27 @@
     });
     renderAuth();
     announce();
+    grantConsentOnAuth();
     // Google One Tap, or the email code: either way, if a report sent us here
     // to sign in, that is where the visitor wants to be.
     resumeNext();
+  }
+
+  /** Opening an account is agreement to the terms the sheet stated, cookies
+      among them -- so a visitor who has not answered the consent question is
+      taken to have said yes by signing in.
+
+      Only where no answer exists. Someone who declined has made a decision and
+      signing in does not quietly reverse it, which is what "unless opted out
+      specifically" has to mean if it means anything. The sheet says this in
+      plain words above the buttons, and the same line links straight to the
+      cookie choice, so it is disclosed at the moment of the click rather than
+      buried in a policy page. */
+  function grantConsentOnAuth() {
+    const A = window.TAnalytics;
+    if (A && typeof A.grantIfUnset === "function") {
+      try { A.grantIfUnset(); } catch {}
+    }
   }
 
   /* One Tap needs a nonce of its own.
@@ -987,7 +1018,9 @@
     const cookieBtn = document.getElementById("foot-cookies");
     if (cookieBtn) cookieBtn.onclick = () => {
       const A = window.TAnalytics;
-      if (A && typeof A.resetConsent === "function") A.resetConsent();
+      // openConsent, not resetConsent: reviewing a choice should not begin by
+      // discarding it. Either button writes a fresh value anyway.
+      if (A && typeof A.openConsent === "function") A.openConsent();
       else location.href = "privacy.html";
     };
   }

@@ -511,6 +511,45 @@
     else showBanner();
   }
 
+  /* ---- and then check it properly ---------------------------------------
+     The time zone is a guess made synchronously because the consent default
+     has to be pushed before the tag configures itself. It is wrong in the two
+     cases that matter: a VPN changes the exit IP and not the clock, and a
+     traveller's laptop keeps the time zone it came with.
+
+     Cloudflare already knows the answer. /cdn-cgi/trace is served from the
+     edge in front of this site and reports `loc` from the IP, so one cheap
+     request upgrades the guess to a fact. It only ever tightens: a visitor the
+     clock called non-European but the edge calls European is switched to
+     denied and asked. The reverse is left alone -- somebody already looking at
+     the sheet is not better served by it vanishing, and over-asking harms
+     nobody.
+
+     An explicit choice outranks all of this and is never revisited. */
+  const CONSENT_FIRST_COUNTRIES = new Set([
+    "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT",
+    "LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE",   // EU 27
+    "IS","LI","NO",                                                // EEA
+    "GB","GI",                                                     // UK
+  ]);
+
+  function confirmRegionByIp() {
+    if (consent !== null) return;              // already answered; nothing to fix
+    if (askFirst) return;                      // already asking; cannot tighten further
+    fetch("/cdn-cgi/trace", { cache: "no-store" })
+      .then(r => (r.ok ? r.text() : ""))
+      .then(text => {
+        const m = /(?:^|\n)loc=([A-Z]{2})/.exec(text || "");
+        if (!m || !CONSENT_FIRST_COUNTRIES.has(m[1])) return;
+        if (consent !== null) return;          // answered while the request was out
+        gtag("consent", "update", { analytics_storage: "denied" });
+        applyClarityConsent();
+        showBanner();
+      })
+      .catch(() => {});
+  }
+  if (GA_ID || CFG.clarityProjectId) confirmRegionByIp();
+
   /* ---- the public surface ------------------------------------------------ */
   window.TAnalytics = {
     track,
@@ -523,6 +562,24 @@
     /** Clears the stored choice and shows the banner again — for testing the
         consent flow without hand-editing localStorage. */
     resetConsent(){ store.del(CONSENT_KEY); consent = null; showBanner(); },
+
+    /** Show the sheet without discarding what was already chosen. This is what
+        a "cookie policy" link should call: the visitor is reviewing a decision,
+        not being reset to having made none. Either button still writes a fresh
+        value, so nothing is left half-changed. */
+    openConsent(){ showBanner(); },
+
+    /** Opening an account counts as agreement — but only where no answer has
+        been given yet. A stored "denied" is a decision the visitor already
+        made and signing in does not overturn it; that is the whole meaning of
+        "unless opted out specifically". Returns whether anything changed. */
+    grantIfUnset(){
+      if (store.get(CONSENT_KEY)) return false;
+      setConsent("granted");
+      const veil = document.querySelector(".ta-consent-veil");
+      if (veil) veil.remove();          // the sheet, if it was open, is answered
+      return true;
+    },
   };
 
   // One page view per load. Identification above ran first, so events that

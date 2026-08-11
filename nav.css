@@ -299,6 +299,13 @@
   color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px;
 }
 .auth-modal-card .auth-legal a:hover { color: var(--accent); }
+/* Reads as part of the sentence, but opens the consent sheet rather than
+   navigating, so a half-typed email survives the detour. */
+.auth-modal-card .auth-inline {
+  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px;
+}
+.auth-modal-card .auth-inline:hover { color: var(--accent); }
 .auth-google {
   display: flex; align-items: center; justify-content: center; gap: 10px;
   width: 100%; border: 0; border-radius: 10px; cursor: pointer;
