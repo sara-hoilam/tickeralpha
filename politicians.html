@@ -39,7 +39,9 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:"IBM Plex Sans",system-ui,sans-serif;background:var(--ground);
   color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-main{max-width:1180px;margin:0 auto;padding:24px 28px 80px}
+/* Full page width, the same as Markets Today — this page is two side-by-side
+   working areas, and gutters were costing it a third of the screen. */
+main{max-width:var(--page,1680px);margin:0 auto;padding:24px 28px 80px}
 .up{color:var(--up)} .down{color:var(--down)}
 .panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
   box-shadow:var(--shadow);overflow:hidden}
@@ -75,54 +77,56 @@ h2.sect:first-of-type{margin-top:8px}
 .pac > div:hover,.pac > div[aria-selected=true]{background:var(--accent-soft)}
 .pac b{font-size:13px;font-weight:600}
 .pac .meta{font-size:11.5px;color:var(--ink-3);margin-left:auto;white-space:nowrap}
+.pac .facewrap{width:26px;height:26px;font-size:9px}
 
 /* ---- portrait ----------------------------------------------------------- */
-.face{border-radius:50%;object-fit:cover;object-position:top center;flex-shrink:0;
-  background:var(--sunk);display:block}
-.face-fallback{border-radius:50%;flex-shrink:0;display:grid;place-items:center;color:#fff;
-  font-family:"IBM Plex Mono",monospace;font-weight:700}
+.facewrap{position:relative;display:inline-block;flex-shrink:0}
+.facewrap img{width:100%;height:100%;border-radius:50%;object-fit:cover;
+  object-position:top center;background:var(--sunk);display:block}
+.facewrap .fb{position:absolute;inset:0;border-radius:50%;display:grid;place-items:center;
+  color:#fff;font-family:"IBM Plex Mono",monospace;font-weight:700}
+.facewrap.img-ok .fb{display:none}
 
-/* Party chip: blue / red / grey, single letter, the way every trades site
-   marks it. */
 .party{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:4px;
   font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
 .party.pD{background:#1e4fbf}.party.pR{background:#c0392e}.party.pI,.party.pX{background:#78889a}
 
-/* ---- featured rail ------------------------------------------------------ */
-.people{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px;
-  margin-bottom:18px}
+/* ---- congress: cards left, profile right -------------------------------- */
+.congress{display:grid;grid-template-columns:minmax(300px,430px) minmax(0,1fr);
+  gap:20px;align-items:start}
+.people{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .pcard{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;
   background:var(--card);border:1px solid var(--rule);border-radius:12px;
-  box-shadow:var(--shadow);padding:16px 12px 13px;cursor:pointer;
+  box-shadow:var(--shadow);padding:15px 10px 12px;cursor:pointer;
   transition:transform .14s ease,border-color .14s ease}
 .pcard:hover{transform:translateY(-2px);border-color:var(--accent)}
 .pcard[aria-pressed=true]{border-color:var(--accent);background:var(--accent-soft)}
-.pcard .face,.pcard .face-fallback{width:56px;height:56px;font-size:18px}
-.pcard b{font-size:13px;font-weight:600;line-height:1.25}
-.pcard .seat{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-3)}
-.pcard .n{font-size:11px;color:var(--ink-2)}
-.pcard .n b{font-size:11px;color:var(--accent)}
+.pcard .facewrap{width:52px;height:52px;font-size:17px}
+.pcard b{font-size:12.5px;font-weight:600;line-height:1.25}
+.pcard .seat{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink-3)}
+.pcard .n{font-size:10.5px;color:var(--ink-2)}
+.pcard .n b{font-size:10.5px;color:var(--accent)}
 
 /* ---- profile ------------------------------------------------------------ */
-.profile{margin-bottom:26px}
+.profile{min-width:0}
 .phead2{display:flex;align-items:center;gap:14px;padding:16px 18px;
   border-bottom:1px solid var(--rule-2)}
-.phead2 .face,.phead2 .face-fallback{width:52px;height:52px;font-size:17px}
+.phead2 .facewrap{width:52px;height:52px;font-size:17px}
 .phead2 h3{font-family:"IBM Plex Serif",Georgia,serif;font-size:19px;font-weight:600;
   letter-spacing:-.01em}
 .phead2 .seat{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3);margin-top:2px}
-.phead2 .x{margin-left:auto;background:transparent;border:0;cursor:pointer;
-  color:var(--ink-3);font-size:19px;line-height:1;padding:6px}
-.phead2 .x:hover{color:var(--ink)}
 .ptabs{display:flex;gap:6px;padding:12px 18px 0}
 .ptabs button{background:var(--sunk);border:1px solid var(--rule);border-radius:8px;
   padding:7px 14px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink-2)}
 .ptabs button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
 .pnote{padding:10px 18px 0;font-size:12px;color:var(--ink-3)}
 
-.ttable{overflow-x:auto;padding:6px 0 4px}
+/* Ten rows and then it scrolls; the header stays put. */
+.ttable{overflow:auto;padding:6px 0 4px}
+.profile .ttable{max-height:548px}
 table{width:100%;border-collapse:collapse;font-size:13px}
-thead th{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+thead th{position:sticky;top:0;z-index:2;background:var(--card);
+  font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
   font-weight:600;text-align:right;padding:9px 14px 9px 0;border-bottom:1px solid var(--rule);
   white-space:nowrap}
 thead th:first-child{text-align:left;padding-left:18px}
@@ -139,7 +143,7 @@ tbody tr.rowlink:hover td{background:var(--sunk)}
 .co .t{display:flex;flex-direction:column;gap:1px;min-width:0}
 .co .sym{font-weight:600;font-size:13px}
 .co .nm{font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap;max-width:210px}
+  white-space:nowrap;max-width:230px}
 
 .chip{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;
   font-family:"IBM Plex Sans",sans-serif}
@@ -154,17 +158,51 @@ tbody tr.rowlink:hover td{background:var(--sunk)}
 .flink{font-size:11px;color:var(--ink-3);text-decoration:none;font-family:"IBM Plex Sans",sans-serif}
 .flink:hover{color:var(--accent);text-decoration:underline}
 
-/* ---- insider leaders ---------------------------------------------------- */
-.ins-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;align-items:start}
-@media (max-width:1000px){.ins-grid{grid-template-columns:minmax(0,1fr)}}
-.ins-chart{padding:14px 18px 10px;overflow-x:auto}
-.ins-chart svg{display:block;width:100%;height:auto}
-.legend{display:flex;gap:16px;padding:0 18px 14px;font-size:11.5px;color:var(--ink-3)}
+/* ---- insiders ----------------------------------------------------------- */
+.ins-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:20px;align-items:start}
+.ibars{padding:12px 18px 6px}
+.ibar{display:grid;grid-template-columns:132px minmax(0,1fr) minmax(0,1fr);
+  align-items:center;min-height:44px;border-bottom:1px solid var(--rule-2)}
+.ibar:last-child{border-bottom:0}
+.ibar .co{cursor:pointer}
+.ibar .co:hover .sym{color:var(--accent)}
+.ibar .cell{position:relative;height:100%;display:flex;align-items:center;min-height:44px}
+.ibar .cell.sell{justify-content:flex-end;border-right:1px solid var(--rule)}
+.ibar .bar{height:16px;border-radius:3px}
+.ibar .cell.sell .bar{background:var(--down);opacity:.85;border-radius:3px 0 0 3px}
+.ibar .cell.buy .bar{background:var(--up);opacity:.85;border-radius:0 3px 3px 0}
+.ibar .v{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--ink-3);
+  padding:0 6px;white-space:nowrap}
+.legend{display:flex;gap:16px;padding:4px 18px 14px;font-size:11.5px;color:var(--ink-3)}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+/* Expanded breakdown: who was doing the buying and selling. */
+tr.detail > td{background:var(--sunk);padding:0 14px 0 18px;text-align:left;
+  font-family:"IBM Plex Sans",sans-serif}
+.dwrap{padding:10px 4px 12px}
+.drow{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:12.5px;
+  border-bottom:1px dashed var(--rule-2)}
+.drow:last-child{border-bottom:0}
+.drow .who{min-width:0}
+.drow .who b{font-weight:600;display:block;line-height:1.3}
+.drow .who span{font-size:11px;color:var(--ink-3)}
+.drow .val{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:12px;white-space:nowrap}
+.dfoot{padding-top:9px;font-size:12px}
+.dfoot a{color:var(--accent);text-decoration:none;font-weight:600}
+.dfoot a:hover{text-decoration:underline}
+.caret{display:inline-block;margin-left:8px;color:var(--ink-3);font-size:10px;
+  transition:transform .15s ease}
+tr[aria-expanded=true] .caret{transform:rotate(180deg)}
+
+@media (max-width:1000px){
+  .congress{grid-template-columns:minmax(0,1fr)}
+  .people{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .ins-grid{grid-template-columns:minmax(0,1fr)}
+}
 @media (max-width:720px){
   main{padding:16px 12px 60px}
-  .people{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
   .co .nm{max-width:120px}
+  .ibar{grid-template-columns:96px minmax(0,1fr) minmax(0,1fr)}
 }
 </style>
 </head>
@@ -187,16 +225,20 @@ tbody tr.rowlink:hover td{background:var(--sunk)}
     <div class="pac" id="p-ac" role="listbox"></div>
   </div>
 
-  <section class="panel profile" id="profile" hidden></section>
-
-  <div class="people" id="people"><div class="note" style="grid-column:1/-1"><span class="load"></span></div></div>
+  <div class="congress">
+    <div class="people" id="people"><div class="note" style="grid-column:1/-1"><span class="load"></span></div></div>
+    <section class="panel profile" id="profile">
+      <div class="note">Pick a politician to see their trades.</div>
+    </section>
+  </div>
 
   <h2 class="sect">Where insiders are trading</h2>
   <p class="sect-sub">Officers and directors trading their own company's stock — Form 4
-     filings over the last 60 days, above $1M or 1% of shares outstanding.</p>
+     filings over the last 60 days, above $1M or 1% of shares outstanding. Click a
+     company for who was buying and selling.</p>
   <div class="ins-grid">
     <section class="panel">
-      <div class="ins-chart" id="ins-chart"><div class="note"><span class="load"></span></div></div>
+      <div class="ibars" id="ins-chart"><div class="note"><span class="load"></span></div></div>
       <div class="legend"><span><i style="background:var(--up)"></i>Insider buying</span>
         <span><i style="background:var(--down)"></i>Insider selling</span></div>
     </section>
@@ -253,8 +295,8 @@ const kfmt = n => {
 };
 
 /* Congress amounts arrive as the band text the law requires: "$1,001 -
-   $15,000". Compressed for the column, with the midpoint kept for sorting
-   and the dollar meter. */
+   $15,000". Compressed for the column, midpoint kept for sorting and the
+   dollar meter. */
 function band(raw){
   const nums = String(raw || "").match(/[\d,]+/g);
   if (!nums || !nums.length) return { label: raw || "—", mid: 0 };
@@ -277,25 +319,37 @@ const filedAfter = (traded, disclosed) => {
 const AVATAR = ["#1e4fbf","#eb2024","#1baf7a","#eda100","#e87ba4","#4a3aa7","#2a78d6","#e34948"];
 const avatarColour = s => AVATAR[[...String(s)].reduce((a,c)=>a+c.charCodeAt(0),0) % AVATAR.length];
 
-/* Congress portraits, keyed by bioguide id, served by the @unitedstates
-   project. A missing photo swaps to an initial disc rather than a broken
-   image — the feed has names the directory cannot always match. */
+/* ---- portraits ----------------------------------------------------------
+   Congress photos keyed by bioguide id, from the @unitedstates project. The
+   image and its initials fallback are both rendered, the fallback on top;
+   when the image loads the wrapper is marked and the fallback hides. No
+   inline handlers — an onerror attribute holding markup is exactly how the
+   first version of this page printed `NP'">` above people's heads. */
 const PHOTO = b => `https://unitedstates.github.io/images/congress/225x275/${encodeURIComponent(b)}.jpg`;
-function faceHTML(p, px){
-  const initials = String(p.person || "?").split(" ").map(w => w[0]).slice(0,2).join("").toUpperCase();
-  const fb = `<span class="face-fallback" style="width:${px}px;height:${px}px;background:${avatarColour(p.person)};font-size:${Math.round(px*.32)}px">${esc(initials)}</span>`;
-  if (!p.bioguide) return fb;
-  return `<img class="face" width="${px}" height="${px}" src="${PHOTO(p.bioguide)}" alt=""
-    onerror="this.outerHTML='${fb.replace(/'/g,"\\'")}'">`;
+function faceHTML(p){
+  const initials = String(p.person || "?").trim().split(/\s+/)
+    .map(w => w[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
+  return `<span class="facewrap">
+    ${p.bioguide ? `<img alt="" data-face src="${PHOTO(p.bioguide)}">` : ""}
+    <span class="fb" style="background:${avatarColour(p.person)}">${esc(initials)}</span>
+  </span>`;
+}
+/* Mark wrappers whose photo actually arrived; everything else keeps its
+   initials. Runs after every render that can contain faces. */
+function wireFaces(root){
+  (root || document).querySelectorAll(".facewrap img[data-face]").forEach(img => {
+    const ok = () => img.closest(".facewrap").classList.add("img-ok");
+    const bad = () => img.remove();
+    if (img.complete) { (img.naturalWidth > 0 ? ok : bad)(); return; }
+    img.addEventListener("load", ok, { once: true });
+    img.addEventListener("error", bad, { once: true });
+  });
 }
 const seatHTML = p => `
   ${p.party ? `<span class="party p${esc(p.party)}">${esc(p.party)}</span>` : ""}
   <span>${esc(p.chamber || "")}${p.district ? ` · ${esc(p.district)}` : (p.state ? ` · ${esc(p.state)}` : "")}</span>`;
 
-/* ---- who to show before anyone searches ---------------------------------
-   Pinned names people actually look for, with their bioguide ids inline so
-   the photos work even before the directory table exists. The rest of the
-   rail fills with whoever has filed the most disclosures in the window. */
+/* ---- who to show before anyone searches --------------------------------- */
 const FEATURED = [
   { person: "Nancy Pelosi",     bioguide: "P000197", party: "D", chamber: "House",  district: "CA-11" },
   { person: "Ro Khanna",        bioguide: "K000389", party: "D", chamber: "House",  district: "CA-17" },
@@ -304,35 +358,24 @@ const FEATURED = [
   { person: "Dan Crenshaw",     bioguide: "C001120", party: "R", chamber: "House",  district: "TX-2"  },
   { person: "Tommy Tuberville", bioguide: "T000278", party: "R", chamber: "Senate", district: "AL"    },
 ];
-
-/* Match a featured name against the disclosure feed's spelling: same last
-   word and same first initial — "Michael McCaul" vs "Michael T. McCaul". */
 const nameKey = s => {
   const w = String(s || "").toLowerCase().trim().split(/\s+/);
   return w.length ? `${w[0][0] || ""}·${w[w.length-1]}` : "";
 };
 
 const S = {
-  people: [],            // traders in the window, most active first
-  byPerson: null,        // fallback mode: Map person -> rows
-  mode: "rpc",
-  selected: null,
-  profile: null,
-  tab: "tx",
+  people: [], byPerson: null, mode: "rpc",
+  selected: null, profile: null, tab: "tx",
   acItems: [], acIdx: -1,
+  insRows: [], insOpen: null, insPeople: new Map(),
 };
 
 /* ---- data --------------------------------------------------------------- */
-/* The page prefers the RPCs migration 0058 adds. Until that is applied they
-   404, and everything below falls back to paging the existing get_trades —
-   same rows, aggregated here instead of in SQL. The fallback is also the
-   only mode that has no owner / district / photo directory, so it shows
-   initials and skips those chips rather than guessing. */
-
-async function pageTrades(kind, want){
+async function pageTrades(kind, want, symbols){
   const out = [];
   for (let off = 0; out.length < want; off += 100) {
-    const d = await rpc("get_trades", { p_limit: 100, p_offset: off, p_days: 60, p_kind: kind });
+    const d = await rpc("get_trades", { p_limit: 100, p_offset: off, p_days: 60,
+                                        p_kind: kind, ...(symbols ? { p_symbols: symbols } : {}) });
     const rows = (kind === "insider" ? d.insiders : d.congress) || [];
     out.push(...rows);
     const total = kind === "insider" ? d.insidersTotal : d.congressTotal;
@@ -346,12 +389,9 @@ async function loadPeople(){
     S.people = await rpc("search_politicians", { q: "", lim: 30 }) || [];
     S.mode = "rpc";
   } catch {
-    // Pre-0058: build the same list from the raw rows.
     const rows = await pageTrades("congress", 600).catch(() => []);
     const by = new Map();
     rows.forEach(r => {
-      // The feed occasionally files a row under a bare number where the name
-      // should be. A person needs letters in their name.
       if (!r.person || !/[a-z]{2}/i.test(r.person)) return;
       const cur = by.get(r.person) || { person: r.person, trades: 0, lastDisclosed: null,
                                         chamber: r.chamber, rows: [] };
@@ -363,8 +403,6 @@ async function loadPeople(){
     S.people = [...by.values()].sort((a,b) => b.trades - a.trades || a.person.localeCompare(b.person));
     S.mode = "fallback";
   }
-  // Give featured entries their live counts, and give feed names that match
-  // a featured entry its photo and seat.
   const feat = new Map(FEATURED.map(f => [nameKey(f.person), f]));
   S.people.forEach(p => {
     const f = feat.get(nameKey(p.person));
@@ -372,13 +410,16 @@ async function loadPeople(){
              p.chamber = p.chamber || f.chamber; p.district = p.district || f.district; }
   });
   paintPeople();
+  // The profile panel sits beside the cards now, so it should never open
+  // empty: start on the most active trader.
+  if (!S.selected) {
+    const first = S.people.find(p => p.trades > 0);
+    if (first) openProfile(first.person, first, { quiet: true });
+  }
 }
 
-function paintPeople(){
-  const host = document.getElementById("people");
+function railCards(){
   const have = new Map(S.people.map(p => [nameKey(p.person), p]));
-  // Pinned first, each carrying its live count when the feed has one; then
-  // the most active traders not already shown, up to twelve cards.
   const cards = [];
   FEATURED.forEach(f => {
     const live = have.get(nameKey(f.person));
@@ -388,6 +429,12 @@ function paintPeople(){
     if (cards.length >= 12) return;
     if (!cards.some(c => nameKey(c.person) === nameKey(p.person))) cards.push(p);
   });
+  return cards;
+}
+
+function paintPeople(){
+  const host = document.getElementById("people");
+  const cards = railCards();
   if (!cards.length) {
     host.innerHTML = `<div class="note" style="grid-column:1/-1">No congressional disclosures stored yet.</div>`;
     return;
@@ -395,13 +442,14 @@ function paintPeople(){
   host.innerHTML = cards.map((p, i) => `
     <div class="pcard" role="button" tabindex="0" data-i="${i}"
          aria-pressed="${S.selected === p.person}">
-      ${faceHTML(p, 56)}
+      ${faceHTML(p)}
       <b>${esc(p.person)}</b>
       <span class="seat">${seatHTML(p)}</span>
       <span class="n">${p.trades
         ? `<b>${p.trades}</b> disclosure${p.trades === 1 ? "" : "s"} · 60d`
         : `<span style="color:var(--ink-3)">No recent disclosures</span>`}</span>
     </div>`).join("");
+  wireFaces(host);
   host.querySelectorAll(".pcard").forEach(el => {
     const p = cards[+el.dataset.i];
     const go = () => openProfile(p.person, p);
@@ -411,13 +459,15 @@ function paintPeople(){
 }
 
 /* ---- profile ------------------------------------------------------------ */
-async function openProfile(person, hint){
+async function openProfile(person, hint, opts){
   S.selected = person; S.tab = "tx"; S.profile = null;
-  GA.track("select_content", { content_type: "politician", source: "congress_page" });
+  if (!(opts && opts.quiet)) GA.track("select_content", { content_type: "politician", source: "congress_page" });
   const el = document.getElementById("profile");
-  el.hidden = false;
   el.innerHTML = `<div class="note"><span class="load"></span></div>`;
-  el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  // Side by side on desktop; only scroll to it when stacked on a phone, and
+  // only when the visitor asked, not on the automatic first open.
+  if (!(opts && opts.quiet) && matchMedia("(max-width:1000px)").matches)
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
   paintPeople();
 
   let identity = null, trades = [];
@@ -426,7 +476,7 @@ async function openProfile(person, hint){
       const d = await rpc("get_politician", { p_person: person });
       identity = d && d.identity;
       trades = (d && d.trades) || [];
-    } catch { /* fall through to hint-only */ }
+    } catch {}
   } else if (S.byPerson && S.byPerson.has(person)) {
     trades = S.byPerson.get(person).rows.slice()
       .sort((a,b) => (b.traded || b.disclosed || "").localeCompare(a.traded || a.disclosed || ""));
@@ -441,13 +491,6 @@ async function openProfile(person, hint){
     trades,
   };
   paintProfile();
-}
-
-function closeProfile(){
-  S.selected = null; S.profile = null;
-  const el = document.getElementById("profile");
-  el.hidden = true; el.innerHTML = "";
-  paintPeople();
 }
 
 function symbolAgg(trades){
@@ -512,12 +555,11 @@ function paintProfile(){
 
   el.innerHTML = `
     <div class="phead2">
-      ${faceHTML(p, 52)}
+      ${faceHTML(p)}
       <div>
         <h3>${esc(p.person)}</h3>
         <span class="seat">${seatHTML(p)}</span>
       </div>
-      <button type="button" class="x" aria-label="Close profile">×</button>
     </div>
     <div class="ptabs" role="tablist">
       <button role="tab" data-t="tx" aria-pressed="${S.tab === "tx"}">Transactions</button>
@@ -536,7 +578,7 @@ function paintProfile(){
         </tr></thead><tbody>${aggRows}</tbody></table>`}
     </div>`;
 
-  el.querySelector(".x").onclick = closeProfile;
+  wireFaces(el);
   el.querySelectorAll(".ptabs button").forEach(b => b.onclick = () => {
     S.tab = b.dataset.t; paintProfile();
   });
@@ -557,12 +599,13 @@ function wireSearch(){
     if (!S.acItems.length) return close();
     ac.innerHTML = S.acItems.map((p, i) => `
       <div role="option" data-i="${i}" aria-selected="${i === S.acIdx}">
-        ${faceHTML(p, 26)}
+        ${faceHTML(p)}
         <b>${esc(p.person)}</b>
         <span class="meta">${p.trades ? `${p.trades} · 60d` : ""}</span>
       </div>`).join("");
     ac.classList.add("open");
     q.setAttribute("aria-expanded","true");
+    wireFaces(ac);
     ac.querySelectorAll("[data-i]").forEach(d => d.onmousedown = e => {
       e.preventDefault();
       const p = S.acItems[+d.dataset.i];
@@ -605,7 +648,6 @@ async function loadInsiders(){
   try {
     rows = await rpc("get_insider_leaders", { p_limit: 15 }) || [];
   } catch {
-    // Pre-0058: aggregate the raw filings here instead.
     const raw = await pageTrades("insider", 400).catch(() => []);
     const by = new Map();
     raw.forEach(r => {
@@ -625,10 +667,32 @@ async function loadInsiders(){
       .sort((a,b) => (b.buyAmt + b.sellAmt) - (a.buyAmt + a.sellAmt))
       .slice(0, 15);
   }
-  paintInsiders(rows);
+  S.insRows = rows;
+  paintInsiders();
 }
 
-function paintInsiders(rows){
+/* The filings behind one company's bar, fetched the first time its row is
+   opened and remembered after that. */
+async function insiderPeople(symbol){
+  if (S.insPeople.has(symbol)) return S.insPeople.get(symbol);
+  let rows = [];
+  try { rows = await pageTrades("insider", 100, [symbol]); } catch {}
+  const by = new Map();
+  rows.forEach(r => {
+    const k = r.person || "—";
+    const cur = by.get(k) || { person: k, title: r.title, total: 0, last: null };
+    cur.total += Number(r.amount) || 0;
+    if (!cur.title && r.title) cur.title = r.title;
+    if (r.filed && (!cur.last || r.filed > cur.last)) cur.last = r.filed;
+    by.set(k, cur);
+  });
+  const out = [...by.values()].sort((a,b) => Math.abs(b.total) - Math.abs(a.total)).slice(0, 8);
+  S.insPeople.set(symbol, out);
+  return out;
+}
+
+function paintInsiders(){
+  const rows = S.insRows;
   const chart = document.getElementById("ins-chart");
   const table = document.getElementById("ins-table");
   if (!rows.length) {
@@ -636,48 +700,38 @@ function paintInsiders(rows){
     return;
   }
 
-  /* Diverging bars: selling grows left in red, buying grows right in green,
-     one row per company. Kept apart on purpose — netting them would say
-     "nothing happened" about a company where one officer bought $10M while
-     another sold $10M. */
+  /* Diverging bars as plain HTML rows, so each company carries its logo and
+     the text stays text. Selling grows left in red, buying right in green,
+     deliberately not netted. */
   const top = rows.slice(0, 10);
   const max = Math.max(...top.map(r => Math.max(r.buyAmt || 0, r.sellAmt || 0)), 1);
-  const W = 560, rowH = 30, ml = 64, pad = 6, H = top.length * rowH + 26;
-  const half = (W - ml - 16) / 2, cx = ml + half;
-  const sc = v => (v / max) * (half - 46);
-  const parts = [
-    `<line x1="${cx}" y1="6" x2="${cx}" y2="${H-20}" stroke="var(--rule)"/>`
-  ];
-  top.forEach((r, i) => {
-    const y = 8 + i * rowH, bh = rowH - 11;
-    const bw = sc(r.buyAmt || 0), sw = sc(r.sellAmt || 0);
-    parts.push(`<text x="${ml-8}" y="${y+bh-2}" text-anchor="end" font-size="10.5"
-      font-family="IBM Plex Mono,monospace" font-weight="600" fill="var(--ink)"
-      class="ins-sym" data-s="${esc(r.symbol)}" style="cursor:pointer">${esc(r.symbol)}</text>`);
-    if (sw > 0) parts.push(
-      `<rect x="${cx-sw}" y="${y}" width="${sw}" height="${bh}" rx="2" fill="var(--down)" opacity=".85"/>`,
-      `<text x="${cx-sw-4}" y="${y+bh-2}" text-anchor="end" font-size="9.5"
-        font-family="IBM Plex Mono,monospace" fill="var(--ink-3)">${kfmt(r.sellAmt)}</text>`);
-    if (bw > 0) parts.push(
-      `<rect x="${cx+1}" y="${y}" width="${bw}" height="${bh}" rx="2" fill="var(--up)" opacity=".85"/>`,
-      `<text x="${cx+bw+5}" y="${y+bh-2}" font-size="9.5"
-        font-family="IBM Plex Mono,monospace" fill="var(--ink-3)">${kfmt(r.buyAmt)}</text>`);
-    if (!(sw > 0) && !(bw > 0)) parts.push(
-      `<text x="${cx+6}" y="${y+bh-2}" font-size="9.5" fill="var(--ink-3)">—</text>`);
+  const pc = v => Math.max(v > 0 ? 2 : 0, Math.round((v / max) * 88));
+  chart.innerHTML = top.map(r => `
+    <div class="ibar">
+      <span class="co" data-s="${esc(r.symbol)}" role="link" tabindex="0">
+        <span class="dot" data-logo="${esc(r.symbol)}" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>
+        <span class="t"><span class="sym">${esc(r.symbol)}</span></span>
+      </span>
+      <span class="cell sell">
+        ${r.sellAmt ? `<span class="v">${kfmt(r.sellAmt)}</span><span class="bar" style="width:${pc(r.sellAmt)}%"></span>` : ""}
+      </span>
+      <span class="cell buy">
+        ${r.buyAmt ? `<span class="bar" style="width:${pc(r.buyAmt)}%"></span><span class="v">${kfmt(r.buyAmt)}</span>` : ""}
+      </span>
+    </div>`).join("");
+  chart.querySelectorAll(".co[data-s]").forEach(el => {
+    const go = () => location.href = `company.html?t=${encodeURIComponent(el.dataset.s)}&src=congress_page`;
+    el.onclick = go;
+    el.onkeydown = e => { if (e.key === "Enter") go(); };
   });
-  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img"
-    aria-label="Insider buying and selling by company, last 60 days">${parts.join("")}</svg>`;
-  chart.querySelectorAll(".ins-sym").forEach(t => t.addEventListener("click", () => {
-    location.href = `company.html?t=${encodeURIComponent(t.dataset.s)}&src=congress_page`;
-  }));
 
   table.innerHTML = `<table><thead><tr>
       <th>Company</th><th>Filings</th><th>People</th><th>Bought</th><th>Sold</th><th>Last</th>
     </tr></thead><tbody>${rows.map(r => `
-      <tr class="rowlink" data-s="${esc(r.symbol)}">
+      <tr class="rowlink" data-s="${esc(r.symbol)}" aria-expanded="${S.insOpen === r.symbol}">
         <td><span class="co">
           <span class="dot" data-logo="${esc(r.symbol)}" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>
-          <span class="t"><span class="sym">${esc(r.symbol)}</span>
+          <span class="t"><span class="sym">${esc(r.symbol)}<span class="caret">▾</span></span>
             ${r.name ? `<span class="nm">${esc(r.name)}</span>` : ""}</span>
         </span></td>
         <td>${r.filings}</td>
@@ -685,12 +739,33 @@ function paintInsiders(rows){
         <td class="up">${r.buyAmt ? kfmt(r.buyAmt) : "—"}</td>
         <td class="down">${r.sellAmt ? kfmt(r.sellAmt) : "—"}</td>
         <td>${day(r.lastFiled)}</td>
-      </tr>`).join("")}</tbody></table>`;
-  table.querySelectorAll("tr.rowlink").forEach(tr => tr.onclick = () => {
-    location.href = `company.html?t=${encodeURIComponent(tr.dataset.s)}&src=congress_page`;
+      </tr>
+      ${S.insOpen === r.symbol ? `<tr class="detail"><td colspan="6" id="d-${esc(r.symbol)}">
+        <div class="dwrap"><div class="note" style="padding:12px"><span class="load"></span></div></div>
+      </td></tr>` : ""}`).join("")}</tbody></table>`;
+
+  table.querySelectorAll("tr.rowlink").forEach(tr => tr.onclick = async () => {
+    const sym = tr.dataset.s;
+    S.insOpen = S.insOpen === sym ? null : sym;
+    paintInsiders();
+    if (S.insOpen !== sym) return;
+    const people = await insiderPeople(sym);
+    const cell = document.getElementById(`d-${sym}`);
+    if (!cell || S.insOpen !== sym) return;
+    cell.innerHTML = `<div class="dwrap">
+      ${people.length ? people.map(pp => `
+        <div class="drow">
+          <span class="who"><b>${esc(pp.person)}</b>${pp.title ? `<span>${esc(pp.title)}</span>` : ""}</span>
+          <span class="chip ${pp.total >= 0 ? "buy" : "sell"}">${pp.total >= 0 ? "Buy" : "Sell"}</span>
+          <span class="val ${pp.total >= 0 ? "up" : "down"}">${kfmt(Math.abs(pp.total))}</span>
+        </div>`).join("")
+      : `<div class="note" style="padding:10px">No filing detail available for ${esc(sym)}.</div>`}
+      <div class="dfoot"><a href="company.html?t=${encodeURIComponent(sym)}&src=congress_page">Open ${esc(sym)} →</a></div>
+    </div>`;
   });
   if (window.TickerLogos) {
     window.TickerLogos.hydrate(rows.map(r => r.symbol), table);
+    window.TickerLogos.hydrate(top.map(r => r.symbol), chart);
   }
 }
 
