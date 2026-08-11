@@ -1569,6 +1569,54 @@ def insider_trades(days: int = 7, store_cap: int = 400,
     return ranked[:max(1, store_cap)]
 
 
+_LEGISLATORS_JSON = (
+    "https://unitedstates.github.io/congress-legislators/legislators-current.json")
+
+
+def legislators() -> list[dict]:
+    """Every sitting member of Congress, from the @unitedstates project.
+
+    This is what connects a disclosure feed's bare "Nancy Pelosi" to a party,
+    a district and — through the bioguide id — a photo. The file is the
+    canonical open dataset the civic-tech world maintains; it changes when
+    membership does, so a daily read is already generous.
+    """
+    req = urllib.request.Request(
+        _LEGISLATORS_JSON, headers={"User-Agent": _UA, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode("utf-8", "replace"))
+    except Exception as exc:
+        raise MarketError(f"legislators: {exc}") from exc
+
+    rows: list[dict] = []
+    for m in data or []:
+        ids = m.get("id") or {}
+        name = m.get("name") or {}
+        terms = m.get("terms") or []
+        if not ids.get("bioguide") or not terms:
+            continue
+        cur = terms[-1]                      # the term they are serving now
+        chamber = "Senate" if cur.get("type") == "sen" else "House"
+        district = cur.get("district")
+        rows.append({
+            "bioguide": ids["bioguide"],
+            "full_name": name.get("official_full")
+                or " ".join(x for x in (name.get("first"), name.get("last")) if x),
+            "first_name": name.get("first"),
+            "last_name": name.get("last"),
+            # 'Democrat' → 'D': the page shows the single-letter chip the way
+            # every trades site does.
+            "party": (cur.get("party") or "")[:1].upper() or None,
+            "chamber": chamber,
+            "state": cur.get("state"),
+            "district": (f"{cur.get('state')}-{district}"
+                         if chamber == "House" and district is not None
+                         else cur.get("state")),
+        })
+    return rows
+
+
 def _congress_side(raw: str | None) -> str | None:
     """Map FMP disclosure types onto the same Buy/Sell labels as Form 4s."""
     if not raw:
@@ -1624,6 +1672,13 @@ def congress_trades(days: int = 14, store_cap: int = 400) -> list[dict]:
                         "chamber": chamber,
                         "side": _congress_side(r.get("type")),
                         "amount": amount,
+                        # Who actually traded (Self / Spouse / Child), the
+                        # member's district, and the disclosure document
+                        # itself. FMP always sent these; dropping them was
+                        # a loss for no saving.
+                        "owner": (r.get("owner") or "").strip() or None,
+                        "district": (r.get("district") or "").strip() or None,
+                        "link": (r.get("link") or "").strip() or None,
                     })
                 if len(batch) < page_size:
                     break

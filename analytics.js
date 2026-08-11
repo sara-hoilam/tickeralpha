@@ -190,6 +190,7 @@
     if (file === "earnings.html" || file === "earnings") return "Earnings";
     if (file === "company.html" || file === "company") return "Company";
     if (file === "portfolio.html" || file === "portfolio") return "Portfolio";
+    if (file === "politicians.html" || file === "politicians") return "Congress";
     return "Other";
   }
 

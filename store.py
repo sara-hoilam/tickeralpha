@@ -215,6 +215,10 @@ def replace_trades(insiders: list[dict], congress: list[dict]) -> int:
                {"p_insiders": insiders, "p_congress": congress}) or 0
 
 
+def replace_politicians(rows: list[dict]) -> int:
+    return rpc("replace_politicians", {"p_rows": rows}) or 0
+
+
 def replace_trade_flow(rows: list[dict]) -> int:
     return rpc("replace_trade_flow", {"p_rows": rows}) or 0
 

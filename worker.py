@@ -65,6 +65,16 @@ def sync_directory() -> int:
         sync_market_symbols()
     except Exception as exc:
         log(f"  market symbols: {exc}")
+    # Members of Congress, for the Insider & Congress page: party, district
+    # and the bioguide id its photos are keyed by. Daily is generous — the
+    # file changes when membership does. Before migration 0058 the RPC does
+    # not exist yet, which lands here as an error worth logging, not a stop.
+    try:
+        pols = market.legislators()
+        store.replace_politicians(pols)
+        log(f"  politicians: {len(pols):,} members synced")
+    except Exception as exc:
+        log(f"  politicians: {exc}")
     return len(rows)
 
 
