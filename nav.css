@@ -303,6 +303,56 @@
 .auth-sso {
   margin: 14px 0 0; font-size: 11.5px; color: var(--ink-3); letter-spacing: .01em;
 }
+/* ---- the email + code route -------------------------------------------
+   Second on purpose. Google is one tap and stays the headline; the email
+   route is for the sizeable share of finance users who will not hand a
+   Google account to a site they met five minutes ago. */
+.auth-or {
+  display: flex; align-items: center; gap: 12px;
+  margin: 18px 2px 14px; color: var(--ink-3); font-size: 11.5px;
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.auth-or::before, .auth-or::after {
+  content: ""; flex: 1; height: 1px; background: var(--rule);
+}
+.auth-email { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.auth-lab {
+  font-size: 12.5px; font-weight: 600; color: var(--ink-2); margin-left: 2px;
+}
+.auth-modal-card .auth-email input {
+  width: 100%; background: var(--sunk); border: 1px solid var(--rule);
+  border-radius: 9px; padding: 11px 13px; font: inherit; font-size: 14px;
+  color: var(--ink); min-height: 0;
+}
+.auth-modal-card .auth-email input::placeholder { color: var(--ink-3); }
+.auth-modal-card .auth-email input:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px; background: var(--card);
+}
+/* Six digits read as a code, not a sentence. */
+.auth-modal-card .auth-email input.auth-code {
+  font-family: "IBM Plex Mono", monospace; font-size: 21px; font-weight: 600;
+  letter-spacing: .34em; text-align: center; padding: 12px 13px;
+}
+.auth-alt {
+  width: 100%; border: 1px solid var(--rule); border-radius: 9px; cursor: pointer;
+  padding: 11px 16px; font: inherit; font-size: 14px; font-weight: 600;
+  background: var(--card); color: var(--ink);
+}
+.auth-alt:hover { border-color: var(--accent); color: var(--accent); }
+.auth-alt:disabled { opacity: .55; cursor: default; border-color: var(--rule); color: var(--ink-3); }
+.auth-linkbtn {
+  background: none; border: 0; cursor: pointer; font: inherit; font-size: 12.5px;
+  color: var(--ink-3); padding: 2px; align-self: center; text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.auth-linkbtn:hover { color: var(--accent); }
+.auth-msg {
+  margin: 12px 2px 0; font-size: 12.5px; line-height: 1.45; min-height: 1em;
+  color: var(--ink-2); text-align: left;
+}
+.auth-msg.bad { color: var(--down); }
+.auth-msg.ok  { color: var(--up); }
+
 .auth-modal-close {
   display: inline-block; margin-top: 10px; border: 0; background: none;
   font: inherit; font-size: 13.5px; color: var(--ink-3); cursor: pointer;

@@ -241,13 +241,16 @@
 
     veil.querySelector(".gate-cta").onclick = () => {
       GA().track("gate_click", { gate: reason });
-      // On an app page the modal carries the same message and is the pattern
-      // the site already uses; on a report page there is no modal, so this
-      // goes straight to Google.
+      // On an app page the sheet is right here. A report has no nav and so no
+      // sheet; sending it straight to Google would quietly drop the email
+      // route on the one wall that matters most, so it goes to the app with
+      // the report to come back to and opens the sheet there.
       if (window.TA && typeof window.TA.showSignupModal === "function") {
         window.TA.showSignupModal({ reason });
       } else {
-        signIn();
+        const back = location.pathname + location.search;
+        location.href = new URL("../index.html", location.href).pathname +
+          `?auth=1&next=${encodeURIComponent(back)}`;
       }
     };
 

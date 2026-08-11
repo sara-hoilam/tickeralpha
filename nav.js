@@ -392,8 +392,12 @@
       addEventListener("keydown", e => { if (e.key === "Escape") shut(); });
       document.getElementById("nav-signout").onclick = signOut;
     } else {
-      auth.innerHTML = `<button class="nav-login" id="nav-login">Log in</button>`;
-      document.getElementById("nav-login").onclick = signIn;
+      // The bar's own button opens the sheet rather than jumping straight to
+      // Google: there are two ways in now, and a button that silently picks
+      // one of them is not offering a choice.
+      auth.innerHTML =
+        `<button class="nav-login" id="nav-login">Sign up / Sign in</button>`;
+      document.getElementById("nav-login").onclick = () => showSignupModal({ reason: "nav" });
     }
   }
 
@@ -433,6 +437,7 @@
       potential" is wallpaper, and was what every gate used to say. Keep the
       keys in step with the `gate` values sent to analytics. */
   const SIGNUP_REASONS = {
+    nav:       "Sign up or sign in",
     watchlist: "Sign up to follow this company",
     report:    "Sign up to read the full report",
     earnings:  "Sign up to see the full earnings calendar",
@@ -442,6 +447,7 @@
     portfolio: "Sign up to save this portfolio",
   };
   const SIGNUP_NOTES = {
+    nav:       "One account for your watchlist, portfolio and the research reports.",
     watchlist: "Your list follows you across devices, with earnings dates.",
     report:    "Eight pages of valuation, peers and what would break the thesis.",
     earnings:  "Every company reporting, not just the first two.",
@@ -482,6 +488,30 @@
           Continue with Google
         </button>
         <p class="auth-sso">Single sign-on (SSO)</p>
+
+        <div class="auth-or"><span>or</span></div>
+
+        <form class="auth-email" id="auth-email-form" novalidate>
+          <label class="auth-lab" for="auth-email">Continue with email</label>
+          <input type="email" id="auth-email" name="email" required
+                 autocomplete="email" inputmode="email"
+                 placeholder="you@example.com" aria-describedby="auth-msg">
+          <button type="submit" class="auth-alt" id="auth-send">Email me a code</button>
+        </form>
+
+        <!-- Step two. Hidden until a code has actually been sent, so the modal
+             opens as one decision rather than a form with a mystery field. -->
+        <form class="auth-email" id="auth-code-form" novalidate hidden>
+          <label class="auth-lab" for="auth-code">Enter the 6-digit code</label>
+          <input type="text" id="auth-code" name="code" required
+                 inputmode="numeric" autocomplete="one-time-code"
+                 pattern="[0-9]*" maxlength="6" placeholder="123456"
+                 class="auth-code" aria-describedby="auth-msg">
+          <button type="submit" class="auth-alt" id="auth-verify">Verify and continue</button>
+          <button type="button" class="auth-linkbtn" id="auth-resend">Send a new code</button>
+        </form>
+
+        <p class="auth-msg" id="auth-msg" role="status" aria-live="polite"></p>
         <button type="button" class="auth-modal-close">Close</button>
       </div>`;
     document.body.appendChild(el);
@@ -499,10 +529,115 @@
     el.querySelector("#auth-google").onclick = () => {
       el.remove();
       document.removeEventListener("keydown", onKey);
-      GA.track("signup_modal_accept", { gate: reason });
+      GA.track("signup_modal_accept", { gate: reason, method: "google" });
       signIn();
     };
+
+    /* ---- the email route ---------------------------------------------- */
+    const emailForm = el.querySelector("#auth-email-form");
+    const codeForm  = el.querySelector("#auth-code-form");
+    const emailIn   = el.querySelector("#auth-email");
+    const codeIn    = el.querySelector("#auth-code");
+    const sendBtn   = el.querySelector("#auth-send");
+    const verifyBtn = el.querySelector("#auth-verify");
+    const msg       = el.querySelector("#auth-msg");
+
+    const say = (text, kind) => {
+      msg.textContent = text || "";
+      msg.className = "auth-msg" + (kind ? " " + kind : "");
+    };
+
+    async function send(resend) {
+      const email = emailIn.value.trim();
+      // Deliberately loose. The server is the real check, and a clever
+      // pattern here only ever rejects somebody's genuine address.
+      if (!email || email.indexOf("@") < 1) {
+        say("Enter an email address.", "bad");
+        emailIn.focus();
+        return;
+      }
+      sendBtn.disabled = true;
+      say(resend ? "Sending a new code…" : "Sending your code…");
+      try {
+        const r = await fetch(`${CFG.supabaseUrl}/auth/v1/otp`, {
+          method: "POST",
+          headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
+          body: JSON.stringify({ email, create_user: true }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          say(authError(d) || "That did not work. Try again in a moment.", "bad");
+          sendBtn.disabled = false;
+          return;
+        }
+        GA.track("signup_modal_accept", { gate: reason, method: "email" });
+        emailForm.hidden = true;
+        codeForm.hidden = false;
+        say(`We sent a 6-digit code to ${email}. It expires in an hour.`, "ok");
+        try { codeIn.focus(); } catch {}
+      } catch {
+        say("Could not reach the server. Check your connection.", "bad");
+        sendBtn.disabled = false;
+      }
+    }
+
+    async function verify() {
+      const email = emailIn.value.trim();
+      const token = codeIn.value.replace(/\D/g, "");
+      if (token.length !== 6) {
+        say("The code is six digits.", "bad");
+        codeIn.focus();
+        return;
+      }
+      verifyBtn.disabled = true;
+      say("Checking…");
+      try {
+        const r = await fetch(`${CFG.supabaseUrl}/auth/v1/verify`, {
+          method: "POST",
+          headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
+          body: JSON.stringify({ email, token, type: "email" }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.access_token) {
+          say(authError(d) || "That code was not right. Check it and try again.", "bad");
+          verifyBtn.disabled = false;
+          return;
+        }
+        // Same shape the One Tap exchange returns, so the same adopter runs
+        // and every page hears one `ta-auth` however you signed in.
+        adoptSession(d);
+        el.remove();
+        document.removeEventListener("keydown", onKey);
+      } catch {
+        say("Could not reach the server. Check your connection.", "bad");
+        verifyBtn.disabled = false;
+      }
+    }
+
+    emailForm.onsubmit = e => { e.preventDefault(); send(false); };
+    codeForm.onsubmit  = e => { e.preventDefault(); verify(); };
+    el.querySelector("#auth-resend").onclick = () => {
+      codeForm.hidden = true;
+      emailForm.hidden = false;
+      sendBtn.disabled = false;
+      send(true);
+    };
+    // Digits only, and verify the moment six of them are in — a code this
+    // short does not need a button press to feel finished.
+    codeIn.addEventListener("input", () => {
+      const v = codeIn.value.replace(/\D/g, "").slice(0, 6);
+      if (v !== codeIn.value) codeIn.value = v;
+      if (v.length === 6) verify();
+    });
+
     try { el.querySelector("#auth-google").focus(); } catch {}
+  }
+
+  /** GoTrue puts its reason in one of three fields depending on the failure. */
+  function authError(d) {
+    if (!d) return "";
+    const m = d.error_description || d.msg || d.message || d.error || "";
+    return typeof m === "string" ? m : "";
   }
 
   // A one-line explanation under the bar. Sign-in failures used to leave no
@@ -549,7 +684,51 @@
     history.replaceState(null, "", location.pathname + location.search);
     // A page that was rendered signed-out needs to hear about this.
     setTimeout(announce, 0);
+    // Came back from Google having started at a report? Return to it.
+    setTimeout(resumeNext, 0);
   })();
+
+  /* ---- arriving here to sign in -----------------------------------------
+     A research report is a standalone document with no nav, so it has no
+     sheet to open and could only ever offer Google. Its wall sends people
+     here instead, with ?auth=1 and the report to come back to. Both halves
+     matter: without the return, somebody signs in and lands on the markets
+     page having lost the document they were reading. */
+  const NEXT_KEY = "alphaticker-auth-next";
+
+  /** Same-origin paths only. This value arrives in a query string, and a
+      `next` allowed to carry a host is an open redirect. */
+  function safeNext(raw) {
+    if (!raw) return "";
+    let p = String(raw);
+    if (/^[a-z][a-z0-9+.-]*:/i.test(p) || p.startsWith("//")) return "";
+    if (!p.startsWith("/")) p = "/" + p;
+    return p;
+  }
+
+  (function authEntry() {
+    const q = new URLSearchParams(location.search);
+    if (!q.get("auth")) return;
+    const next = safeNext(q.get("next"));
+    try {
+      next ? sessionStorage.setItem(NEXT_KEY, next)
+           : sessionStorage.removeItem(NEXT_KEY);
+    } catch {}
+    q.delete("auth"); q.delete("next");
+    const rest = q.toString();
+    history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
+    if (!session()) setTimeout(() => showSignupModal({ reason: "report" }), 0);
+  })();
+
+  /** Go back to whatever sent us here, once there is a session. */
+  function resumeNext() {
+    let next = "";
+    try { next = sessionStorage.getItem(NEXT_KEY) || ""; } catch {}
+    if (!next) return false;
+    try { sessionStorage.removeItem(NEXT_KEY); } catch {}
+    location.href = next;
+    return true;
+  }
 
   /* ---- account-scoped local data ----------------------------------------
      The portfolio and watchlist are mirrored into this browser so a page can
@@ -658,6 +837,9 @@
     });
     renderAuth();
     announce();
+    // Google One Tap, or the email code: either way, if a report sent us here
+    // to sign in, that is where the visitor wants to be.
+    resumeNext();
   }
 
   /* One Tap needs a nonce of its own.

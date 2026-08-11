@@ -1512,8 +1512,15 @@ function watchSearchMarkup(placeholder){
 /** Nothing on the list yet: offer the obvious names and a search, rather than
     an empty table that gives no way forward. */
 async function renderWatchEmpty(host){
+  // Array.isArray, not `|| []`: a rejected token can come back 200 with an
+  // error object rather than a row set, and `{}.map` took the whole empty
+  // state down with it. That state is now the only thing a signed-out visitor
+  // sees on this tab, so it is the last thing that should be able to break.
   let popular = [];
-  try { popular = await rpc("get_market_summary", { p_view: "market_cap", p_limit: 6 }) || []; } catch {}
+  try {
+    const rows = await rpc("get_market_summary", { p_view: "market_cap", p_limit: 6 });
+    if (Array.isArray(rows)) popular = rows;
+  } catch {}
 
   host.innerHTML = `
     <div class="wl-empty">
