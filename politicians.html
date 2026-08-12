@@ -186,6 +186,18 @@ td.who{text-align:left;font-family:"IBM Plex Sans",sans-serif;font-size:12.5px;
 .ins-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:20px;align-items:start}
 .ibars{padding:12px 18px 6px}
 
+/* Ticker search over the insider filings. Sits in the table's panel because
+   the table is what it reads like it searches, though it governs the bars
+   beside it too — the two panels answer one question and splitting the
+   filters between them is how they drifted apart in the first place. */
+.isearch{position:relative;padding:12px 18px 10px;border-bottom:1px solid var(--rule-2)}
+.isearch input{width:100%;background:var(--sunk);border:1px solid var(--rule);
+  border-radius:8px;padding:8px 12px 8px 32px;font:inherit;font-size:12.5px;color:var(--ink)}
+.isearch input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.isearch input::-webkit-search-cancel-button{cursor:pointer}
+.isearch svg{position:absolute;left:28px;top:50%;transform:translateY(-45%);
+  width:13px;height:13px;color:var(--ink-3);pointer-events:none}
+
 /* Ten rows, then scroll. Sized in rows rather than vh because a row is what a
    reader counts, and the sticky header keeps the column names in view.
    Measured: 33px header + 10 x 58px row. */
@@ -310,6 +322,13 @@ tr[aria-expanded=true] .caret{transform:rotate(180deg)}
         <span><i style="background:var(--down)"></i>Insider selling</span></div>
     </section>
     <section class="panel">
+      <div class="isearch">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+          stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round"/></svg>
+        <input type="search" id="ins-q" placeholder="Search a ticker…" autocomplete="off"
+               aria-label="Search insider filings by ticker">
+      </div>
       <div class="ttable" id="ins-table"><div class="note"><span class="load"></span></div></div>
     </section>
   </div>
@@ -445,17 +464,62 @@ const S = {
   // selected === null is the all-politicians view, which is where the panel
   // starts. allTrades caches it, so coming back from a member is instant.
   selected: null, allTrades: null, profile: null, tab: "tx",
+  // Stock return since each trade date, keyed "SYM|YYYY-MM-DD". Shared across
+  // profiles, since two members trading the same stock on the same day get
+  // the same answer.
+  rets: new Map(),
   acItems: [], acIdx: -1,
   insRows: [], insOpen: null, insPeople: new Map(),
   // One leaders aggregate per window, keyed by days. The chart and the table
   // both read whichever is current, so the period control means the same
   // thing on each. insWindowed goes false if 0060 is not applied yet.
   insByDays: new Map(), insWindowed: true, insFlow: "all", insDays: 90,
+  // Ticker search. insExtra holds companies fetched because the query named a
+  // ticker outside the leaders — searching should reach the whole window, not
+  // just the thirty rows that happened to rank.
+  insQ: "", insExtra: new Map(), insSearching: false,
 };
 
 /* ---- data --------------------------------------------------------------- */
 const ALL_DAYS = 90;   // the stored window; the table is a 90-day full replace
 const ALL_ROWS = 25;   // fetched for the all view — nine show, the rest scroll
+
+/* How the stock has moved since each trade date, keyed "SYM|YYYY-MM-DD".
+   0061 does the lookup in the database: get_prices answers for one symbol and
+   returns its whole 300-bar OHLCV array to do it, and one member's ninety days
+   can span sixty-one tickers, so the client-side version of this column is
+   sixty-one round trips and the better part of a megabyte. */
+async function loadReturns(trades){
+  const want = [], seen = new Set();
+  for (const t of trades || []) {
+    const d = String(t.traded || "").slice(0, 10);
+    if (!t.symbol || !/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+    const k = `${t.symbol}|${d}`;
+    if (S.rets.has(k) || seen.has(k)) continue;
+    seen.add(k);
+    want.push({ s: t.symbol, d });
+  }
+  if (!want.length) return false;          // nothing new: do not repaint again
+  let got = null;
+  try { got = await rpc("get_trade_returns", { p_pairs: want }); } catch {}
+  // Misses are remembered as null too. A ticker with no stored price history
+  // is a permanent "—", and re-asking on every repaint would loop.
+  want.forEach(p => S.rets.set(`${p.s}|${p.d}`, (got && got[`${p.s}|${p.d}`]) || null));
+  return true;
+}
+
+/* Signed, coloured, and one decimal — the column is a glance, not a ledger. */
+function retCell(t){
+  const d = String(t.traded || "").slice(0, 10);
+  const r = t.symbol ? S.rets.get(`${t.symbol}|${d}`) : null;
+  if (!r || r.ret == null || !isFinite(r.ret)) return "—";
+  const v = +r.ret;
+  return `<span class="${v >= 0 ? "up" : "down"}" title="${esc(
+    `${fmtPrice(r.base)} on ${day(r.baseOn)} → ${fmtPrice(r.last)} on ${day(r.lastOn)}`)}">${
+    v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}%</span>`;
+}
+const fmtPrice = v => (v == null || !isFinite(v)) ? "—"
+  : `$${(+v).toFixed(2)}`;
 
 async function pageTrades(kind, want, symbols, days){
   const out = [];
@@ -726,6 +790,7 @@ function paintProfile(){
       <td>${chip}${owner}</td>
       <td>${filedAfter(t.traded, t.disclosed)}</td>
       <td><span class="amt">${amt}</span></td>
+      <td>${retCell(t)}</td>
       <td>${t.link ? `<a class="flink" href="${esc(t.link)}" target="_blank"
              rel="noopener" onclick="event.stopPropagation()">filing ↗</a>` : ""}</td>
     </tr>`;
@@ -757,10 +822,11 @@ function paintProfile(){
         ${n === 0 ? `<div class="note">No congressional disclosures in the last ${span}.</div>`
         : `<table><thead><tr>
             <th>Company</th><th>Politician</th><th>Traded</th><th>Type</th>
-            <th>Filed after</th><th>Amount</th><th></th>
+            <th>Filed after</th><th>Amount</th><th>Return</th><th></th>
           </tr></thead><tbody>${txRows}</tbody></table>`}
       </div>`;
     wireRows(el, p);
+    fillReturns(p);
     return;
   }
 
@@ -797,7 +863,8 @@ function paintProfile(){
         </div>`
         : `<div class="note">No disclosures from ${esc(p.person)} in the last ${span}.</div>`)
       : S.tab === "tx" ? `<table><thead><tr>
-          <th>Company</th><th>Traded</th><th>Type</th><th>Filed after</th><th>Amount</th><th></th>
+          <th>Company</th><th>Traded</th><th>Type</th><th>Filed after</th>
+          <th>Amount</th><th>Return</th><th></th>
         </tr></thead><tbody>${txRows}</tbody></table>`
       : `<table><thead><tr>
           <th>Company</th><th>Buys</th><th>Sells</th><th>Est. total</th><th>Last traded</th>
@@ -810,6 +877,17 @@ function paintProfile(){
     S.tab = b.dataset.t; paintProfile();
   });
   wireRows(el, p);
+  fillReturns(p);
+}
+
+/* The Return column arrives after the rows do. One repaint when it lands, and
+   only if this profile is still the one on screen; loadReturns reports false
+   once everything asked for is cached, which is what stops the loop. */
+function fillReturns(p){
+  if (S.tab !== "tx") return;
+  loadReturns(p.trades).then(added => {
+    if (added && S.profile === p) paintProfile();
+  });
 }
 
 /* Company rows and their logos — the part both views of the panel share. */
@@ -944,6 +1022,7 @@ function wireInsFilters(){
     S.insRows = await loadInsiderWindow(v);
     if (S.insDays !== v) return;        // a faster click won
     S.insPeople.clear();                // per-person detail is per window too
+    S.insExtra.clear();                 // and so is a searched company's total
     S.insOpen = null;
     paintInsiders();
   });
@@ -958,8 +1037,68 @@ function insFiltered(){
   const weight = r => S.insFlow === "in" ? (r.buyAmt || 0)
                     : S.insFlow === "out" ? (r.sellAmt || 0)
                     : (r.buyAmt || 0) + (r.sellAmt || 0);
-  return S.insRows.filter(r => weight(r) > 0)
-                  .sort((a, b) => weight(b) - weight(a));
+  const q = S.insQ.trim().toUpperCase();
+  // A searched ticker outside the leaders is fetched on its own and joined in
+  // here, so the box searches the window rather than the visible thirty.
+  const base = q && S.insExtra.has(q)
+    ? [...S.insRows.filter(r => r.symbol !== q), S.insExtra.get(q)]
+    : S.insRows;
+  return base
+    .filter(r => !q || r.symbol.toUpperCase().includes(q)
+                    || String(r.name || "").toUpperCase().includes(q))
+    .filter(r => weight(r) > 0)
+    .sort((a, b) => weight(b) - weight(a));
+}
+
+/* One company's filings folded into the shape get_insider_leaders returns, so
+   a searched ticker slots into the same table and the same expander. */
+function aggregateLeader(symbol, rows){
+  let buyAmt = 0, sellAmt = 0, gross = 0, shares = 0, lastFiled = null, name = null;
+  const people = new Set();
+  rows.forEach(r => {
+    const amt = Number(r.amount) || 0;
+    if (amt >= 0) buyAmt += amt; else sellAmt += -amt;
+    gross += Math.abs(amt);
+    shares += Math.abs(Number(r.shares) || 0);
+    if (r.person) people.add(r.person);
+    if (r.filed && (!lastFiled || r.filed > lastFiled)) lastFiled = r.filed;
+    if (!name && r.name) name = r.name;
+  });
+  return { symbol, name, filings: rows.length, buyAmt, sellAmt,
+           people: people.size, lastFiled,
+           price: shares > 0 ? gross / shares : null };
+}
+
+/* Fetch a ticker the leaders do not carry. Only when the query looks like a
+   symbol and nothing already matches -- a half-typed "AP" should filter, not
+   fire a request per keystroke. */
+async function insSearchMiss(q){
+  if (!/^[A-Z][A-Z.\-]{0,9}$/.test(q) || S.insExtra.has(q)) return false;
+  S.insSearching = true;
+  let rows = [];
+  try { rows = await pageTrades("insider", 200, [q], S.insDays); } catch {}
+  S.insSearching = false;
+  S.insExtra.set(q, rows.length ? aggregateLeader(q, rows) : null);
+  if (!S.insExtra.get(q)) S.insExtra.delete(q);   // nothing there; allow a retry
+  return rows.length > 0;
+}
+
+function wireInsSearch(){
+  const q = document.getElementById("ins-q");
+  if (!q) return;
+  let timer = null;
+  q.addEventListener("input", () => {
+    clearTimeout(timer);
+    S.insQ = q.value;
+    paintInsiders();
+    const term = q.value.trim().toUpperCase();
+    if (!term) return;
+    timer = setTimeout(async () => {
+      if (insFiltered().length) return;          // already answered locally
+      if (await insSearchMiss(term)) paintInsiders();
+      else paintInsiders();                       // repaint to drop the spinner
+    }, 260);
+  });
 }
 /* The chart shows the leading dozen; the table scrolls the rest. */
 const insChartRows = () => insFiltered().slice(0, INS_BARS);
@@ -1008,10 +1147,15 @@ function paintInsiders(){
     ${S.insDays} days, above $1M or 1% of shares outstanding. Click a company
     for who was buying and selling.`;
   if (!rows.length) {
-    chart.innerHTML = table.innerHTML = `<div class="note">${S.insRows.length
-      ? `No insider ${S.insFlow === "in" ? "buying" : S.insFlow === "out" ? "selling" : "filings"}
-         in the last ${S.insDays} days.`
-      : "No insider filings stored yet."}</div>`;
+    const q = S.insQ.trim().toUpperCase();
+    const msg = S.insSearching ? `<span class="load"></span>`
+      : q ? `No insider filings for “${esc(q)}” in the last ${S.insDays} days${
+              S.insFlow === "all" ? "" : " on this side"}.`
+      : S.insRows.length
+        ? `No insider ${S.insFlow === "in" ? "buying" : S.insFlow === "out" ? "selling" : "filings"}
+           in the last ${S.insDays} days.`
+      : "No insider filings stored yet.";
+    chart.innerHTML = table.innerHTML = `<div class="note">${msg}</div>`;
     return;
   }
 
@@ -1110,6 +1254,7 @@ function paintInsiders(){
 (async function boot(){
   wireSearch();
   wireInsFilters();
+  wireInsSearch();
   loadInsiders();
   // The panel's own fetch does not wait on the cards beside it.
   openAll({ quiet: true });
