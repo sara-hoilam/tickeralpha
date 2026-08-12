@@ -169,6 +169,30 @@ tbody tr.rowlink:hover td{background:var(--sunk)}
 /* ---- insiders ----------------------------------------------------------- */
 .ins-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:20px;align-items:start}
 .ibars{padding:12px 18px 6px}
+
+/* Ten rows, then scroll. Sized in rows rather than vh because a row is what a
+   reader counts, and the sticky header keeps the column names in view.
+   Measured: 33px header + 10 x 58px row. */
+#ins-table{max-height:613px;overflow-y:auto;scrollbar-gutter:stable}
+#ins-table thead th{position:sticky;top:0;z-index:1;background:var(--card);
+  box-shadow:0 1px 0 var(--rule)}
+
+/* Chart header: the two filters sit top right of the bars they govern. */
+.ihead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:12px 18px 0}
+.ihead h3{font-size:13px;font-weight:600;margin-right:auto;color:var(--ink-2)}
+.iseg{display:flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden;
+  flex-shrink:0}
+.iseg button{background:transparent;border:0;padding:5px 10px;font:inherit;
+  font-size:11.5px;cursor:pointer;color:var(--ink-2);
+  border-right:1px solid var(--rule);white-space:nowrap}
+.iseg button:last-child{border-right:0}
+.iseg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:500}
+@media (max-width:720px){
+  .ihead{padding:10px 14px 0;gap:8px}
+  .ihead h3{flex-basis:100%;margin-right:0}
+  .iseg button{padding:5px 9px;font-size:11px}
+}
 .ibar{display:grid;grid-template-columns:132px minmax(0,1fr) minmax(0,1fr);
   align-items:center;min-height:44px;border-bottom:1px solid var(--rule-2)}
 .ibar:last-child{border-bottom:0}
@@ -246,6 +270,21 @@ tr[aria-expanded=true] .caret{transform:rotate(180deg)}
      outstanding. Click a company for who was buying and selling.</p>
   <div class="ins-grid">
     <section class="panel">
+      <div class="ihead">
+        <h3>By company</h3>
+        <div class="iseg" id="ins-flow" role="group" aria-label="Trade direction">
+          <button type="button" data-flow="all" aria-pressed="true">All</button>
+          <button type="button" data-flow="out" aria-pressed="false">Outflow</button>
+          <button type="button" data-flow="in" aria-pressed="false">Inflow</button>
+        </div>
+        <div class="iseg" id="ins-days" role="group" aria-label="Period">
+          <button type="button" data-days="7" aria-pressed="false">7D</button>
+          <button type="button" data-days="15" aria-pressed="false">15D</button>
+          <button type="button" data-days="30" aria-pressed="false">30D</button>
+          <button type="button" data-days="60" aria-pressed="false">60D</button>
+          <button type="button" data-days="90" aria-pressed="true">90D</button>
+        </div>
+      </div>
       <div class="ibars" id="ins-chart"><div class="note"><span class="load"></span></div></div>
       <div class="legend"><span><i style="background:var(--up)"></i>Insider buying</span>
         <span><i style="background:var(--down)"></i>Insider selling</span></div>
@@ -380,6 +419,10 @@ const S = {
   selected: null, profile: null, tab: "tx",
   acItems: [], acIdx: -1,
   insRows: [], insOpen: null, insPeople: new Map(),
+  // Raw insider filings, kept so the chart's period filter can re-aggregate
+  // without another round trip. 90 days is the widest option, so one fetch
+  // covers every one of them.
+  insRaw: null, insFlow: "all", insDays: 90,
 };
 
 /* ---- data --------------------------------------------------------------- */
@@ -685,6 +728,73 @@ async function loadInsiders(){
   }
   S.insRows = rows;
   paintInsiders();
+
+  /* The raw filings power the period filter. Fetched after the first paint so
+     the bars appear on the aggregate immediately rather than waiting on four
+     pages of trades. */
+  if (S.insRaw === null) {
+    S.insRaw = [];
+    try { S.insRaw = await pageTrades("insider", 600); } catch { S.insRaw = []; }
+    if (S.insRaw.length) paintInsiders();
+  }
+}
+
+const INS_BARS = 13;          // was 10
+
+/* The two segmented controls above the bars. Static markup, so they are wired
+   once -- paintInsiders redraws only the bars and the table beneath them. */
+function wireInsFilters(){
+  const flow = document.getElementById("ins-flow");
+  const days = document.getElementById("ins-days");
+  const press = (group, attr, value) => group.querySelectorAll("button")
+    .forEach(b => b.setAttribute("aria-pressed", String(b.dataset[attr] === String(value))));
+  if (flow) flow.querySelectorAll("button").forEach(b => b.onclick = () => {
+    if (S.insFlow === b.dataset.flow) return;
+    S.insFlow = b.dataset.flow;
+    press(flow, "flow", S.insFlow);
+    paintInsiders();
+  });
+  if (days) days.querySelectorAll("button").forEach(b => b.onclick = () => {
+    const v = +b.dataset.days;
+    if (S.insDays === v) return;
+    S.insDays = v;
+    press(days, "days", v);
+    paintInsiders();
+  });
+}
+
+/* Per-company buy/sell totals over the last `days`, aggregated from the raw
+   filings. get_insider_leaders takes no period argument -- it always reports
+   the full 90-day window -- so the chart's period filter is computed here
+   rather than asking the database per window. */
+function insLeadersFor(days){
+  if (!Array.isArray(S.insRaw) || !S.insRaw.length) return null;
+  const cutoff = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+  const by = new Map();
+  for (const r of S.insRaw) {
+    if (!r.symbol) continue;
+    if (r.filed && r.filed < cutoff) continue;
+    const cur = by.get(r.symbol)
+      || { symbol: r.symbol, name: r.name, buyAmt: 0, sellAmt: 0 };
+    const amt = Number(r.amount) || 0;
+    if (amt >= 0) cur.buyAmt += amt; else cur.sellAmt += -amt;
+    if (!cur.name && r.name) cur.name = r.name;
+    by.set(r.symbol, cur);
+  }
+  return [...by.values()];
+}
+
+/* The rows the bars are drawn from, ranked by whichever side the flow filter
+   is showing -- ranking an "Inflow" view by buying+selling would put a company
+   that only sold at the top of a chart with no bar on it. */
+function insChartRows(){
+  const base = insLeadersFor(S.insDays) || S.insRows;
+  const weight = r => S.insFlow === "in" ? (r.buyAmt || 0)
+                    : S.insFlow === "out" ? (r.sellAmt || 0)
+                    : (r.buyAmt || 0) + (r.sellAmt || 0);
+  return base.filter(r => weight(r) > 0)
+             .sort((a, b) => weight(b) - weight(a))
+             .slice(0, INS_BARS);
 }
 
 /* The filings behind one company's bar, fetched the first time its row is
@@ -719,9 +829,19 @@ function paintInsiders(){
   /* Diverging bars as plain HTML rows, so each company carries its logo and
      the text stays text. Selling grows left in red, buying right in green,
      deliberately not netted. */
-  const top = rows.slice(0, 10);
-  const max = Math.max(...top.map(r => Math.max(r.buyAmt || 0, r.sellAmt || 0)), 1);
+  const top = insChartRows();
+  const showSell = S.insFlow !== "in";
+  const showBuy  = S.insFlow !== "out";
+  // The scale follows what is on screen: keeping the both-sides maximum while
+  // showing one side would draw every visible bar at half its own width.
+  const max = Math.max(...top.map(r => Math.max(
+    showSell ? (r.sellAmt || 0) : 0, showBuy ? (r.buyAmt || 0) : 0)), 1);
   const pc = v => Math.max(v > 0 ? 2 : 0, Math.round((v / max) * 88));
+  if (!top.length) {
+    chart.innerHTML = `<div class="note" style="padding:14px 0">No insider filings in
+      the last ${S.insDays} days${S.insFlow === "in" ? " on the buy side"
+      : S.insFlow === "out" ? " on the sell side" : ""}.</div>`;
+  } else {
   chart.innerHTML = top.map(r => `
     <div class="ibar">
       <span class="co" data-s="${esc(r.symbol)}" role="link" tabindex="0">
@@ -729,12 +849,13 @@ function paintInsiders(){
         <span class="t"><span class="sym">${esc(r.symbol)}</span></span>
       </span>
       <span class="cell sell">
-        ${r.sellAmt ? `<span class="v">${kfmt(r.sellAmt)}</span><span class="bar" style="width:${pc(r.sellAmt)}%"></span>` : ""}
+        ${showSell && r.sellAmt ? `<span class="v">${kfmt(r.sellAmt)}</span><span class="bar" style="width:${pc(r.sellAmt)}%"></span>` : ""}
       </span>
       <span class="cell buy">
-        ${r.buyAmt ? `<span class="bar" style="width:${pc(r.buyAmt)}%"></span><span class="v">${kfmt(r.buyAmt)}</span>` : ""}
+        ${showBuy && r.buyAmt ? `<span class="bar" style="width:${pc(r.buyAmt)}%"></span><span class="v">${kfmt(r.buyAmt)}</span>` : ""}
       </span>
     </div>`).join("");
+  }
   chart.querySelectorAll(".co[data-s]").forEach(el => {
     const go = () => location.href = `company.html?t=${encodeURIComponent(el.dataset.s)}&src=congress_page`;
     el.onclick = go;
@@ -788,6 +909,7 @@ function paintInsiders(){
 /* ---- boot --------------------------------------------------------------- */
 (async function boot(){
   wireSearch();
+  wireInsFilters();
   loadInsiders();
   await loadPeople();
 })();
