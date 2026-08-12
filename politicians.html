@@ -350,7 +350,9 @@ const day = s => {
   if (!s) return "—";
   const [y,m,d] = String(s).slice(0,10).split("-").map(Number);
   if (!y || !m || !d) return "—";
-  return `${MON[m-1]} ${d}`;
+  // The year appears once a date leaves the current one. EDGAR rows reach
+  // five years back, and a bare "Dec 17" on a 2024 gift reads as last month.
+  return `${MON[m-1]} ${d}${y === new Date().getFullYear() ? "" : ` ’${String(y).slice(2)}`}`;
 };
 const kfmt = n => {
   if (n == null || isNaN(n)) return "—";
@@ -579,10 +581,9 @@ async function fetchYear(person){
   if (!r.ok) throw new Error(`politician-trades failed (${r.status})`);
   const d = await r.json();
   if (!d || !Array.isArray(d.trades)) return null;
-  // sources is absent on an older deployment of the function; an empty list
-  // then just means "say nothing", which is what it said before.
-  return { trades: d.trades, sources: d.sources || [],
-           form4Symbol: d.form4Symbol || null };
+  // sources and sec are absent on an older deployment of the function; empty
+  // defaults then just mean "say nothing", which is what it said before.
+  return { trades: d.trades, sources: d.sources || [], sec: d.sec || null };
 }
 
 async function openProfile(person, hint, opts){
@@ -620,7 +621,7 @@ async function openProfile(person, hint, opts){
     person,
     year: !!(year && year.trades.length),
     sources: (year && year.sources) || [],
-    form4Symbol: (year && year.form4Symbol) || null,
+    sec: (year && year.sec) || null,
     bioguide: (identity && identity.bioguide) || (hint && hint.bioguide) || null,
     party: (identity && identity.party) || (hint && hint.party) || null,
     chamber: (identity && identity.chamber) || (hint && hint.chamber) || null,
@@ -653,14 +654,24 @@ function symbolAgg(trades){
    quietly showed SEC Form 4 rows would be claiming the wrong thing about the
    person, and for someone who is not a legislator it is the whole story. */
 function srcNote(p){
-  const s = p.sources || [];
-  if (!s.includes("form4")) return "";
-  const sym = esc(p.form4Symbol || "");
-  return `<p class="pnote">${s.includes("congress")
-    ? `Includes SEC Form 4 filings for ${sym} alongside the congressional disclosures.`
-    : `Not a member of Congress, so there are no STOCK Act disclosures to show.
-       These are SEC Form 4 filings — open-market buys and sells of ${sym}, the
-       company they report as an insider of. It is not their whole portfolio.`}</p>`;
+  const s = p.sources || [], sec = p.sec;
+  const held = (sec && sec.positions) || [];
+  if (!s.includes("sec")) return "";
+  // The holding is the part a reader actually wants from an ownership filing,
+  // so it is stated before the caveats rather than left to be added up from
+  // the rows.
+  const pos = held.map(h => `<b style="color:var(--ink)">${Number(h.shares).toLocaleString("en-US")}
+      ${esc(h.symbol)}</b> as of ${day(h.asOf)}${h.indirect && h.through
+        ? ` — ${esc(h.through)}` : ""}`).join("; ");
+  return `<p class="pnote">
+    ${pos ? `Reported holding: ${pos}.<br>` : ""}
+    ${s.includes("congress")
+      ? `Includes SEC ownership filings alongside the congressional disclosures.`
+      : `${esc(p.person)} is not a member of Congress and files no STOCK Act
+         disclosure. These are SEC Forms 3/4/5 — the public record of one
+         company they are an insider of, not a whole portfolio. Rows labelled
+         Gift, Award or Other are reported events, not open-market trades.`}
+    ${sec && sec.since ? ` Since ${day(sec.since)}.` : ""}</p>`;
 }
 
 function paintProfile(){
@@ -670,17 +681,30 @@ function paintProfile(){
   const n = p.trades.length;
   const all = !!p.all;
   // Everyone is the stored 90 days; one member is the year politician-trades
-  // returns, unless it had nothing and the stored rows stood in.
-  const span = all || !p.year ? "90 days" : "12 months";
+  // returns, unless it had nothing and the stored rows stood in. A profile
+  // fed only by EDGAR reaches five years back instead, and says so.
+  const src = p.sources || [];
+  const secOnly = src.includes("sec") && !src.includes("congress");
+  const span = all || !p.year ? "90 days" : secOnly ? "5 years" : "12 months";
 
   const txRows = p.trades.map(t => {
     const b = band(t.amount);
     const side = String(t.side || "").toLowerCase();
+    // Green and red are reserved for a decision to buy or sell. An EDGAR row
+    // carries its own code label -- Gift, Award, Other -- and takes the
+    // neutral chip, because a 114.75M-share gift is not a sale and colouring
+    // it like one would be the page telling a lie in one glance.
     const chip = side.startsWith("buy") ? `<span class="chip buy">Buy</span>`
       : side.startsWith("sell") ? `<span class="chip sell">Sell</span>`
-      : `<span class="chip own">${esc(t.side || "—")}</span>`;
+      : `<span class="chip own">${esc(t.codeLabel || t.side || "—")}</span>`;
     const owner = t.owner && !/^self$/i.test(t.owner)
       ? `<span class="chip own">${esc(t.owner)}</span>` : "";
+    // Gifts and merger transfers are priced at zero, so there is no dollar
+    // figure to show and the share count is the only honest size.
+    const amt = t.amount ? `${esc(b.label)}${meter(b.mid)}`
+      : t.shares ? `${Number(t.shares).toLocaleString("en-US")}<span
+          style="font-size:10.5px;color:var(--ink-3)">shares</span>`
+      : "—";
     return `<tr class="rowlink" data-s="${esc(t.symbol)}">
       <td><span class="co">
         <span class="dot" data-logo="${esc(t.symbol)}" style="background:${avatarColour(t.symbol)}">${esc((t.symbol||"").slice(0,2))}</span>
@@ -691,7 +715,7 @@ function paintProfile(){
       <td>${day(t.traded)}</td>
       <td>${chip}${owner}</td>
       <td>${filedAfter(t.traded, t.disclosed)}</td>
-      <td><span class="amt">${esc(b.label)}${meter(b.mid)}</span></td>
+      <td><span class="amt">${amt}</span></td>
       <td>${t.link ? `<a class="flink" href="${esc(t.link)}" target="_blank"
              rel="noopener" onclick="event.stopPropagation()">filing ↗</a>` : ""}</td>
     </tr>`;
@@ -753,15 +777,13 @@ function paintProfile(){
         Full holdings come from members' annual financial disclosures — a different
         dataset from the trade feed. We're working on it.</div>` : `
     <div class="ttable">
-      ${n === 0 ? (p.form4Symbol ? `<div class="note" style="text-align:left;padding:20px 18px">
-          <b style="display:block;color:var(--ink);margin-bottom:6px">Nothing this page can show</b>
+      ${n === 0 ? (p.sec && p.sec.tracked ? `<div class="note" style="text-align:left;padding:20px 18px">
+          <b style="display:block;color:var(--ink);margin-bottom:6px">Nothing on record here</b>
           ${esc(p.person)} is not a member of Congress, so files no STOCK Act
-          disclosure. Their SEC Form 4 activity in ${esc(p.form4Symbol)} is not
-          open-market either — shares acquired in a merger, or gifted to a trust,
-          which this page deliberately does not count as trading.
+          disclosure, and no SEC ownership filing turned up in the window either.
           <span style="display:block;margin-top:8px">Executive-branch officials
-          instead file OGE Form 278-T periodic transaction reports. That is a
-          separate feed, and it is not wired up here yet.</span>
+          instead file OGE Form 278-T periodic transaction reports, which is a
+          separate feed and not wired up here.</span>
         </div>`
         : `<div class="note">No disclosures from ${esc(p.person)} in the last ${span}.</div>`)
       : S.tab === "tx" ? `<table><thead><tr>

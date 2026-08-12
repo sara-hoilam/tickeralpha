@@ -55,124 +55,211 @@ function filedAfter(traded: string, disclosed: string): number | null {
   return Math.max(0, Math.round((b - a) / 86400000));
 }
 
-/* ---- SEC Form 4 -----------------------------------------------------------
- * Some people the page lists are not members of Congress and so file no STOCK
- * Act report at all -- the house/senate feeds return nothing for them, and the
- * profile came up empty. Where such a person is instead an officer, director
- * or >10% holder of a listed company, their trades in that company are public
- * as SEC Form 4, and that is a feed we can reach.
+/* ---- SEC EDGAR ownership filings -------------------------------------------
+ * Some people this page lists file no STOCK Act report at all -- they are not
+ * in Congress, so the house/senate feeds return nothing and the profile came
+ * up empty. Where such a person is an officer, director or >10% holder of a
+ * listed company, their position and its changes are public on EDGAR as Forms
+ * 3, 4 and 5, and EDGAR is free, official, structured, and carries no
+ * restriction on use. That is what this reads.
  *
- * Donald Trump is the case in hand: not in Congress, but a >10% holder of
- * Trump Media & Technology Group (DJT). Note the shares sit in the Donald J.
- * Trump Revocable Trust, so the reporting name on a filing may be the trust
- * rather than the man -- hence a pattern rather than an equality test.
+ * Matched by CIK, never by name. A name pattern is not safe here: Donald
+ * Trump Jr. is a sitting DJT director and 10% owner filing under his own CIK,
+ * so /trump/i would have printed the son's transactions on the father's
+ * profile. A CIK is the identity SEC assigns and it does not collide.
  *
- * This is deliberately NOT what quiverquant and unusualwhales show for him.
- * Those come from his executive-branch OGE Form 278-T periodic transaction
- * reports (filed by the White House Office, hundreds of positions across
- * equities and municipal bonds). Form 4 is a narrower, different thing: only
- * DJT, only his own filings. See the note in the page for what it covers.
+ * Worth being clear about what this is not. quiverquant and unusualwhales
+ * show Trump's executive-branch OGE Form 278-T periodic transaction reports
+ * -- hundreds of equity and municipal-bond positions filed by the White House
+ * Office. EDGAR carries none of that. What it carries is his Trump Media
+ * (DJT) ownership, which is a real and complete record of one holding.
  */
-const SEC_INSIDER: Record<string, {
-  symbol: string; company: string; match: RegExp; not?: RegExp;
-}> = {
+const SEC = "https://www.sec.gov";
+const SEC_DATA = "https://data.sec.gov";
+const SEC_YEARS = 5;          // far enough back to cover a whole position
+
+/* SEC asks that automated callers identify themselves with a contact address
+   and holds them to 10 requests a second. Set SEC_USER_AGENT to a real one:
+   supabase secrets set SEC_USER_AGENT="Ticker Alpha you@yourdomain.com" */
+const secHeaders = () => ({
+  "User-Agent": Deno.env.get("SEC_USER_AGENT")
+    || "Ticker Alpha (tickeralpha.com)",
+  "Accept-Encoding": "gzip, deflate",
+});
+
+const SEC_FILERS: Record<string, { ciks: string[]; note: string }> = {
   "donald trump": {
-    symbol: "DJT",
-    company: "Trump Media & Technology Group Corp.",
-    // Both the man and the trust he gifted the stake to file under names
-    // containing "Trump", so this matches a pattern rather than a string.
-    match: /(donald.*trump|trump.*donald)/i,
-    // And it must exclude his son. Donald Trump Jr. is a sitting DJT director
-    // and 10% owner with current filings of his own (CIK 0002016181, an award
-    // on 2026-06-19); a bare /trump/i matched him and would have printed his
-    // transactions on his father's profile. Attributing one person's trades
-    // to another is the worst thing this page could do, so the exclusion is
-    // not an optimisation.
-    not: /\b(jr|junior|ii|iii)\b/i,
+    // Himself, and the revocable trust he moved the whole stake into in
+    // December 2024 -- the trust is where the position lives now, so leaving
+    // it out would show a holder of nothing.
+    ciks: ["0000947033", "0002050191"],
+    note: "Donald J. Trump and the Donald J. Trump Revocable Trust",
   },
 };
 
-/** Reduce a name to the key SEC_INSIDER is looked up by. */
 const nameKey = (s: string) =>
   s.toLowerCase().replace(/[^a-z ]/g, "").replace(/\s+/g, " ").trim();
 
-/** typeOfOwner -> a short role label, the same shorthand the tables use. */
-function ownerLabel(raw: string): string {
-  const t = (raw || "").toLowerCase();
-  if (t.includes("tenpercent") || t.includes("10 percent") || t.includes("10%")) return "10% Owner";
-  if (t.includes("officer")) {
-    const m = raw.match(/officer[:\s]+(.+)$/i);
-    return m ? m[1].trim().slice(0, 40) : "Officer";
+/* Form 4 transaction codes. Only P and S are open-market trades; the rest are
+   compensation and estate plumbing. They are all reported and all shown, but
+   labelled for what they are -- calling a gift a sale would be a lie, and
+   dropping it would leave a 114.75M-share disposal off the record entirely. */
+const CODE: Record<string, { label: string; side?: "buy" | "sell" }> = {
+  P: { label: "Buy", side: "buy" },
+  S: { label: "Sell", side: "sell" },
+  A: { label: "Award" },
+  G: { label: "Gift" },
+  M: { label: "Option exercise" },
+  X: { label: "Option exercise" },
+  F: { label: "Withheld for tax" },
+  C: { label: "Conversion" },
+  D: { label: "Returned to issuer" },
+  J: { label: "Other" },
+  K: { label: "Equity swap" },
+  U: { label: "Tender" },
+};
+
+/* These documents are a fixed SEC schema: no namespaces, no attributes on the
+   fields read here, no mixed content, one value per tag. String extraction is
+   sound against that and keeps the function dependency-free -- Deno has no
+   DOMParser, and pulling a wasm XML parser in for four tag names would cost
+   more than it is worth. */
+const xtag = (xml: string, name: string): string => {
+  const m = xml.match(new RegExp(`<${name}>\\s*(?:<value>)?\\s*([^<]*)`, "i"));
+  return m ? m[1].trim() : "";
+};
+const xblocks = (xml: string, name: string): string[] =>
+  xml.split(`<${name}>`).slice(1).map((s) => s.split(`</${name}>`)[0]);
+
+async function secJson(url: string): Promise<Record<string, unknown> | null> {
+  try {
+    const r = await fetch(url, { headers: secHeaders() });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
   }
-  if (t.includes("director")) return "Director";
-  return "Insider";
 }
 
-/** One person's Form 4 transactions in one company, over the same window.
- *
- * Open-market only: P is a purchase and S a sale, and every other Form 4 code
- * is compensation plumbing -- M exercises, F tax withholding, A awards, G
- * gifts. The worker applies exactly this rule for the insider tables, and
- * counting an award as a purchase is how a vesting schedule turns into
- * "insider buying" that nobody chose to do. */
-async function form4(
-  person: string, apiKey: string, cutoff: string,
-): Promise<Record<string, unknown>[]> {
-  const cfg = SEC_INSIDER[nameKey(person)];
-  if (!cfg) return [];
-  const u = `${FMP}/insider-trading/search?symbol=${encodeURIComponent(cfg.symbol)}`
-          + `&limit=200&apikey=${encodeURIComponent(apiKey)}`;
-  let rows: Record<string, unknown>[] = [];
-  try {
-    const r = await fetch(u);
-    if (!r.ok) return [];
-    const b = await r.json();
-    rows = Array.isArray(b) ? b : [];
-  } catch {
-    return [];
-  }
+/** One ownership document -> its transactions, plus the position it leaves. */
+function parseOwnership(xml: string, filed: string, link: string) {
+  const symbol = xtag(xml, "issuerTradingSymbol").toUpperCase();
+  const company = xtag(xml, "issuerName");
+  const who = xtag(xml, "rptOwnerName");
+  const rel = xblocks(xml, "reportingOwnerRelationship")[0] || "";
+  const owner = xtag(rel, "isTenPercentOwner") === "1" ? "10% Owner"
+    : xtag(rel, "isDirector") === "1" ? "Director"
+    : xtag(rel, "isOfficer") === "1" ? (xtag(rel, "officerTitle") || "Officer")
+    : "Insider";
 
-  return rows
-    .filter((r) => {
-      const who = String(r.reportingName || "");
-      return cfg.match.test(who) && !(cfg.not && cfg.not.test(who));
-    })
-    .map((r) => {
-      const code = String(r.transactionType || r.acquisitionOrDisposition || "").toUpperCase();
-      const buy = code.startsWith("P");
-      const sell = code.startsWith("S");
-      if (!buy && !sell) return null;
-      const shares = Number(r.securitiesTransacted || 0);
-      const price = Number(r.price || 0);
-      if (!(shares > 0) || !(price > 0)) return null;
+  const trades: Record<string, unknown>[] = [];
+  for (const table of ["nonDerivativeTransaction", "derivativeTransaction"]) {
+    for (const b of xblocks(xml, table)) {
+      const code = xtag(b, "transactionCode").toUpperCase();
+      const meta = CODE[code] || { label: code || "Reported" };
+      const shares = Number(xtag(b, "transactionShares") || 0);
+      const price = Number(xtag(b, "transactionPricePerShare") || 0);
+      const disposed = xtag(b, "transactionAcquiredDisposedCode").toUpperCase() === "D";
+      const traded = xtag(b, "transactionDate").slice(0, 10);
       const value = shares * price;
-      const traded = String(r.transactionDate || "").slice(0, 10);
-      const disclosed = String(r.filingDate || "").slice(0, 10);
-      return {
-        symbol: cfg.symbol,
-        name: cfg.company,
-        assetType: "stock",
-        side: buy ? "buy" : "sell",
-        rawType: code,
-        // Form 4 reports an exact figure rather than a band. Handed over as a
-        // single dollar string so the page's band() renders and ranks it the
-        // same way it does a disclosure bracket, with no second code path.
-        amount: `$${Math.round(value).toLocaleString("en-US")}`,
+      trades.push({
+        symbol,
+        name: company,
+        assetType: table === "derivativeTransaction" ? "derivative" : "stock",
+        // side drives the page's green/red chip, so only a genuine open-market
+        // trade gets one. Everything else carries its own neutral label.
+        side: meta.side || "",
+        code,
+        codeLabel: meta.label,
+        open: !!meta.side,
+        acquired: !disposed,
+        security: xtag(b, "securityTitle"),
+        // A gift is priced at zero, and "$0" would read as a free purchase.
+        // Amount is left empty there and the share count carries the size.
+        amount: value > 0 ? `$${Math.round(value).toLocaleString("en-US")}` : "",
         shares,
-        price,
-        owner: ownerLabel(String(r.typeOfOwner || "")),
-        reportedBy: String(r.reportingName || ""),
+        price: price > 0 ? price : null,
+        owner,
+        reportedBy: who,
         traded,
-        disclosed,
-        filedAfter: filedAfter(traded, disclosed),
+        disclosed: filed,
+        filedAfter: filedAfter(traded, filed),
         office: "",
         district: "",
-        link: String(r.url || r.link || ""),
-        source: "form4",
-      } as Record<string, unknown>;
-    })
-    .filter((t): t is Record<string, unknown> => !!t)
-    .filter((t) => String(t.traded || "") >= cutoff);
+        link,
+        source: "sec",
+      });
+    }
+  }
+
+  // What the filer says they hold afterwards -- the answer to "and holdings".
+  let position: Record<string, unknown> | null = null;
+  const holds = [...xblocks(xml, "nonDerivativeHolding"),
+                 ...xblocks(xml, "nonDerivativeTransaction")];
+  for (const h of holds) {
+    const n = Number(xtag(h, "sharesOwnedFollowingTransaction") || 0);
+    if (!(n > 0)) continue;
+    const indirect = xtag(h, "directOrIndirectOwnership").toUpperCase() === "I";
+    position = {
+      symbol, company, shares: n, who, asOf: filed,
+      indirect, through: indirect ? xtag(h, "natureOfOwnership") : "",
+    };
+    break;
+  }
+  return { trades, position };
+}
+
+/** Every Form 3/4/5 the configured CIKs filed inside the window. */
+async function secFilings(person: string) {
+  const cfg = SEC_FILERS[nameKey(person)];
+  if (!cfg) return { trades: [], positions: [], since: null as string | null };
+
+  const since = new Date(Date.now() - SEC_YEARS * 365 * 86400000)
+    .toISOString().slice(0, 10);
+  const trades: Record<string, unknown>[] = [];
+  const positions: Record<string, unknown>[] = [];
+
+  for (const cik of cfg.ciks) {
+    const sub = await secJson(`${SEC_DATA}/submissions/CIK${cik}.json`);
+    const recent = (sub?.filings as Record<string, unknown> | undefined)
+      ?.recent as Record<string, string[]> | undefined;
+    if (!recent) continue;
+
+    const bare = String(Number(cik));       // Archives paths drop leading zeros
+    for (let i = 0; i < (recent.form || []).length; i++) {
+      if (!["3", "4", "5"].includes(recent.form[i])) continue;
+      if ((recent.filingDate[i] || "") < since) continue;
+      // primaryDocument points at the XSL-rendered view; the raw XML sits
+      // beside it, and only the modern XML filings are machine-readable.
+      const doc = (recent.primaryDocument[i] || "").split("/").pop() || "";
+      if (!doc.endsWith(".xml")) continue;
+      const acc = (recent.accessionNumber[i] || "").replace(/-/g, "");
+      const base = `${SEC}/Archives/edgar/data/${bare}/${acc}`;
+      try {
+        const r = await fetch(`${base}/${doc}`, { headers: secHeaders() });
+        if (!r.ok) continue;
+        const parsed = parseOwnership(
+          await r.text(),
+          recent.filingDate[i],
+          `${base}/${recent.accessionNumber[i]}-index.htm`,
+        );
+        trades.push(...parsed.trades);
+        if (parsed.position) positions.push(parsed.position);
+      } catch { /* one unreadable filing should not lose the rest */ }
+    }
+  }
+
+  trades.sort((a, b) => String(b.traded || "").localeCompare(String(a.traded || "")));
+  // Newest statement of each holding wins.
+  positions.sort((a, b) => String(b.asOf || "").localeCompare(String(a.asOf || "")));
+  const seenPos = new Set<string>();
+  const latest = positions.filter((p) => {
+    const k = `${p.symbol}|${p.who}`;
+    if (seenPos.has(k)) return false;
+    seenPos.add(k);
+    return true;
+  });
+  return { trades, positions: latest, since };
 }
 
 Deno.serve(async (req: Request) => {
@@ -213,10 +300,10 @@ Deno.serve(async (req: Request) => {
     }
   }));
 
-  // SEC Form 4, for a person who files no STOCK Act report but is an insider
-  // of a listed company. Runs alongside the chamber feeds rather than only on
-  // their failure: a person could in principle have both.
-  const sec = await form4(name, key, cutoff);
+  // EDGAR ownership filings, for a person who files no STOCK Act report but is
+  // an insider of a listed company. Runs alongside the chamber feeds rather
+  // than only on their failure: a person could in principle have both.
+  const sec = await secFilings(name);
 
   const seen = new Set<string>();
   const trades = settled.flat()
@@ -250,21 +337,29 @@ Deno.serve(async (req: Request) => {
       return true;
     });
 
-  const all = [...trades, ...sec]
+  const all = [...trades, ...sec.trades]
     .sort((a, b) => String(b.traded || "").localeCompare(String(a.traded || "")));
 
   // Which feeds actually produced something, so the page can say where a
   // profile's rows came from instead of implying every name is a legislator.
   const sources: string[] = [];
   if (trades.length) sources.push("congress");
-  if (sec.length) sources.push("form4");
+  if (sec.trades.length) sources.push("sec");
 
   return json(
     {
       person: name, days: DAYS, since: cutoff,
       count: all.length, sources, trades: all,
-      congressCount: trades.length, form4Count: sec.length,
-      form4Symbol: SEC_INSIDER[nameKey(name)]?.symbol || null,
+      congressCount: trades.length,
+      // The EDGAR half reaches further back than the chamber feeds and says so
+      // separately, rather than letting one window label two spans.
+      sec: {
+        count: sec.trades.length,
+        since: sec.since,
+        positions: sec.positions,
+        tracked: !!SEC_FILERS[nameKey(name)],
+        note: SEC_FILERS[nameKey(name)]?.note || null,
+      },
     },
     200,
     { "Cache-Control": `public, max-age=${CACHE_SECONDS}` },
