@@ -115,6 +115,12 @@ h2.sect:first-of-type{margin-top:8px}
 .phead2 h3{font-family:"IBM Plex Serif",Georgia,serif;font-size:19px;font-weight:600;
   letter-spacing:-.01em}
 .phead2 .seat{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3);margin-top:2px}
+/* The way back out of one member's page, since the panel no longer opens on a
+   person and the cards have no untoggle. */
+.pback{margin-left:auto;flex-shrink:0;background:var(--sunk);border:1px solid var(--rule);
+  border-radius:8px;padding:6px 11px;font:inherit;font-size:12px;font-weight:600;
+  color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.pback:hover{border-color:var(--accent);color:var(--accent)}
 .ptabs{display:flex;gap:6px;padding:12px 18px 0}
 .ptabs button{background:var(--sunk);border:1px solid var(--rule);border-radius:8px;
   padding:7px 14px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink-2)}
@@ -129,7 +135,12 @@ h2.sect:first-of-type{margin-top:8px}
    band below its top edge, rows showing through the gap. Same fix the
    index-holdings table already carries. */
 .ttable{overflow:auto;padding:0 0 4px}
-.profile .ttable{max-height:548px}
+/* Measured, not guessed: a 33.25px sticky header, ten 58px rows, and the 4px
+   of padding above sits inside the box — 617.25px, rounded up so the tenth row
+   is whole and the eleventh is plainly cut. The rows are two lines tall here,
+   symbol over company name, so they are the 58px the insider table has rather
+   than the 44px a single-line row would be. */
+.profile .ttable{max-height:618px;scrollbar-gutter:stable}
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
 thead{position:relative;z-index:2}
 thead th{position:sticky;top:0;z-index:2;background:var(--card);
@@ -152,6 +163,11 @@ tbody tr.rowlink:hover td{background:var(--sunk)}
 .co .sym{font-weight:600;font-size:13px}
 .co .nm{font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;max-width:230px}
+
+/* The extra column the all-politicians view carries. A name is prose, so it
+   opts out of the right-aligned tabular numerals the other cells use. */
+td.who{text-align:left;font-family:"IBM Plex Sans",sans-serif;font-size:12.5px;
+  max-width:180px;overflow:hidden;text-overflow:ellipsis}
 
 .chip{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;
   font-family:"IBM Plex Sans",sans-serif}
@@ -242,8 +258,9 @@ tr[aria-expanded=true] .caret{transform:rotate(180deg)}
 <main>
   <div class="pagehead">
     <h1>Insider &amp; Congress</h1>
-    <p>Every trade disclosed by members of Congress and company insiders over the
-       last 90 days — who traded, what, and how much of it. Straight from the
+    <p>Every trade disclosed by members of Congress and company insiders — who
+       traded, what, and how much of it. The tables cover the last 90 days; pick
+       a member and you get a full year of their filings. Straight from the
        disclosure feeds, updated through the day.</p>
   </div>
 
@@ -260,7 +277,7 @@ tr[aria-expanded=true] .caret{transform:rotate(180deg)}
   <div class="congress">
     <div class="people" id="people"><div class="note" style="grid-column:1/-1"><span class="load"></span></div></div>
     <section class="panel profile" id="profile">
-      <div class="note">Pick a politician to see their trades.</div>
+      <div class="note"><span class="load"></span></div>
     </section>
   </div>
 
@@ -416,7 +433,9 @@ const nameKey = s => {
 
 const S = {
   people: [], byPerson: null, mode: "rpc",
-  selected: null, profile: null, tab: "tx",
+  // selected === null is the all-politicians view, which is where the panel
+  // starts. allTrades caches it, so coming back from a member is instant.
+  selected: null, allTrades: null, profile: null, tab: "tx",
   acItems: [], acIdx: -1,
   insRows: [], insOpen: null, insPeople: new Map(),
   // Raw insider filings, kept so the chart's period filter can re-aggregate
@@ -426,6 +445,9 @@ const S = {
 };
 
 /* ---- data --------------------------------------------------------------- */
+const ALL_DAYS = 90;   // the stored window; the table is a 90-day full replace
+const ALL_ROWS = 25;   // fetched for the all view — ten show, the rest scroll
+
 async function pageTrades(kind, want, symbols){
   const out = [];
   for (let off = 0; out.length < want; off += 100) {
@@ -465,13 +487,6 @@ async function loadPeople(){
              p.chamber = p.chamber || f.chamber; p.district = p.district || f.district; }
   });
   paintPeople();
-  // The profile panel sits beside the cards now, so it should never open
-  // empty: start on the most active trader.
-  if (!S.selected) {
-    const cards = railCards();
-    const first = cards.find(p => p.trades > 0) || cards[0];
-    if (first) openProfile(first.person, first, { quiet: true });
-  }
 }
 
 function railCards(){
@@ -513,6 +528,52 @@ function paintPeople(){
 }
 
 /* ---- profile ------------------------------------------------------------ */
+
+/* Where the panel starts, and what "← All politicians" returns to: the most
+   recent congressional disclosures from everybody, rather than one member
+   chosen for them. Fetched once and kept — going back is then instant. */
+async function openAll(opts){
+  S.selected = null; S.tab = "tx"; S.profile = null;
+  if (!(opts && opts.quiet)) GA.track("select_content", { content_type: "politicians_all", source: "congress_page" });
+  const el = document.getElementById("profile");
+  el.innerHTML = `<div class="note"><span class="load"></span></div>`;
+  // Only to clear the pressed card. At boot the cards are still loading and
+  // repainting them here would flash eight "No recent disclosures" labels.
+  if (document.querySelector("#people .pcard")) paintPeople();
+
+  if (!S.allTrades) {
+    let rows = [];
+    try {
+      const d = await rpc("get_trades", { p_limit: ALL_ROWS, p_offset: 0,
+                                          p_days: ALL_DAYS, p_kind: "congress" });
+      rows = (d && d.congress) || [];
+    } catch {}
+    S.allTrades = rows;
+  }
+  if (S.selected !== null) return;   // a card was opened while this loaded
+  S.profile = { all: true, trades: S.allTrades };
+  paintProfile();
+}
+
+/* A year of one member's filings. The stored congress table is a 90-day full
+   replace, so the longer history does not exist in the database and cannot;
+   the politician-trades function holds the FMP key and fetches it upstream.
+
+   Both headers on purpose: the functions gateway answers apikey alone with a
+   401. The anon key doubles as the bearer token — this endpoint reads no user
+   identity, and a signed-in session's token can be expired while the key
+   never is. */
+async function fetchYear(person){
+  if (!HOSTED) return null;
+  const r = await fetch(
+    `${CFG.supabaseUrl}/functions/v1/politician-trades?name=${encodeURIComponent(person)}`,
+    { headers: { apikey: CFG.supabaseAnonKey,
+                 Authorization: `Bearer ${CFG.supabaseAnonKey}` } });
+  if (!r.ok) throw new Error(`politician-trades failed (${r.status})`);
+  const d = await r.json();
+  return (d && d.trades) || null;
+}
+
 async function openProfile(person, hint, opts){
   S.selected = person; S.tab = "tx"; S.profile = null;
   if (!(opts && opts.quiet)) GA.track("select_content", { content_type: "politician", source: "congress_page" });
@@ -523,6 +584,9 @@ async function openProfile(person, hint, opts){
   if (!(opts && opts.quiet) && matchMedia("(max-width:1000px)").matches)
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   paintPeople();
+
+  // Started before the identity round trip so the two are in flight together.
+  const yearP = fetchYear(person).catch(() => null);
 
   let identity = null, trades = [];
   if (S.mode === "rpc") {
@@ -535,8 +599,14 @@ async function openProfile(person, hint, opts){
     trades = S.byPerson.get(person).rows.slice()
       .sort((a,b) => (b.traded || b.disclosed || "").localeCompare(a.traded || a.disclosed || ""));
   }
+  // The year replaces the stored 90 days when it arrives; a name the feed does
+  // not carry, or a refused one, leaves the 90-day rows in place.
+  const year = await yearP;
+  if (year && year.length) trades = year;
+
+  if (S.selected !== person) return;   // superseded by a later click
   S.profile = {
-    person,
+    person, year: !!(year && year.length),
     bioguide: (identity && identity.bioguide) || (hint && hint.bioguide) || null,
     party: (identity && identity.party) || (hint && hint.party) || null,
     chamber: (identity && identity.chamber) || (hint && hint.chamber) || null,
@@ -569,6 +639,10 @@ function paintProfile(){
   if (!p) return;
   const el = document.getElementById("profile");
   const n = p.trades.length;
+  const all = !!p.all;
+  // Everyone is the stored 90 days; one member is the year politician-trades
+  // returns, unless it had nothing and the stored rows stood in.
+  const span = all || !p.year ? "90 days" : "12 months";
 
   const txRows = p.trades.map(t => {
     const b = band(t.amount);
@@ -584,6 +658,7 @@ function paintProfile(){
         <span class="t"><span class="sym">${esc(t.symbol)}</span>
           ${t.name ? `<span class="nm">${esc(t.name)}</span>` : ""}</span>
       </span></td>
+      ${all ? `<td class="who">${esc(t.person || "—")}</td>` : ""}
       <td>${day(t.traded)}</td>
       <td>${chip}${owner}</td>
       <td>${filedAfter(t.traded, t.disclosed)}</td>
@@ -607,6 +682,25 @@ function paintProfile(){
       <td>${day(a.last)}</td>
     </tr>`).join("");
 
+  if (all) {
+    el.innerHTML = `
+      <div class="phead2">
+        <div>
+          <h3>All politicians</h3>
+          <span class="seat">The latest disclosures across Congress · last ${span}</span>
+        </div>
+      </div>
+      <div class="ttable">
+        ${n === 0 ? `<div class="note">No congressional disclosures in the last ${span}.</div>`
+        : `<table><thead><tr>
+            <th>Company</th><th>Politician</th><th>Traded</th><th>Type</th>
+            <th>Filed after</th><th>Amount</th><th></th>
+          </tr></thead><tbody>${txRows}</tbody></table>`}
+      </div>`;
+    wireRows(el, p);
+    return;
+  }
+
   el.innerHTML = `
     <div class="phead2">
       ${faceHTML(p)}
@@ -614,6 +708,7 @@ function paintProfile(){
         <h3>${esc(p.person)}</h3>
         <span class="seat">${seatHTML(p)}</span>
       </div>
+      <button type="button" class="pback">← All politicians</button>
     </div>
     <div class="ptabs" role="tablist">
       <button role="tab" data-t="tx" aria-pressed="${S.tab === "tx"}">Transactions</button>
@@ -621,14 +716,14 @@ function paintProfile(){
       <button role="tab" data-t="hold" aria-pressed="${S.tab === "hold"}">Holdings</button>
     </div>
     ${S.tab === "agg" ? `<p class="pnote">Estimated from the ranges disclosure rules require —
-       a filing says "$15K–$50K", not an exact figure. This is the last 90 days of
+       a filing says "$15K–$50K", not an exact figure. This is the last ${span} of
        reported trades.</p>` : ""}
     ${S.tab === "hold" ? `<div class="note" style="padding:44px 18px">
         <b style="display:block;font-size:15px;color:var(--ink);margin-bottom:6px">Coming soon</b>
         Full holdings come from members' annual financial disclosures — a different
         dataset from the trade feed. We're working on it.</div>` : `
     <div class="ttable">
-      ${n === 0 ? `<div class="note">No disclosures from ${esc(p.person)} in the last 90 days.</div>`
+      ${n === 0 ? `<div class="note">No disclosures from ${esc(p.person)} in the last ${span}.</div>`
       : S.tab === "tx" ? `<table><thead><tr>
           <th>Company</th><th>Traded</th><th>Type</th><th>Filed after</th><th>Amount</th><th></th>
         </tr></thead><tbody>${txRows}</tbody></table>`
@@ -638,9 +733,15 @@ function paintProfile(){
     </div>`}`;
 
   wireFaces(el);
+  el.querySelector(".pback").onclick = () => openAll();
   el.querySelectorAll(".ptabs button").forEach(b => b.onclick = () => {
     S.tab = b.dataset.t; paintProfile();
   });
+  wireRows(el, p);
+}
+
+/* Company rows and their logos — the part both views of the panel share. */
+function wireRows(el, p){
   el.querySelectorAll("tr.rowlink").forEach(tr => tr.onclick = () => {
     location.href = `company.html?t=${encodeURIComponent(tr.dataset.s)}&src=congress_page`;
   });
@@ -911,6 +1012,8 @@ function paintInsiders(){
   wireSearch();
   wireInsFilters();
   loadInsiders();
+  // The panel's own fetch does not wait on the cards beside it.
+  openAll({ quiet: true });
   await loadPeople();
 })();
 </script>
