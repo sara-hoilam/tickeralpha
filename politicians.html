@@ -917,18 +917,20 @@ function wireInsFilters(){
   });
 }
 
-/* The rows the bars are drawn from, ranked by whichever side the flow filter
-   is showing -- ranking an "Inflow" view by buying+selling would put a company
-   that only sold at the top of a chart with no bar on it. Same source as the
-   table beside it, so the two always agree on the window. */
-function insChartRows(){
+/* Both panels read this. Ranked by whichever side the flow filter is showing
+   -- ranking an "Inflow" view by buying+selling would put a company that only
+   sold at the top of a chart with no bar on it -- and filtered to companies
+   that actually traded on that side, so selecting Inflow leaves buyers in both
+   the bars and the table rather than only in the bars. */
+function insFiltered(){
   const weight = r => S.insFlow === "in" ? (r.buyAmt || 0)
                     : S.insFlow === "out" ? (r.sellAmt || 0)
                     : (r.buyAmt || 0) + (r.sellAmt || 0);
   return S.insRows.filter(r => weight(r) > 0)
-                  .sort((a, b) => weight(b) - weight(a))
-                  .slice(0, INS_BARS);
+                  .sort((a, b) => weight(b) - weight(a));
 }
+/* The chart shows the leading dozen; the table scrolls the rest. */
+const insChartRows = () => insFiltered().slice(0, INS_BARS);
 
 /* The filings behind one company's row, fetched the first time it is opened
    and remembered after that. Bought, sold and shares are kept apart so the
@@ -961,7 +963,9 @@ async function insiderPeople(symbol){
 }
 
 function paintInsiders(){
-  const rows = S.insRows;
+  // The flow filter governs both panels: same rows, same order, the chart
+  // simply stops at twelve.
+  const rows = insFiltered();
   const chart = document.getElementById("ins-chart");
   const table = document.getElementById("ins-table");
   // The blurb names the window the panels are actually showing, so the two
@@ -972,7 +976,10 @@ function paintInsiders(){
     ${S.insDays} days, above $1M or 1% of shares outstanding. Click a company
     for who was buying and selling.`;
   if (!rows.length) {
-    chart.innerHTML = table.innerHTML = `<div class="note">No insider filings stored yet.</div>`;
+    chart.innerHTML = table.innerHTML = `<div class="note">${S.insRows.length
+      ? `No insider ${S.insFlow === "in" ? "buying" : S.insFlow === "out" ? "selling" : "filings"}
+         in the last ${S.insDays} days.`
+      : "No insider filings stored yet."}</div>`;
     return;
   }
 
@@ -987,11 +994,8 @@ function paintInsiders(){
   const max = Math.max(...top.map(r => Math.max(
     showSell ? (r.sellAmt || 0) : 0, showBuy ? (r.buyAmt || 0) : 0)), 1);
   const pc = v => Math.max(v > 0 ? 2 : 0, Math.round((v / max) * 88));
-  if (!top.length) {
-    chart.innerHTML = `<div class="note" style="padding:14px 0">No insider filings in
-      the last ${S.insDays} days${S.insFlow === "in" ? " on the buy side"
-      : S.insFlow === "out" ? " on the sell side" : ""}.</div>`;
-  } else {
+  // top is a slice of a non-empty rows, so it always has at least one bar --
+  // the "nothing on this side" case was handled on the way in.
   chart.innerHTML = top.map(r => `
     <div class="ibar">
       <span class="co" data-s="${esc(r.symbol)}" role="link" tabindex="0">
@@ -1005,7 +1009,6 @@ function paintInsiders(){
         ${showBuy && r.buyAmt ? `<span class="bar" style="width:${pc(r.buyAmt)}%"></span><span class="v">${kfmt(r.buyAmt)}</span>` : ""}
       </span>
     </div>`).join("");
-  }
   chart.querySelectorAll(".co[data-s]").forEach(el => {
     const go = () => location.href = `company.html?t=${encodeURIComponent(el.dataset.s)}&src=congress_page`;
     el.onclick = go;

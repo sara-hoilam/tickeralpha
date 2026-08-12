@@ -234,23 +234,6 @@ svg{display:block;max-width:100%}
 }
 .grid2 > .panel{overflow:visible}
 .scroll{overflow-x:auto;padding:10px 18px 18px}
-/* Congress & Insiders: fixed-height panes with a real scrollbar and sticky
-   headers so scrolling past the first screenful stays readable. */
-#insiders.scroll, #congress.scroll{
-  max-height:420px; overflow-y:auto; overflow-x:auto;
-  scrollbar-gutter:stable; overscroll-behavior:contain;
-}
-#insiders .mini thead th, #congress .mini thead th{
-  position:sticky; top:0; z-index:2; background:var(--card);
-  background-clip:padding-box; box-shadow:0 1px 0 var(--rule);
-}
-#insiders.scroll, #congress.scroll{ padding-top:0 }
-#insiders .mini, #congress .mini{ border-collapse:separate; border-spacing:0 }
-#insiders .mini thead, #congress .mini thead{ position:relative; z-index:2 }
-#insiders .trade-more, #congress .trade-more{
-  text-align:center; font-size:11.5px; color:var(--ink-3); padding:10px 0 2px;
-}
-#insiders .trade-more .load, #congress .trade-more .load{margin-right:6px}
 .legend{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center;
   font-size:13.5px;color:var(--ink-3);padding:0 18px 14px}
 .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:6px;
@@ -520,9 +503,6 @@ svg{display:block;max-width:100%}
      under half the screen for the whole card to be. */
   #heatmap{max-height:36vh}
   .rows{max-height:38vh}
-  /* The 420px cap set with .trade-scroll wins on a phone otherwise, and
-     420px of an 844px screen is half of it. */
-  .panel #insiders,.panel #congress{max-height:min(38vh,420px)}
 }
 
 /* ---- Discover news carousel (under sector movements) --------------------- */
@@ -746,36 +726,6 @@ svg{display:block;max-width:100%}
     </div>
     <div class="disc-dots" id="discover-dots" role="tablist" aria-label="Discover pages"></div>
   </section>
-
-  <h2 style="margin-top:26px">Congress &amp; Insiders</h2>
-  <div class="grid2">
-    <section class="panel">
-      <div class="hmhead">
-        <div class="htitle">
-          <h3>Insider Transactions</h3>
-          <button type="button" class="info-i" aria-label="About Insider Transactions">
-            <span aria-hidden="true">i</span>
-            <span class="info-bubble">Officers and directors buying or selling their own company's stock, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding. Scroll for more.</span>
-          </button>
-        </div>
-      </div>
-      <div class="scroll" id="insiders" tabindex="0" aria-label="Insider transactions">
-        <div class="note"><span class="load"></span></div></div>
-    </section>
-    <section class="panel">
-      <div class="hmhead">
-        <div class="htitle">
-          <h3>Congress Trades</h3>
-          <button type="button" class="info-i" aria-label="About Congress Trades">
-            <span aria-hidden="true">i</span>
-            <span class="info-bubble">Trades disclosed by members of the House and Senate over the last 14 days. Amounts are the ranges they are required to report, not exact figures. Scroll for more.</span>
-          </button>
-        </div>
-      </div>
-      <div class="scroll" id="congress" tabindex="0" aria-label="Congress trades">
-        <div class="note"><span class="load"></span></div></div>
-    </section>
-  </div>
 
   <div class="foot" id="foot"></div>
 </main>
@@ -2496,178 +2446,6 @@ function renderSectorPerf(history){
   });
 }
 
-/* ===========================================================================
-   Congress and insiders
-=========================================================================== */
-const shares = v => !v ? "—"
-  : v >= 1e6 ? (v/1e6).toFixed(2) + "M" : v >= 1e3 ? (v/1e3).toFixed(1) + "K" : String(Math.round(v));
-const amount = v => {
-  if (v === null || v === undefined || !v) return "—";
-  const a = Math.abs(v), sign = v < 0 ? "−" : "";
-  return sign + (a >= 1e9 ? `$${(a/1e9).toFixed(2)}B`
-       : a >= 1e6 ? `$${(a/1e6).toFixed(2)}M`
-       : a >= 1e3 ? `$${(a/1e3).toFixed(0)}K` : `$${a.toFixed(0)}`);
-};
-// Ticker over company name, as the summary rows do. get_trades carries the
-// name from 0019; before that migration it is absent and only the symbol
-// shows, which is what the page did before.
-const symLink = (s, name) =>
-  `<a class="tsym" href="company.html?t=${encodeURIComponent(s)}&src=market_page">
-     <span class="tsym-t">${esc(s)}</span>
-     ${name ? `<span class="tsym-n">${esc(name)}</span>` : ""}
-   </a>`;
-
-/** Role over name — same stack as ticker/company. Insider titles are
-    normalised by the worker (CEO, CFO, …); congress uses Senator / Rep. */
-const peopleStack = (title, person, fallback = "Insider") => {
-  const role = (title || "").trim() || fallback;
-  const who = (person || "").trim();
-  return `<div class="ppl" title="${esc(who ? `${role} · ${who}` : role)}">
-     <span class="ppl-t">${esc(role)}</span>
-     ${who ? `<span class="ppl-n">${esc(who)}</span>` : ""}
-   </div>`;
-};
-
-const congressRole = chamber => {
-  const c = String(chamber || "").toLowerCase();
-  if (c.includes("senate")) return "Senator";
-  if (c.includes("house")) return "Representative";
-  return "Member";
-};
-
-/** Normalise FMP side strings (Purchase, Sale (Partial), …) to Buy/Sell pills. */
-const sidePill = side => {
-  const raw = String(side || "").trim();
-  const s = raw.toLowerCase();
-  let label = raw || "—", cls = "";
-  if (/^(buy|purchase|receive)/.test(s) || s.includes("purchase") || s.includes("receive")) {
-    label = "Buy"; cls = "buy";
-  } else if (/^(sell|sale)/.test(s) || s.includes("sale") || s.includes("sell") || s.includes("exchange")) {
-    label = "Sell"; cls = "sell";
-  }
-  return `<span class="side ${cls}">${esc(label)}</span>`;
-};
-
-/** Congressional disclosures are reported as a band, never an exact figure,
-    so the band is what gets shown -- compacted, not rounded to a single
-    number that would imply a precision the filing does not have. */
-const range = raw => {
-  if (!raw) return "—";
-  const nums = String(raw).match(/[\d,]+/g);
-  if (!nums || !nums.length) return String(raw);
-  const short = n => {
-    const v = +n.replace(/,/g, "");
-    return v >= 1e6 ? `${(v/1e6).toFixed(v % 1e6 ? 1 : 0)}M`
-         : v >= 1e3 ? `${Math.round(v/1e3)}K` : String(v);
-  };
-  return nums.length > 1 ? `${short(nums[0])}–${short(nums[1])}` : short(nums[0]);
-};
-
-/* Paginated trade feeds. Insiders use 7 days; congress uses 14. Each panel
-   scrolls independently and asks for the next page near the bottom. */
-const TRADES = {
-  page: 20,
-  insider:  { days: 7,  rows: [], total: 0, loading: false, done: false, wired: false },
-  congress: { days: 14, rows: [], total: 0, loading: false, done: false, wired: false },
-};
-
-const insiderRow = r =>
-  `<tr><td>${esc(r.filed || "")}</td>
-       <td class="idcol">${symLink(r.symbol, r.name)}</td>
-       <td class="idcol">${peopleStack(r.title, r.person)}</td>
-       <td>${sidePill(r.side)}</td>
-       <td>${esc(shares(r.shares))}</td>
-       <td>${esc(amount(r.amount))}</td></tr>`;
-
-const congressRow = r =>
-  `<tr><td>${esc(r.disclosed || "")}</td>
-       <td class="idcol">${symLink(r.symbol, r.name)}</td>
-       <td class="idcol">${peopleStack(congressRole(r.chamber), r.person)}</td>
-       <td>${sidePill(r.side)}</td>
-       <td title="${esc(r.amount || "")}">${esc(range(r.amount))}</td></tr>`;
-
-function renderTradePanel(kind){
-  const isIns = kind === "insider";
-  const host = document.getElementById(isIns ? "insiders" : "congress");
-  const bucket = TRADES[isIns ? "insider" : "congress"];
-  if (!host) return;
-
-  if (!bucket.rows.length) {
-    host.innerHTML = bucket.loading
-      ? `<div class="note"><span class="load"></span></div>`
-      : `<div class="note">${isIns
-          ? "No insider filings in the last 7 days."
-          : "No congressional disclosures in the last 14 days."}</div>`;
-    return;
-  }
-
-  const head = isIns
-    ? `<th>Filed</th><th class="idcol">Ticker</th><th class="idcol">People</th>
-       <th>Side</th><th>Shares</th><th>Amount</th>`
-    : `<th>Disclosed</th><th class="idcol">Ticker</th>
-       <th class="idcol">People</th><th>Side</th><th>Amount</th>`;
-  const body = bucket.rows.map(isIns ? insiderRow : congressRow).join("");
-  const more = bucket.loading
-    ? `<div class="trade-more"><span class="load"></span>Loading more…</div>`
-    : bucket.done ? ""
-    : `<div class="trade-more">Scroll for more · ${bucket.rows.length} of ${bucket.total}</div>`;
-  const top = host.scrollTop;
-  host.innerHTML = `<table class="mini"><thead><tr>${head}</tr></thead>
-                    <tbody>${body}</tbody></table>${more}`;
-  host.scrollTop = top;
-  wireTradeScroll(kind);
-}
-
-function wireTradeScroll(kind){
-  const isIns = kind === "insider";
-  const host = document.getElementById(isIns ? "insiders" : "congress");
-  const bucket = TRADES[isIns ? "insider" : "congress"];
-  if (!host || bucket.wired) return;
-  bucket.wired = true;
-  host.addEventListener("scroll", () => {
-    if (bucket.loading || bucket.done) return;
-    if (host.scrollTop + host.clientHeight < host.scrollHeight - 48) return;
-    loadTrades(kind);
-  }, { passive: true });
-}
-
-async function loadTrades(kind){
-  const isIns = kind === "insider";
-  const bucket = TRADES[isIns ? "insider" : "congress"];
-  if (bucket.loading || bucket.done) return;
-  bucket.loading = true;
-  if (bucket.rows.length) renderTradePanel(kind);
-  try {
-    const d = await rpc("get_trades", {
-      p_limit: TRADES.page,
-      p_offset: bucket.rows.length,
-      p_days: bucket.days,
-      p_kind: isIns ? "insider" : "congress",
-    });
-    const key = isIns ? "insiders" : "congress";
-    const totalKey = isIns ? "insidersTotal" : "congressTotal";
-    const chunk = (d && d[key]) || [];
-    bucket.total = (d && d[totalKey]) || 0;
-    bucket.rows = bucket.rows.concat(chunk);
-    bucket.done = !chunk.length
-      || chunk.length < TRADES.page
-      || (bucket.total > 0 && bucket.rows.length >= bucket.total);
-  } catch {
-    if (!bucket.rows.length) {
-      bucket.done = true;
-    }
-  } finally {
-    bucket.loading = false;
-    renderTradePanel(kind);
-  }
-}
-
-function bootTrades(){
-  loadTrades("insider");
-  loadTrades("congress");
-  wirePanelInfoTips();
-}
-
 /** Pin .info-i bubbles on document.body so panel/button overflow cannot crop them. */
 function wirePanelInfoTips(root){
   (root || document).querySelectorAll(".info-i").forEach(btn => {
@@ -2800,7 +2578,10 @@ function wirePanelInfoTips(root){
     document.getElementById("sectorperf").innerHTML = `<div class="note">Unavailable.</div>`;
   });
 
-  bootTrades();
+  // The Congress & Insiders panels moved to their own page. This call came in
+  // with them and is kept: the heatmap, risk/return and sector panels above
+  // carry .info-i bubbles that nothing else wires.
+  wirePanelInfoTips();
 })();
 </script>
 <script src="nav.js"></script>
