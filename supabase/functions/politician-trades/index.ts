@@ -73,11 +73,22 @@ function filedAfter(traded: string, disclosed: string): number | null {
  * equities and municipal bonds). Form 4 is a narrower, different thing: only
  * DJT, only his own filings. See the note in the page for what it covers.
  */
-const SEC_INSIDER: Record<string, { symbol: string; company: string; match: RegExp }> = {
+const SEC_INSIDER: Record<string, {
+  symbol: string; company: string; match: RegExp; not?: RegExp;
+}> = {
   "donald trump": {
     symbol: "DJT",
     company: "Trump Media & Technology Group Corp.",
-    match: /trump/i,
+    // Both the man and the trust he gifted the stake to file under names
+    // containing "Trump", so this matches a pattern rather than a string.
+    match: /(donald.*trump|trump.*donald)/i,
+    // And it must exclude his son. Donald Trump Jr. is a sitting DJT director
+    // and 10% owner with current filings of his own (CIK 0002016181, an award
+    // on 2026-06-19); a bare /trump/i matched him and would have printed his
+    // transactions on his father's profile. Attributing one person's trades
+    // to another is the worst thing this page could do, so the exclusion is
+    // not an optimisation.
+    not: /\b(jr|junior|ii|iii)\b/i,
   },
 };
 
@@ -122,7 +133,10 @@ async function form4(
   }
 
   return rows
-    .filter((r) => cfg.match.test(String(r.reportingName || "")))
+    .filter((r) => {
+      const who = String(r.reportingName || "");
+      return cfg.match.test(who) && !(cfg.not && cfg.not.test(who));
+    })
     .map((r) => {
       const code = String(r.transactionType || r.acquisitionOrDisposition || "").toUpperCase();
       const buy = code.startsWith("P");

@@ -753,7 +753,17 @@ function paintProfile(){
         Full holdings come from members' annual financial disclosures — a different
         dataset from the trade feed. We're working on it.</div>` : `
     <div class="ttable">
-      ${n === 0 ? `<div class="note">No disclosures from ${esc(p.person)} in the last ${span}.</div>`
+      ${n === 0 ? (p.form4Symbol ? `<div class="note" style="text-align:left;padding:20px 18px">
+          <b style="display:block;color:var(--ink);margin-bottom:6px">Nothing this page can show</b>
+          ${esc(p.person)} is not a member of Congress, so files no STOCK Act
+          disclosure. Their SEC Form 4 activity in ${esc(p.form4Symbol)} is not
+          open-market either — shares acquired in a merger, or gifted to a trust,
+          which this page deliberately does not count as trading.
+          <span style="display:block;margin-top:8px">Executive-branch officials
+          instead file OGE Form 278-T periodic transaction reports. That is a
+          separate feed, and it is not wired up here yet.</span>
+        </div>`
+        : `<div class="note">No disclosures from ${esc(p.person)} in the last ${span}.</div>`)
       : S.tab === "tx" ? `<table><thead><tr>
           <th>Company</th><th>Traded</th><th>Type</th><th>Filed after</th><th>Amount</th><th></th>
         </tr></thead><tbody>${txRows}</tbody></table>`
