@@ -127,7 +127,7 @@ h2.sect:first-of-type{margin-top:8px}
 .ptabs button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
 .pnote{padding:10px 18px 0;font-size:12px;color:var(--ink-3)}
 
-/* Ten rows and then it scrolls; the header stays put.
+/* A fixed row count and then it scrolls; the header stays put.
 
    separate + spacing 0, background-clip and a shadow underline: with
    border-collapse the body rows paint through a sticky header's background
@@ -135,12 +135,12 @@ h2.sect:first-of-type{margin-top:8px}
    band below its top edge, rows showing through the gap. Same fix the
    index-holdings table already carries. */
 .ttable{overflow:auto;padding:0 0 4px}
-/* Measured, not guessed: a 33.25px sticky header, ten 58px rows, and the 4px
-   of padding above sits inside the box — 617.25px, rounded up so the tenth row
-   is whole and the eleventh is plainly cut. The rows are two lines tall here,
-   symbol over company name, so they are the 58px the insider table has rather
-   than the 44px a single-line row would be. */
-.profile .ttable{max-height:618px;scrollbar-gutter:stable}
+/* Nine rows. Measured, not guessed: a 33.25px sticky header, nine 58px rows,
+   and the 4px of padding below sits inside the box — 559.25px, rounded up so
+   the ninth row is whole and the tenth is plainly cut. The rows are two lines
+   tall here, symbol over company name, so they are 58px rather than the 44px
+   a single-line row would be. */
+.profile .ttable{max-height:560px;scrollbar-gutter:stable}
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
 thead{position:relative;z-index:2}
 thead th{position:sticky;top:0;z-index:2;background:var(--card);
@@ -224,20 +224,23 @@ td.who{text-align:left;font-family:"IBM Plex Sans",sans-serif;font-size:12.5px;
 .legend{display:flex;gap:16px;padding:4px 18px 14px;font-size:11.5px;color:var(--ink-3)}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 
-/* Expanded breakdown: who was doing the buying and selling. */
+/* Expanded breakdown: who was doing the buying and selling.
+
+   Real rows in the same table rather than a flex list inside one spanning
+   cell, so a filer's bought, sold, price and date land under the parent's
+   own columns. A free-standing list could only ever approximate that
+   alignment, and drifted the moment a column changed width. */
 tr.detail > td{background:var(--sunk);padding:0 14px 0 18px;text-align:left;
   font-family:"IBM Plex Sans",sans-serif}
-.dwrap{padding:10px 4px 12px}
-.drow{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:12.5px;
-  border-bottom:1px dashed var(--rule-2)}
-.drow:last-child{border-bottom:0}
-.drow .who{min-width:0}
-.drow .who b{font-weight:600;display:block;line-height:1.3}
-.drow .who span{font-size:11px;color:var(--ink-3)}
-.drow .val{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:12px;white-space:nowrap}
-.dfoot{padding-top:9px;font-size:12px}
-.dfoot a{color:var(--accent);text-decoration:none;font-weight:600}
-.dfoot a:hover{text-decoration:underline}
+tr.dperson > td{background:var(--sunk);border-bottom:1px dashed var(--rule-2);
+  padding-top:8px;padding-bottom:8px;font-size:12px}
+tr.dperson > td:first-child{padding-left:53px}   /* clears the company avatar */
+tr.dperson .filer b{font-weight:600;display:block;line-height:1.3;font-size:12.5px}
+tr.dperson .filer span{font-size:11px;color:var(--ink-3)}
+tr.dfoot > td{background:var(--sunk);text-align:left;padding:9px 14px 12px 53px;
+  font-family:"IBM Plex Sans",sans-serif;font-size:12px}
+tr.dfoot a{color:var(--accent);text-decoration:none;font-weight:600}
+tr.dfoot a:hover{text-decoration:underline}
 .caret{display:inline-block;margin-left:8px;color:var(--ink-3);font-size:10px;
   transition:transform .15s ease}
 tr[aria-expanded=true] .caret{transform:rotate(180deg)}
@@ -282,9 +285,9 @@ tr[aria-expanded=true] .caret{transform:rotate(180deg)}
   </div>
 
   <h2 class="sect">Where insiders are trading</h2>
-  <p class="sect-sub">Officers and directors trading their own company's stock — bought
-     or sold on the open market over the last 90 days, above $1M or 1% of shares
-     outstanding. Click a company for who was buying and selling.</p>
+  <p class="sect-sub" id="ins-sub">Officers and directors trading their own company's stock —
+     bought or sold on the open market, above $1M or 1% of shares outstanding.
+     Click a company for who was buying and selling.</p>
   <div class="ins-grid">
     <section class="panel">
       <div class="ihead">
@@ -357,6 +360,10 @@ const kfmt = n => {
   if (a >= 1e3) return `$${Math.round(n/1e3)}K`;
   return `$${Math.round(n)}`;
 };
+/* A share price, not a total: cents matter below $1,000 and are noise above. */
+const pfmt = v => (v == null || !isFinite(v) || v <= 0) ? "—"
+  : v >= 1000 ? `$${Math.round(v).toLocaleString("en-US")}`
+  : `$${v.toFixed(2)}`;
 
 /* Congress amounts arrive as the band text the law requires: "$1,001 -
    $15,000". Compressed for the column, midpoint kept for sorting and the
@@ -438,20 +445,20 @@ const S = {
   selected: null, allTrades: null, profile: null, tab: "tx",
   acItems: [], acIdx: -1,
   insRows: [], insOpen: null, insPeople: new Map(),
-  // Raw insider filings, kept so the chart's period filter can re-aggregate
-  // without another round trip. 90 days is the widest option, so one fetch
-  // covers every one of them.
-  insRaw: null, insFlow: "all", insDays: 90,
+  // One leaders aggregate per window, keyed by days. The chart and the table
+  // both read whichever is current, so the period control means the same
+  // thing on each. insWindowed goes false if 0060 is not applied yet.
+  insByDays: new Map(), insWindowed: true, insFlow: "all", insDays: 90,
 };
 
 /* ---- data --------------------------------------------------------------- */
 const ALL_DAYS = 90;   // the stored window; the table is a 90-day full replace
-const ALL_ROWS = 25;   // fetched for the all view — ten show, the rest scroll
+const ALL_ROWS = 25;   // fetched for the all view — nine show, the rest scroll
 
-async function pageTrades(kind, want, symbols){
+async function pageTrades(kind, want, symbols, days){
   const out = [];
   for (let off = 0; out.length < want; off += 100) {
-    const d = await rpc("get_trades", { p_limit: 100, p_offset: off, p_days: 90,
+    const d = await rpc("get_trades", { p_limit: 100, p_offset: off, p_days: days || 90,
                                         p_kind: kind, ...(symbols ? { p_symbols: symbols } : {}) });
     const rows = (kind === "insider" ? d.insiders : d.congress) || [];
     out.push(...rows);
@@ -571,7 +578,11 @@ async function fetchYear(person){
                  Authorization: `Bearer ${CFG.supabaseAnonKey}` } });
   if (!r.ok) throw new Error(`politician-trades failed (${r.status})`);
   const d = await r.json();
-  return (d && d.trades) || null;
+  if (!d || !Array.isArray(d.trades)) return null;
+  // sources is absent on an older deployment of the function; an empty list
+  // then just means "say nothing", which is what it said before.
+  return { trades: d.trades, sources: d.sources || [],
+           form4Symbol: d.form4Symbol || null };
 }
 
 async function openProfile(person, hint, opts){
@@ -602,11 +613,14 @@ async function openProfile(person, hint, opts){
   // The year replaces the stored 90 days when it arrives; a name the feed does
   // not carry, or a refused one, leaves the 90-day rows in place.
   const year = await yearP;
-  if (year && year.length) trades = year;
+  if (year && year.trades.length) trades = year.trades;
 
   if (S.selected !== person) return;   // superseded by a later click
   S.profile = {
-    person, year: !!(year && year.length),
+    person,
+    year: !!(year && year.trades.length),
+    sources: (year && year.sources) || [],
+    form4Symbol: (year && year.form4Symbol) || null,
     bioguide: (identity && identity.bioguide) || (hint && hint.bioguide) || null,
     party: (identity && identity.party) || (hint && hint.party) || null,
     chamber: (identity && identity.chamber) || (hint && hint.chamber) || null,
@@ -632,6 +646,21 @@ function symbolAgg(trades){
     by.set(t.symbol, cur);
   });
   return [...by.values()].sort((a,b) => b.est - a.est);
+}
+
+/* Where a profile's rows came from. Worth saying out loud once a name can be
+   fed by more than the chamber disclosures: a page headed "Congress" that
+   quietly showed SEC Form 4 rows would be claiming the wrong thing about the
+   person, and for someone who is not a legislator it is the whole story. */
+function srcNote(p){
+  const s = p.sources || [];
+  if (!s.includes("form4")) return "";
+  const sym = esc(p.form4Symbol || "");
+  return `<p class="pnote">${s.includes("congress")
+    ? `Includes SEC Form 4 filings for ${sym} alongside the congressional disclosures.`
+    : `Not a member of Congress, so there are no STOCK Act disclosures to show.
+       These are SEC Form 4 filings — open-market buys and sells of ${sym}, the
+       company they report as an insider of. It is not their whole portfolio.`}</p>`;
 }
 
 function paintProfile(){
@@ -715,6 +744,7 @@ function paintProfile(){
       <button role="tab" data-t="agg" aria-pressed="${S.tab === "agg"}">Most traded</button>
       <button role="tab" data-t="hold" aria-pressed="${S.tab === "hold"}">Holdings</button>
     </div>
+    ${srcNote(p)}
     ${S.tab === "agg" ? `<p class="pnote">Estimated from the ranges disclosure rules require —
        a filing says "$15K–$50K", not an exact figure. This is the last ${span} of
        reported trades.</p>` : ""}
@@ -803,44 +833,46 @@ function wireSearch(){
 }
 
 /* ---- insiders ----------------------------------------------------------- */
-async function loadInsiders(){
+const INS_BARS = 12;          // was 13
+const INS_ROWS = 30;          // leaders fetched; ten show, the rest scroll
+
+/* One aggregate per window, from the database.
+
+   The chart used to be aggregated in the browser from 600 get_trades rows.
+   5,851 filings clear the materiality floor in ninety days and get_trades
+   returns them newest first, so those 600 covered six days -- every period
+   button redrew the same six days, and any company whose last filing fell
+   outside that sliver could not appear at all. The table meanwhile read
+   get_insider_leaders, which had no period argument and no materiality floor,
+   so the two panels were counting different filings even at 90D. 0060 gives
+   the function p_days and the same floor, and one call now feeds both. */
+async function loadInsiderWindow(days){
+  if (S.insByDays.has(days)) return S.insByDays.get(days);
   let rows = [];
   try {
-    rows = await rpc("get_insider_leaders", { p_limit: 15 }) || [];
+    rows = await rpc("get_insider_leaders", { p_limit: INS_ROWS, p_days: days }) || [];
   } catch {
-    const raw = await pageTrades("insider", 400).catch(() => []);
-    const by = new Map();
-    raw.forEach(r => {
-      if (!r.symbol) return;
-      const cur = by.get(r.symbol) || { symbol: r.symbol, name: r.name, filings: 0,
-                                        buyAmt: 0, sellAmt: 0, people: new Set(), lastFiled: null };
-      cur.filings++;
-      const amt = Number(r.amount) || 0;
-      if (amt >= 0) cur.buyAmt += amt; else cur.sellAmt += -amt;
-      if (r.person) cur.people.add(r.person);
-      if (r.filed && (!cur.lastFiled || r.filed > cur.lastFiled)) cur.lastFiled = r.filed;
-      if (!cur.name && r.name) cur.name = r.name;
-      by.set(r.symbol, cur);
-    });
-    rows = [...by.values()]
-      .map(r => ({ ...r, people: r.people.size }))
-      .sort((a,b) => (b.buyAmt + b.sellAmt) - (a.buyAmt + a.sellAmt))
-      .slice(0, 15);
+    // 0060 not applied: the one-argument function still aggregates the whole
+    // stored table. Take it, but stop pretending the period control works.
+    try { rows = await rpc("get_insider_leaders", { p_limit: INS_ROWS }) || []; } catch {}
+    S.insWindowed = false;
   }
-  S.insRows = rows;
-  paintInsiders();
-
-  /* The raw filings power the period filter. Fetched after the first paint so
-     the bars appear on the aggregate immediately rather than waiting on four
-     pages of trades. */
-  if (S.insRaw === null) {
-    S.insRaw = [];
-    try { S.insRaw = await pageTrades("insider", 600); } catch { S.insRaw = []; }
-    if (S.insRaw.length) paintInsiders();
-  }
+  S.insByDays.set(days, rows);
+  return rows;
 }
 
-const INS_BARS = 13;          // was 10
+async function loadInsiders(){
+  S.insRows = await loadInsiderWindow(S.insDays);
+  paintInsiders();
+  if (!S.insWindowed) {
+    const days = document.getElementById("ins-days");
+    if (days) days.querySelectorAll("button").forEach(b => {
+      b.disabled = true;
+      b.title = "Apply migration 0060 to filter by period";
+      b.style.opacity = b.getAttribute("aria-pressed") === "true" ? "" : ".45";
+    });
+  }
+}
 
 /* The two segmented controls above the bars. Static markup, so they are wired
    once -- paintInsiders redraws only the bars and the table beneath them. */
@@ -855,65 +887,65 @@ function wireInsFilters(){
     press(flow, "flow", S.insFlow);
     paintInsiders();
   });
-  if (days) days.querySelectorAll("button").forEach(b => b.onclick = () => {
+  if (days) days.querySelectorAll("button").forEach(b => b.onclick = async () => {
     const v = +b.dataset.days;
     if (S.insDays === v) return;
     S.insDays = v;
     press(days, "days", v);
+    // A window not seen before costs a round trip; say so rather than leave
+    // the previous window's numbers sitting under the new button.
+    if (!S.insByDays.has(v)) {
+      document.getElementById("ins-chart").innerHTML =
+        document.getElementById("ins-table").innerHTML =
+          `<div class="note"><span class="load"></span></div>`;
+    }
+    S.insRows = await loadInsiderWindow(v);
+    if (S.insDays !== v) return;        // a faster click won
+    S.insPeople.clear();                // per-person detail is per window too
+    S.insOpen = null;
     paintInsiders();
   });
 }
 
-/* Per-company buy/sell totals over the last `days`, aggregated from the raw
-   filings. get_insider_leaders takes no period argument -- it always reports
-   the full 90-day window -- so the chart's period filter is computed here
-   rather than asking the database per window. */
-function insLeadersFor(days){
-  if (!Array.isArray(S.insRaw) || !S.insRaw.length) return null;
-  const cutoff = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
-  const by = new Map();
-  for (const r of S.insRaw) {
-    if (!r.symbol) continue;
-    if (r.filed && r.filed < cutoff) continue;
-    const cur = by.get(r.symbol)
-      || { symbol: r.symbol, name: r.name, buyAmt: 0, sellAmt: 0 };
-    const amt = Number(r.amount) || 0;
-    if (amt >= 0) cur.buyAmt += amt; else cur.sellAmt += -amt;
-    if (!cur.name && r.name) cur.name = r.name;
-    by.set(r.symbol, cur);
-  }
-  return [...by.values()];
-}
-
 /* The rows the bars are drawn from, ranked by whichever side the flow filter
    is showing -- ranking an "Inflow" view by buying+selling would put a company
-   that only sold at the top of a chart with no bar on it. */
+   that only sold at the top of a chart with no bar on it. Same source as the
+   table beside it, so the two always agree on the window. */
 function insChartRows(){
-  const base = insLeadersFor(S.insDays) || S.insRows;
   const weight = r => S.insFlow === "in" ? (r.buyAmt || 0)
                     : S.insFlow === "out" ? (r.sellAmt || 0)
                     : (r.buyAmt || 0) + (r.sellAmt || 0);
-  return base.filter(r => weight(r) > 0)
-             .sort((a, b) => weight(b) - weight(a))
-             .slice(0, INS_BARS);
+  return S.insRows.filter(r => weight(r) > 0)
+                  .sort((a, b) => weight(b) - weight(a))
+                  .slice(0, INS_BARS);
 }
 
-/* The filings behind one company's bar, fetched the first time its row is
-   opened and remembered after that. */
+/* The filings behind one company's row, fetched the first time it is opened
+   and remembered after that. Bought, sold and shares are kept apart so the
+   breakdown can show each filer's own average price -- share-weighted, the
+   same way the company figure above it is computed. */
 async function insiderPeople(symbol){
   if (S.insPeople.has(symbol)) return S.insPeople.get(symbol);
   let rows = [];
-  try { rows = await pageTrades("insider", 100, [symbol]); } catch {}
+  try { rows = await pageTrades("insider", 100, [symbol], S.insDays); } catch {}
   const by = new Map();
   rows.forEach(r => {
     const k = r.person || "—";
-    const cur = by.get(k) || { person: k, title: r.title, total: 0, last: null };
-    cur.total += Number(r.amount) || 0;
+    const cur = by.get(k) || { person: k, title: r.title, filings: 0,
+                               buy: 0, sell: 0, gross: 0, shares: 0, last: null };
+    const amt = Number(r.amount) || 0;
+    cur.filings++;
+    if (amt >= 0) cur.buy += amt; else cur.sell += -amt;
+    cur.gross += Math.abs(amt);
+    cur.shares += Math.abs(Number(r.shares) || 0);
     if (!cur.title && r.title) cur.title = r.title;
     if (r.filed && (!cur.last || r.filed > cur.last)) cur.last = r.filed;
     by.set(k, cur);
   });
-  const out = [...by.values()].sort((a,b) => Math.abs(b.total) - Math.abs(a.total)).slice(0, 8);
+  const out = [...by.values()]
+    .map(p => ({ ...p, price: p.shares > 0 ? p.gross / p.shares : null }))
+    .sort((a,b) => b.gross - a.gross)
+    .slice(0, 8);
   S.insPeople.set(symbol, out);
   return out;
 }
@@ -922,6 +954,13 @@ function paintInsiders(){
   const rows = S.insRows;
   const chart = document.getElementById("ins-chart");
   const table = document.getElementById("ins-table");
+  // The blurb names the window the panels are actually showing, so the two
+  // cannot drift apart in a reader's head the way the numbers used to.
+  const sub = document.getElementById("ins-sub");
+  if (sub && S.insWindowed) sub.innerHTML = `Officers and directors trading their own
+    company's stock — bought or sold on the open market over the last
+    ${S.insDays} days, above $1M or 1% of shares outstanding. Click a company
+    for who was buying and selling.`;
   if (!rows.length) {
     chart.innerHTML = table.innerHTML = `<div class="note">No insider filings stored yet.</div>`;
     return;
@@ -963,8 +1002,35 @@ function paintInsiders(){
     el.onkeydown = e => { if (e.key === "Enter") go(); };
   });
 
+  /* The breakdown is rendered as ordinary rows of this same table rather than
+     a list inside one spanning cell, so each filer's price, bought, sold and
+     date sit under the parent's own columns. It is drawn from the cache when
+     there is one and re-drawn after the fetch fills it. */
+  const detailRows = sym => {
+    const people = S.insPeople.get(sym);
+    if (!people) return `<tr class="detail"><td colspan="7">
+      <div class="note" style="padding:12px"><span class="load"></span></div></td></tr>`;
+    return `${people.length ? people.map(pp => `
+      <tr class="dperson">
+        <td><span class="filer"><b>${esc(pp.person)}</b>${pp.title ? `<span>${esc(pp.title)}</span>` : ""}</span></td>
+        <td>${pp.filings}</td>
+        <td>—</td>
+        <td>${pfmt(pp.price)}</td>
+        <td class="up">${pp.buy ? kfmt(pp.buy) : "—"}</td>
+        <td class="down">${pp.sell ? kfmt(pp.sell) : "—"}</td>
+        <td>${day(pp.last)}</td>
+      </tr>`).join("")
+      : `<tr class="detail"><td colspan="7">
+          <div class="note" style="padding:10px">No filing detail available for ${esc(sym)}.</div>
+         </td></tr>`}
+      <tr class="dfoot"><td colspan="7">
+        <a href="company.html?t=${encodeURIComponent(sym)}&src=congress_page">Open ${esc(sym)} →</a>
+      </td></tr>`;
+  };
+
   table.innerHTML = `<table><thead><tr>
-      <th>Company</th><th>Filings</th><th>People</th><th>Bought</th><th>Sold</th><th>Last</th>
+      <th>Company</th><th>Filings</th><th>People</th><th>Price</th>
+      <th>Bought</th><th>Sold</th><th>Last</th>
     </tr></thead><tbody>${rows.map(r => `
       <tr class="rowlink" data-s="${esc(r.symbol)}" aria-expanded="${S.insOpen === r.symbol}">
         <td><span class="co">
@@ -974,32 +1040,20 @@ function paintInsiders(){
         </span></td>
         <td>${r.filings}</td>
         <td>${r.people || "—"}</td>
+        <td>${pfmt(r.price)}</td>
         <td class="up">${r.buyAmt ? kfmt(r.buyAmt) : "—"}</td>
         <td class="down">${r.sellAmt ? kfmt(r.sellAmt) : "—"}</td>
         <td>${day(r.lastFiled)}</td>
       </tr>
-      ${S.insOpen === r.symbol ? `<tr class="detail"><td colspan="6" id="d-${esc(r.symbol)}">
-        <div class="dwrap"><div class="note" style="padding:12px"><span class="load"></span></div></div>
-      </td></tr>` : ""}`).join("")}</tbody></table>`;
+      ${S.insOpen === r.symbol ? detailRows(r.symbol) : ""}`).join("")}</tbody></table>`;
 
   table.querySelectorAll("tr.rowlink").forEach(tr => tr.onclick = async () => {
     const sym = tr.dataset.s;
     S.insOpen = S.insOpen === sym ? null : sym;
     paintInsiders();
-    if (S.insOpen !== sym) return;
-    const people = await insiderPeople(sym);
-    const cell = document.getElementById(`d-${sym}`);
-    if (!cell || S.insOpen !== sym) return;
-    cell.innerHTML = `<div class="dwrap">
-      ${people.length ? people.map(pp => `
-        <div class="drow">
-          <span class="who"><b>${esc(pp.person)}</b>${pp.title ? `<span>${esc(pp.title)}</span>` : ""}</span>
-          <span class="chip ${pp.total >= 0 ? "buy" : "sell"}">${pp.total >= 0 ? "Buy" : "Sell"}</span>
-          <span class="val ${pp.total >= 0 ? "up" : "down"}">${kfmt(Math.abs(pp.total))}</span>
-        </div>`).join("")
-      : `<div class="note" style="padding:10px">No filing detail available for ${esc(sym)}.</div>`}
-      <div class="dfoot"><a href="company.html?t=${encodeURIComponent(sym)}&src=congress_page">Open ${esc(sym)} →</a></div>
-    </div>`;
+    if (S.insOpen !== sym || S.insPeople.has(sym)) return;
+    await insiderPeople(sym);
+    if (S.insOpen === sym) paintInsiders();
   });
   if (window.TickerLogos) {
     window.TickerLogos.hydrate(rows.map(r => r.symbol), table);

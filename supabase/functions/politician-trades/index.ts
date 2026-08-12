@@ -55,6 +55,112 @@ function filedAfter(traded: string, disclosed: string): number | null {
   return Math.max(0, Math.round((b - a) / 86400000));
 }
 
+/* ---- SEC Form 4 -----------------------------------------------------------
+ * Some people the page lists are not members of Congress and so file no STOCK
+ * Act report at all -- the house/senate feeds return nothing for them, and the
+ * profile came up empty. Where such a person is instead an officer, director
+ * or >10% holder of a listed company, their trades in that company are public
+ * as SEC Form 4, and that is a feed we can reach.
+ *
+ * Donald Trump is the case in hand: not in Congress, but a >10% holder of
+ * Trump Media & Technology Group (DJT). Note the shares sit in the Donald J.
+ * Trump Revocable Trust, so the reporting name on a filing may be the trust
+ * rather than the man -- hence a pattern rather than an equality test.
+ *
+ * This is deliberately NOT what quiverquant and unusualwhales show for him.
+ * Those come from his executive-branch OGE Form 278-T periodic transaction
+ * reports (filed by the White House Office, hundreds of positions across
+ * equities and municipal bonds). Form 4 is a narrower, different thing: only
+ * DJT, only his own filings. See the note in the page for what it covers.
+ */
+const SEC_INSIDER: Record<string, { symbol: string; company: string; match: RegExp }> = {
+  "donald trump": {
+    symbol: "DJT",
+    company: "Trump Media & Technology Group Corp.",
+    match: /trump/i,
+  },
+};
+
+/** Reduce a name to the key SEC_INSIDER is looked up by. */
+const nameKey = (s: string) =>
+  s.toLowerCase().replace(/[^a-z ]/g, "").replace(/\s+/g, " ").trim();
+
+/** typeOfOwner -> a short role label, the same shorthand the tables use. */
+function ownerLabel(raw: string): string {
+  const t = (raw || "").toLowerCase();
+  if (t.includes("tenpercent") || t.includes("10 percent") || t.includes("10%")) return "10% Owner";
+  if (t.includes("officer")) {
+    const m = raw.match(/officer[:\s]+(.+)$/i);
+    return m ? m[1].trim().slice(0, 40) : "Officer";
+  }
+  if (t.includes("director")) return "Director";
+  return "Insider";
+}
+
+/** One person's Form 4 transactions in one company, over the same window.
+ *
+ * Open-market only: P is a purchase and S a sale, and every other Form 4 code
+ * is compensation plumbing -- M exercises, F tax withholding, A awards, G
+ * gifts. The worker applies exactly this rule for the insider tables, and
+ * counting an award as a purchase is how a vesting schedule turns into
+ * "insider buying" that nobody chose to do. */
+async function form4(
+  person: string, apiKey: string, cutoff: string,
+): Promise<Record<string, unknown>[]> {
+  const cfg = SEC_INSIDER[nameKey(person)];
+  if (!cfg) return [];
+  const u = `${FMP}/insider-trading/search?symbol=${encodeURIComponent(cfg.symbol)}`
+          + `&limit=200&apikey=${encodeURIComponent(apiKey)}`;
+  let rows: Record<string, unknown>[] = [];
+  try {
+    const r = await fetch(u);
+    if (!r.ok) return [];
+    const b = await r.json();
+    rows = Array.isArray(b) ? b : [];
+  } catch {
+    return [];
+  }
+
+  return rows
+    .filter((r) => cfg.match.test(String(r.reportingName || "")))
+    .map((r) => {
+      const code = String(r.transactionType || r.acquisitionOrDisposition || "").toUpperCase();
+      const buy = code.startsWith("P");
+      const sell = code.startsWith("S");
+      if (!buy && !sell) return null;
+      const shares = Number(r.securitiesTransacted || 0);
+      const price = Number(r.price || 0);
+      if (!(shares > 0) || !(price > 0)) return null;
+      const value = shares * price;
+      const traded = String(r.transactionDate || "").slice(0, 10);
+      const disclosed = String(r.filingDate || "").slice(0, 10);
+      return {
+        symbol: cfg.symbol,
+        name: cfg.company,
+        assetType: "stock",
+        side: buy ? "buy" : "sell",
+        rawType: code,
+        // Form 4 reports an exact figure rather than a band. Handed over as a
+        // single dollar string so the page's band() renders and ranks it the
+        // same way it does a disclosure bracket, with no second code path.
+        amount: `$${Math.round(value).toLocaleString("en-US")}`,
+        shares,
+        price,
+        owner: ownerLabel(String(r.typeOfOwner || "")),
+        reportedBy: String(r.reportingName || ""),
+        traded,
+        disclosed,
+        filedAfter: filedAfter(traded, disclosed),
+        office: "",
+        district: "",
+        link: String(r.url || r.link || ""),
+        source: "form4",
+      } as Record<string, unknown>;
+    })
+    .filter((t): t is Record<string, unknown> => !!t)
+    .filter((t) => String(t.traded || "") >= cutoff);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
@@ -93,6 +199,11 @@ Deno.serve(async (req: Request) => {
     }
   }));
 
+  // SEC Form 4, for a person who files no STOCK Act report but is an insider
+  // of a listed company. Runs alongside the chamber feeds rather than only on
+  // their failure: a person could in principle have both.
+  const sec = await form4(name, key, cutoff);
+
   const seen = new Set<string>();
   const trades = settled.flat()
     .map((r: Record<string, unknown>) => {
@@ -123,11 +234,24 @@ Deno.serve(async (req: Request) => {
       if (seen.has(k)) return false;            // the same filing in both feeds
       seen.add(k);
       return true;
-    })
-    .sort((a, b) => (b.traded || "").localeCompare(a.traded || ""));
+    });
+
+  const all = [...trades, ...sec]
+    .sort((a, b) => String(b.traded || "").localeCompare(String(a.traded || "")));
+
+  // Which feeds actually produced something, so the page can say where a
+  // profile's rows came from instead of implying every name is a legislator.
+  const sources: string[] = [];
+  if (trades.length) sources.push("congress");
+  if (sec.length) sources.push("form4");
 
   return json(
-    { person: name, days: DAYS, since: cutoff, count: trades.length, trades },
+    {
+      person: name, days: DAYS, since: cutoff,
+      count: all.length, sources, trades: all,
+      congressCount: trades.length, form4Count: sec.length,
+      form4Symbol: SEC_INSIDER[nameKey(name)]?.symbol || null,
+    },
     200,
     { "Cache-Control": `public, max-age=${CACHE_SECONDS}` },
   );
