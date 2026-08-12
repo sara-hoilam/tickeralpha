@@ -2356,12 +2356,33 @@ function indexIntervalKey(d, interval){
   return String(d).slice(0, 10);
 }
 
-function indexAxisLabel(d, interval){
+/* Granularity follows the window, not the interval alone.
+
+   A daily series over five years was labelled "31 Aug", "20 Oct", "5 Jan" --
+   six ticks with no year, which read as one twelve-month stretch when they
+   actually spanned half a decade. opts.year adds it; opts.noDay drops the day
+   once the window is long enough that an exact date is noise rather than
+   information. Both default off, so callers that pass nothing are unchanged. */
+function indexAxisLabel(d, interval, opts){
   if (!d) return "";
   if (interval === "annual") return String(d).slice(0, 4);
   const [y, m, day] = String(d).split("-").map(Number);
-  if (interval === "monthly") return `${MONTHS[m - 1].slice(0, 3)} ${y}`;
-  return `${day} ${MONTHS[m - 1].slice(0, 3)}`;
+  const mon = MONTHS[m - 1].slice(0, 3);
+  if (interval === "monthly") return `${mon} ${y}`;
+  const yr = opts && opts.year ? ` ’${String(y).slice(2)}` : "";
+  return opts && opts.noDay ? `${mon}${yr}` : `${day} ${mon}${yr}`;
+}
+
+/** Which of those a window needs, from the dates actually plotted. */
+function axisDateOpts(dates){
+  if (!dates || dates.length < 2) return {};
+  const first = String(dates[0]), last = String(dates[dates.length - 1]);
+  return {
+    // Any window straddling New Year is ambiguous without a year, however short.
+    year: first.slice(0, 4) !== last.slice(0, 4),
+    // Past a couple of years the day is precision nobody reads off an axis.
+    noDay: (Date.parse(last) - Date.parse(first)) / 864e5 > 730,
+  };
 }
 
 /** Keep the last date in each interval bucket (sorted ascending). */
@@ -2898,6 +2919,9 @@ function drawIndexPE(){
   const step = dates.length > 180 ? Math.ceil(dates.length / 140) : 1;
   const axis = dates.filter((_, i) => i % step === 0 || i === dates.length - 1);
 
+  // Same ambiguity as the drawdown axis: this one is daily up to 1Y, and a
+  // twelve-month window always straddles a New Year.
+  const peAxisOpts = axisDateOpts(axis);
   const series = active.map(s => {
     let j = 0, last = null;
     while (j < s.points.length && s.points[j].d < axis[0]) {
@@ -2911,7 +2935,7 @@ function drawIndexPE(){
       }
       return {
         v: last,
-        label: indexAxisLabel(d, interval),
+        label: indexAxisLabel(d, interval, peAxisOpts),
         full: longDate(d),
       };
     });
@@ -3032,9 +3056,23 @@ function drawIndexDrawdown(hostId, state, idPrefix){
   }
   // Average over the filtered window (before display thinning).
   const avgDd = pts.reduce((a, p) => a + p.dd, 0) / pts.length;
+  /* Thin by time, not by index. Dropping every Nth point thinned the sparse
+     older years exactly as hard as the dense recent ones -- and those are the
+     years the time axis now gives real width to, so halving twelve monthly
+     points for 2022 was throwing away the part of the line that had least to
+     spare. A point survives if it is the first, the last, or far enough from
+     the one kept before it to earn its own pixel, which leaves sparse
+     stretches untouched and thins only the crowded end. */
   if (pts.length > 220) {
-    const step = Math.ceil(pts.length / 180);
-    pts = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
+    const gapMin = (Date.parse(pts[pts.length - 1].d) - Date.parse(pts[0].d)) / 400;
+    const keep = [pts[0]];
+    for (let i = 1; i < pts.length - 1; i++) {
+      if (Date.parse(pts[i].d) - Date.parse(keep[keep.length - 1].d) >= gapMin) {
+        keep.push(pts[i]);
+      }
+    }
+    keep.push(pts[pts.length - 1]);
+    pts = keep;
   }
 
   const low = Math.min(...pts.map(p => p.dd));
@@ -3048,7 +3086,21 @@ function drawIndexDrawdown(hostId, state, idPrefix){
   const y0 = floor * 1.08 - 0.5;
   const y1 = 0;
   const y = v => mt + ph - (v - y0) / (y1 - y0) * ph;
-  const x = i => ml + (pts.length < 2 ? pw / 2 : (i / (pts.length - 1)) * pw);
+  /* Position by date, not by index.
+
+     The cached series is not evenly spaced: older history is monthly and
+     recent history is daily. On NVDA's 5Y window that is 12 points for 2022
+     and 152 for 2026, so spacing points evenly by index put the halfway mark
+     at February 2026 -- half the width spent on the last six months while
+     four and a half years crowded into the other half. The line was a real
+     drawdown series drawn on a lying axis, and a five-year window looked like
+     a one-year one. Mapping the date onto the width fixes the geometry; the
+     sparse years simply carry fewer vertices. */
+  const t0 = Date.parse(pts[0].d);
+  const t1 = Date.parse(pts[pts.length - 1].d);
+  const tSpan = Math.max(1, t1 - t0);
+  const x = i => ml + (pts.length < 2 ? pw / 2
+    : (Date.parse(pts[i].d) - t0) / tSpan * pw);
   const clampY = v => Math.max(y0, Math.min(y1, v));
 
   // Right-axis labels only — no solid horizontal grid lines across the plot.
@@ -3099,12 +3151,26 @@ function drawIndexDrawdown(hostId, state, idPrefix){
       (avgY < mt + 16 ? avgY + 14 : avgY - 6).toFixed(1)}"
       class="ax" text-anchor="middle" fill="var(--dd)">${esc(avgLabel)}</text>` : "";
 
-  const labelEvery = Math.max(1, Math.ceil((pts.length - 1) / 5));
-  const dates = pts.map((p, i) => {
-    if (!(i === 0 || i === pts.length - 1 || i % labelEvery === 0)) return "";
+  const axisOpts = axisDateOpts(pts.map(p => p.d));
+  /* Ticks are placed at even points in time and then snapped to the nearest
+     real observation. Stepping by index instead would crowd every label into
+     the dense recent end, which is the same mistake the axis itself used to
+     make. */
+  const TICKS = 6;
+  const tickIdx = [];
+  for (let k = 0; k < TICKS; k++) {
+    const want = t0 + tSpan * (k / (TICKS - 1));
+    let best = 0, bestGap = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const gap = Math.abs(Date.parse(pts[i].d) - want);
+      if (gap < bestGap) { bestGap = gap; best = i; }
+    }
+    if (!tickIdx.includes(best)) tickIdx.push(best);
+  }
+  const dates = tickIdx.map(i => {
     const anchor = i === 0 ? "start" : i === pts.length - 1 ? "end" : "middle";
     return `<text x="${x(i).toFixed(1)}" y="${H - 10}" class="ax" text-anchor="${anchor}">${
-      esc(indexAxisLabel(p.d, interval))}</text>`;
+      esc(indexAxisLabel(pts[i].d, interval, axisOpts))}</text>`;
   }).join("");
 
   const name = (S.company && (INDEX_PE_META[S.company.ticker]?.label || S.company.ticker)) || "Index";
@@ -3146,8 +3212,15 @@ function drawIndexDrawdown(hostId, state, idPrefix){
   const showAt = (clientX) => {
     const r = svg.getBoundingClientRect();
     const px = (clientX - r.left) / r.width * W;
-    const i = Math.max(0, Math.min(pts.length - 1,
-      Math.round((px - ml) / Math.max(1e-6, pw) * (pts.length - 1))));
+    // Pixel back to a date, then the nearest observation to it -- the inverse
+    // of the axis, so the crosshair lands where the pointer actually is even
+    // where the series is sparse.
+    const want = t0 + Math.max(0, Math.min(1, (px - ml) / Math.max(1e-6, pw))) * tSpan;
+    let i = 0, bestGap = Infinity;
+    for (let k = 0; k < pts.length; k++) {
+      const gap = Math.abs(Date.parse(pts[k].d) - want);
+      if (gap < bestGap) { bestGap = gap; i = k; }
+    }
     const p = pts[i];
     cross.style.display = "";
     xh.setAttribute("x1", x(i)); xh.setAttribute("x2", x(i));
