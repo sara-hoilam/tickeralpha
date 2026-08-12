@@ -587,8 +587,8 @@ function paintPeople(){
       ${faceHTML(p)}
       <b>${esc(p.person)}</b>
       <span class="seat">${seatHTML(p)}</span>
-      <span class="n">${p.trades
-        ? `<b>${p.trades}</b> disclosure${p.trades === 1 ? "" : "s"} · 90d`
+      <span class="n" title="${p.trades ? "Counted by filing date. A disclosure often reports a trade made months or years earlier, so this will not match the trade dates in the table." : ""}">${p.trades
+        ? `<b>${p.trades}</b> disclosure${p.trades === 1 ? "" : "s"} · filed 90d`
         : `<span style="color:var(--ink-3)">No recent disclosures</span>`}</span>
     </div>`).join("");
   wireFaces(host);
@@ -911,7 +911,7 @@ function wireSearch(){
       <div role="option" data-i="${i}" aria-selected="${i === S.acIdx}">
         ${faceHTML(p)}
         <b>${esc(p.person)}</b>
-        <span class="meta">${p.trades ? `${p.trades} · 90d` : ""}</span>
+        <span class="meta">${p.trades ? `${p.trades} filed · 90d` : ""}</span>
       </div>`).join("");
     ac.classList.add("open");
     q.setAttribute("aria-expanded","true");

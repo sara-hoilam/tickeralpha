@@ -5028,7 +5028,7 @@ addEventListener("themechange", () => {
    apart for that reason.
 =========================================================================== */
 const PRICE = { symbol: null, bars: [], quote: null, range: 126, view: null, poll: null,
-  flipped: false, descOpen: false };
+  flipped: false, descOpen: false, asOf: null, stale: false };
 const RANGES = [["1M", 21], ["3M", 63], ["6M", 126], ["1Y", 252], ["Max", 0]];
 
 /** Sticky tab offset under the shared nav (and tape, when present). */
@@ -5257,15 +5257,52 @@ async function loadPrices(){
   PRICE.symbol = sym;
   PRICE.bars = d.bars || [];
   PRICE.quote = d.quote || null;
+  PRICE.asOf = d.asOf || null;
+  PRICE.stale = !!d.stale;
   applyQuoteName();
   PRICE.view = null;
 
   if (!PRICE.bars.length || d.stale) {
-    // Nobody has opened this company before, or the bars are yesterday's.
+    // Nobody has opened this company before, or the bars are behind.
     try { await API.requestPrices(sym); } catch {}
     if (!PRICE.bars.length) return pollPrices(sym);
+    // Bars exist but are behind. The request above used to be fired and its
+    // answer never collected, so a chart that opened stale stayed stale for
+    // the whole visit however fast the worker refilled it -- which is how a
+    // company last refreshed on the 7th still read "7 Aug" on the 12th.
+    refreshStale(sym, PRICE.asOf);
   }
   paintPrices();
+}
+
+/** Watch for the refresh requested above and swap it in when it lands.
+    Quiet on purpose: the chart keeps showing what it has rather than being
+    replaced by a spinner, because stale prices still beat no prices. Gives up
+    after about a minute rather than polling the rest of the visit. */
+function refreshStale(sym, wasAsOf){
+  clearTimeout(PRICE.poll);
+  let tries = 0;
+  const tick = async () => {
+    if (!S.company || S.company.ticker !== sym) return;
+    // Two minutes, the same budget pollPrices allows. A refresh measured in
+    // tens of seconds was the optimistic case; NTRA's took minutes, and a
+    // window that gives up first is the same bug in a shorter coat.
+    if (tries++ > 40) return;
+    let d = null;
+    try { d = await API.prices(sym); } catch {}
+    if (d && (d.bars || []).length && (d.asOf || "") > (wasAsOf || "")) {
+      PRICE.bars = d.bars;
+      PRICE.quote = d.quote || PRICE.quote;
+      PRICE.asOf = d.asOf;
+      PRICE.stale = !!d.stale;
+      applyQuoteName();
+      PRICE.view = null;          // so the new bar is inside the window
+      paintPrices();                        // redraws the stats panel too
+      return;
+    }
+    PRICE.poll = setTimeout(tick, 3500);
+  };
+  PRICE.poll = setTimeout(tick, 2500);
 }
 
 /** A company nobody has opened has no prices yet. Say that it is being
@@ -6073,7 +6110,14 @@ function drawPriceStats(){
       <dl class="pstats">
         ${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
       </dl>
-      <p class="pnote">Last trading day${q && q.exchange ? ` · ${esc(q.exchange)}` : ""}</p>
+      <p class="pnote">${
+        /* "Last trading day" is a claim, and it was being made whatever the
+           age of the stored row -- Natera read "Last trading day" on the 12th
+           over a close from the 7th. When the series is behind, name the day
+           it actually is. */
+        PRICE.stale && PRICE.asOf
+          ? `As of ${esc(longDate(PRICE.asOf))}`
+          : "Last trading day"}${q && q.exchange ? ` · ${esc(q.exchange)}` : ""}</p>
       ${consensusSummary(price)}
       <p class="pflip-hint">Flip for company profile</p>
     </div>`;
