@@ -660,9 +660,13 @@ function srcNote(p){
   // The holding is the part a reader actually wants from an ownership filing,
   // so it is stated before the caveats rather than left to be added up from
   // the rows.
-  const pos = held.map(h => `<b style="color:var(--ink)">${Number(h.shares).toLocaleString("en-US")}
-      ${esc(h.symbol)}</b> as of ${day(h.asOf)}${h.indirect && h.through
-        ? ` — ${esc(h.through)}` : ""}`).join("; ");
+  // Who actually holds it matters as much as the size: the whole DJT stake is
+  // the trust's, not his own name's, and "held by" is the difference.
+  const pos = held.map(h => {
+    const by = h.through || h.who || "";
+    return `<b style="color:var(--ink)">${Number(h.shares).toLocaleString("en-US")}
+      ${esc(h.symbol)}</b>${by ? ` held by ${esc(by)}` : ""}, as of ${day(h.asOf)}`;
+  }).join("; ");
   return `<p class="pnote">
     ${pos ? `Reported holding: ${pos}.<br>` : ""}
     ${s.includes("congress")
@@ -699,6 +703,12 @@ function paintProfile(){
       : `<span class="chip own">${esc(t.codeLabel || t.side || "—")}</span>`;
     const owner = t.owner && !/^self$/i.test(t.owner)
       ? `<span class="chip own">${esc(t.owner)}</span>` : "";
+    // Two EDGAR rows on one day can be the same company and size and still be
+    // different instruments -- Trump's April 2024 earnout is 36M common plus
+    // 36M rights to receive shares. Naming anything that is not plain common
+    // stock keeps them from reading as one row printed twice.
+    const sec2 = t.security && !/^common stock/i.test(t.security)
+      ? ` — ${esc(t.security)}` : "";
     // Gifts and merger transfers are priced at zero, so there is no dollar
     // figure to show and the share count is the only honest size.
     const amt = t.amount ? `${esc(b.label)}${meter(b.mid)}`
@@ -709,7 +719,7 @@ function paintProfile(){
       <td><span class="co">
         <span class="dot" data-logo="${esc(t.symbol)}" style="background:${avatarColour(t.symbol)}">${esc((t.symbol||"").slice(0,2))}</span>
         <span class="t"><span class="sym">${esc(t.symbol)}</span>
-          ${t.name ? `<span class="nm">${esc(t.name)}</span>` : ""}</span>
+          ${t.name ? `<span class="nm">${esc(t.name)}${sec2}</span>` : ""}</span>
       </span></td>
       ${all ? `<td class="who">${esc(t.person || "—")}</td>` : ""}
       <td>${day(t.traded)}</td>

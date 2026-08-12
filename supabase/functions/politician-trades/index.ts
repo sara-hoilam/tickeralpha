@@ -124,9 +124,21 @@ const CODE: Record<string, { label: string; side?: "buy" | "sell" }> = {
    sound against that and keeps the function dependency-free -- Deno has no
    DOMParser, and pulling a wasm XML parser in for four tag names would cost
    more than it is worth. */
+/** XML entities back to text. Issuer names really do carry them -- Trump
+    Media & Technology Group arrives as "Trump Media &amp;amp; Technology", and
+    printing that raw put a literal "&amp;amp;" in the table. &amp;amp; is decoded
+    last so an escaped entity like &amp;amp;lt; does not turn into a bare "<". */
+const unesc = (s: string): string => s
+  .replace(/&lt;/g, "<")
+  .replace(/&gt;/g, ">")
+  .replace(/&quot;/g, '"')
+  .replace(/&apos;/g, "'")
+  .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+  .replace(/&amp;/g, "&");
+
 const xtag = (xml: string, name: string): string => {
   const m = xml.match(new RegExp(`<${name}>\\s*(?:<value>)?\\s*([^<]*)`, "i"));
-  return m ? m[1].trim() : "";
+  return m ? unesc(m[1].trim()) : "";
 };
 const xblocks = (xml: string, name: string): string[] =>
   xml.split(`<${name}>`).slice(1).map((s) => s.split(`</${name}>`)[0]);
@@ -252,9 +264,13 @@ async function secFilings(person: string) {
   trades.sort((a, b) => String(b.traded || "").localeCompare(String(a.traded || "")));
   // Newest statement of each holding wins.
   positions.sort((a, b) => String(b.asOf || "").localeCompare(String(a.asOf || "")));
+  // Keyed on the symbol alone, not on symbol and filer. The same 114.75M DJT
+  // shares are stated twice -- once by the trust that holds them and once by
+  // Trump reporting them indirectly through it -- and listing both read as two
+  // separate stakes worth 229M shares.
   const seenPos = new Set<string>();
   const latest = positions.filter((p) => {
-    const k = `${p.symbol}|${p.who}`;
+    const k = String(p.symbol);
     if (seenPos.has(k)) return false;
     seenPos.add(k);
     return true;
