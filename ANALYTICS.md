@@ -23,8 +23,25 @@ Pages never call `gtag` directly. They call `window.TAnalytics` — `track`,
 `pageView`, `identify` — so an event name has one spelling in one file rather
 than three spellings in three.
 
-Locally, `server.py` serves an empty `config.js`, so there is no measurement ID
-and every call is a no-op. Nothing is reported from a development machine.
+## Self-traffic
+
+Neither tag boots when the hostname is local (`localhost`, `127.*`, `0.0.0.0`,
+`[::1]`). This is checked in the browser, not left to the server: `server.py`
+serves an empty `config.js`, but the static preview
+(`python -m http.server -d public`) serves the real one, and before this guard
+existed every preview session was counted as a visit.
+
+Your own production browsing is handled per browser, not per IP. Visit any
+page once with `?ta_internal=1` and that browser is marked in localStorage:
+GA events it sends from then on carry `traffic_type=internal`, and Clarity
+stops recording it entirely. `?ta_internal=0` unmarks it. Do this once in
+every browser you use — phone included.
+
+For the GA side to actually drop those events, the property's **Internal
+Traffic filter must be Active**: GA4 Admin → Data collection and modification
+→ Data filters → Internal Traffic. It ships in Testing state, which labels
+the events but keeps them in the reports. Filters only affect data from the
+moment they are activated — history stays as it was recorded.
 
 ## The parameter names are load-bearing
 

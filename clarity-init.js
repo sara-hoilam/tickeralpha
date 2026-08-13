@@ -9,7 +9,18 @@ import Clarity from "./vendor/clarity/index.js";
 const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
 const projectId = (CFG.clarityProjectId || "").trim();
 
-if (projectId) {
+/* The same self-traffic guards analytics.js applies, for the same reasons.
+   Local previews serve the real config.js, so the hostname is the guard; and
+   a browser marked internal (?ta_internal=1, stored by analytics.js, which
+   always runs before this module) should not record sessions of the owner
+   reading their own site. Clarity has no traffic_type equivalent, so the
+   honest version is not to record at all. nav.js and analytics.js both
+   null-check window.TAClarity, so leaving it unset is safe. */
+const LOCAL_HOST = /^(localhost$|127\.|0\.0\.0\.0$|\[::1\]$)/.test(location.hostname);
+let INTERNAL = false;
+try { INTERNAL = localStorage.getItem("alphaticker-internal") === "1"; } catch {}
+
+if (projectId && !LOCAL_HOST && !INTERNAL) {
   Clarity.init(projectId);
   // Expose the same API the npm package documents, so nav.js can identify
   // signed-in visitors without a second import.
