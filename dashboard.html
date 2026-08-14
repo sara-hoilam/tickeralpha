@@ -3645,12 +3645,26 @@ fqEl.addEventListener("change", () => {
   render(); loadSegments();
 });
 
+/** The same fiscal quarter one year earlier, when the company has filed it. */
+function prevYearQuarter(){
+  if (!S.company || !S.quarter) return null;
+  return S.company.quarters.find(q =>
+    q.fy === S.quarter.fy - 1 && q.fq === S.quarter.fq) || null;
+}
+
 async function loadSegments(){
-  S.breakdowns = null; S.cut = 0;
+  S.breakdowns = null; S.breakdownsPrior = null; S.cut = 0;
   renderMix();
-  try{
-    S.breakdowns = (await API.segments(S.ticker, S.quarter.end)) || [];
-  } catch { S.breakdowns = []; }
+  // The prior year's segments ride along for the Sankey's Y/Y figures. In
+  // parallel: the second call must not delay the diagram, and a company
+  // without last year's filing simply shows no deltas.
+  const prev = prevYearQuarter();
+  const [cur, old] = await Promise.all([
+    API.segments(S.ticker, S.quarter.end).catch(() => []),
+    prev ? API.segments(S.ticker, prev.end).catch(() => null) : Promise.resolve(null),
+  ]);
+  S.breakdowns = cur || [];
+  S.breakdownsPrior = old;
   renderMix();
   renderSankey();
 }
@@ -4154,6 +4168,31 @@ function renderSankey(){
   const nci = (pretaxRaw !== null && tax !== null && net !== null)
     ? pretaxRaw - tax - net : 0;
 
+  /* ---- last year's same quarter, for the Y/Y figures --------------------
+     The statement lines are already in memory (every quarter arrives with
+     the company); segments were fetched alongside this quarter's. A node
+     whose prior value is unknown simply shows no delta. */
+  const prevQ = prevYearQuarter();
+  const P = prevQ ? prevQ.lines : null;
+  const priorOf = {
+    rev: P && P.revenue, gp: P && P.grossProfit, cogs: P && P.cogs,
+    opex: P && P.opex, opinc: P && P.operatingIncome, net: P && P.netIncome,
+    tax: P && P.tax, pretax: P && P.pretaxIncome,
+    xrd: P && P.rd, xsm: P && P.sm, xga: P && P.ga, xsga: P && P.sga,
+    xopexOther: P && P.opexOther, prov: P && P.provisions,
+  };
+  const yoy = (cur, prior) => (prior !== null && prior !== undefined && prior > 0
+    && cur !== null && cur !== undefined)
+    ? `${cur >= prior ? "+" : "−"}${Math.abs((cur - prior) / prior * 100).toFixed(0)}% Y/Y`
+    : null;
+  // Margin nodes speak in points of margin, the way the note itself does:
+  // profit can fall while its margin holds, and the pair tells you which.
+  const ppYoy = (cur, prior) => (prior !== null && prior !== undefined && prior > 0
+    && priorOf.rev > 0 && rev > 0 && cur !== null)
+    ? (() => { const d = cur/rev*100 - prior/priorOf.rev*100;
+               return `${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(0)}pp Y/Y`; })()
+    : null;
+
   const N = [], K = [], made = new Set();
   const node = (id,col,val,label,kind,note) => {
     if (val === null || val === undefined || val <= 0) return null;
@@ -4172,6 +4211,23 @@ function renderSankey(){
   // Where the filing nests its members, the revenue side gets two columns:
   // the lines the company reports, then the groupings it puts them in.
   const cut = S.breakdowns && S.breakdowns.length ? S.breakdowns[S.cut] : null;
+  // Last year's rows for the same breakdown, matched by label -- segment ids
+  // are positional and a company can add or drop a segment between years, so
+  // the name is the only join that survives.
+  // Matched on the cut's name -- "label" was the wrong field (always null),
+  // and null-matches-null paired this quarter's segment cut with last year's
+  // geography cut. Wrong deltas are worse than none, so an unnamed cut on
+  // either side simply pairs with nothing.
+  const prevCut = cut && cut.name && S.breakdownsPrior
+    ? S.breakdownsPrior.find(b => b.name === cut.name) || null
+    : null;
+  const priorSeg = {}, priorGrp = {};
+  if (prevCut) prevCut.rows.forEach(r => {
+    if (r.value > 0) {
+      priorSeg[r.label] = (priorSeg[r.label] || 0) + r.value;
+      if (r.parent) priorGrp[r.parent] = (priorGrp[r.parent] || 0) + r.value;
+    }
+  });
   const segColour = {};
   let segGross = 0, segElim = 0;
   const feeds = [];               // what flows into Revenue: [id, value]
@@ -4356,6 +4412,18 @@ function renderSankey(){
     });
   }
 
+  // Attach each node's year-ago value and the delta its label will carry.
+  // Profit nodes speak in points of margin (their note already names the
+  // margin); everything else in percent growth of the value itself.
+  N.forEach(n => {
+    const prior = n.kind === "seg" ? priorSeg[n.label]
+      : n.kind === "group" ? priorGrp[n.label]
+      : priorOf[n.id];
+    n.prior = (prior !== null && prior !== undefined && prior > 0) ? prior : null;
+    n.delta = (n.id === "gp" || n.id === "opinc" || n.id === "net" || n.id === "pretax")
+      ? ppYoy(n.val, prior) : yoy(n.val, prior);
+  });
+
   if (N.length < 2) { host.innerHTML = `<div class="note">Not enough detail filed to draw the flow.</div>`; return; }
 
   // ---- layout ----
@@ -4363,8 +4431,11 @@ function renderSankey(){
   const hasSeg = cols.includes(0);
   const twoLevelSrc = cols.includes(-1);
   const W = twoLevelSrc ? 1560 : hasSeg ? 1300 : 1000;
-  const H = twoLevelSrc ? 420 : 380;
-  const padT = 34, padB = 18;
+  // A band above the plot for the chart's own heading, so a screenshot or the
+  // full-screen view says what it is without the panel around it.
+  const titleH = 46;
+  const H = (twoLevelSrc ? 420 : 380) + titleH;
+  const padT = 34 + titleH, padB = 18;
   const leftPad  = twoLevelSrc ? 230 : hasSeg ? 250 : 84;
   const rightPad = 210;
   const nodeW = 13;
@@ -4404,6 +4475,22 @@ function renderSankey(){
     : n.kind === "cost" ? "var(--cost)" : n.kind === "profit" ? "var(--profit)" : "var(--revenue)";
 
   const parts = [];
+
+  /* The heading: company logo where the cache has one, then name, quarter and
+     year. Values in the diagram are as filed, in dollars, so no currency line. */
+  const logoUrl = window.TickerLogos && window.TickerLogos.dataUrl
+    ? window.TickerLogos.dataUrl(S.ticker) : null;
+  const titleX = logoUrl ? 52 : 16;
+  if (logoUrl) parts.push(
+    `<image href="${esc(logoUrl)}" x="16" y="7" width="28" height="28"
+       preserveAspectRatio="xMidYMid meet" clip-path="inset(0 round 6px)"/>`);
+  parts.push(
+    `<text x="${titleX}" y="22" font-size="17" font-weight="700"
+       fill="var(--ink)">${esc(clip(S.company.name || S.ticker, 60))}</text>
+     <text x="${titleX}" y="39" font-size="12" class="tnum"
+       fill="var(--ink-2)">Q${q.fq} FY${q.fy} · quarter ended ${esc(longDate(q.end) || "")}${
+         prevQ ? "" : " · no year-ago quarter filed, so no Y/Y figures"}</text>`);
+
   K.forEach(k => {
     const a = byId[k.a], b = byId[k.b];
     const x1 = colX[a.col] + nodeW, x2 = colX[b.col];
@@ -4417,10 +4504,13 @@ function renderSankey(){
   N.forEach(n => {
     const x = colX[n.col];
     parts.push(`<rect x="${x}" y="${n.y0}" width="${nodeW}" height="${n.h}" rx="2.5"
-        fill="${paint(n)}" data-n="${esc(n.label)}" data-v="${n.val}"></rect>`);
+        fill="${paint(n)}" data-n="${esc(n.label)}" data-v="${n.val}"${
+        n.prior ? ` data-p="${n.prior}"` : ""}></rect>`);
 
     // Labels sit outside the plot on the two edge columns, otherwise above
-    // the node, so nothing overlaps a ribbon.
+    // the node, so nothing overlaps a ribbon. The second line reads
+    // value · note · Y/Y, each part present only when it exists.
+    const sub = [money(n.val,1), n.note, n.delta].filter(Boolean).join(" · ");
     const isFirst = n.col === cols[0], isLast = n.col === cols[cols.length-1];
     const fill = n.kind === "cost" ? "var(--cost)" : n.kind === "profit" ? "var(--profit)"
                : n.kind === "seg" || n.kind === "group" ? "var(--ink)" : "var(--revenue)";
@@ -4432,11 +4522,11 @@ function renderSankey(){
         <text x="${tx}" y="${cy - 7}" text-anchor="${anchor}" font-size="12" font-weight="600"
               fill="${fill}">${esc(clip(n.label, 26))}</text>
         <text x="${tx}" y="${cy + 11}" text-anchor="${anchor}" font-size="11.5"
-              class="tnum" fill="var(--ink-2)">${esc(money(n.val,1))}${n.note ? " · " + esc(n.note) : ""}</text>`);
+              class="tnum" fill="var(--ink-2)">${esc(sub)}</text>`);
     } else {
       parts.push(`
         <text x="${x}" y="${n.y0 - 21}" font-size="12" font-weight="600" fill="${fill}">${esc(clip(n.label, 26))}</text>
-        <text x="${x}" y="${n.y0 - 5}" font-size="11.5" class="tnum" fill="var(--ink-2)">${esc(money(n.val,1))}${n.note ? " · " + esc(n.note) : ""}</text>`);
+        <text x="${x}" y="${n.y0 - 5}" font-size="11.5" class="tnum" fill="var(--ink-2)">${esc(sub)}</text>`);
     }
   });
 
@@ -4452,7 +4542,9 @@ function renderSankey(){
       aria-label="Flow of revenue into costs and profit for Q${q.fq} FY${q.fy}">${parts.join("")}</svg>`;
 
   host.querySelectorAll("[data-n]").forEach(el => hoverable(el, el.dataset.n,
-    [["Amount", money(+el.dataset.v)], ["Share of revenue", pct(+el.dataset.v/rev*100)]]));
+    [["Amount", money(+el.dataset.v)],
+     ["Share of revenue", pct(+el.dataset.v/rev*100)],
+     ...(el.dataset.p ? [["Year ago", money(+el.dataset.p)]] : [])]));
   host.querySelectorAll("[data-k]").forEach(el => hoverable(el, el.dataset.k.replace("→"," → "),
     [["Amount", money(+el.dataset.v)], ["Share of revenue", pct(+el.dataset.v/rev*100)]]));
   wireSankeyFullscreen();
