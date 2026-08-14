@@ -53,14 +53,24 @@
     return String((row && (row.ticker || row.symbol)) || "").toUpperCase();
   }
 
-  /** search_companies with nickname boost (SpaceX, Google, Facebook, …). */
-  async function searchCompanies(term, lim){
+  /** search_companies with nickname boost (SpaceX, Google, Facebook, …).
+      `kind` filters to one asset type in the database (0062), where it runs
+      before the row limit; until that migration is applied the call retries
+      without it and the caller's client-side sieve stands in. */
+  async function searchCompanies(term, lim, kind){
     const q = String(term || "").trim();
     if (!q) return [];
     const args = { q };
     if (lim != null) args.lim = lim;
+    if (kind) args.p_kind = kind;
     let items = [];
-    try { items = (await rpc("search_companies", args)) || []; } catch { items = []; }
+    try { items = (await rpc("search_companies", args)) || []; }
+    catch {
+      if (kind) {
+        delete args.p_kind;
+        try { items = (await rpc("search_companies", args)) || []; } catch { items = []; }
+      } else items = [];
+    }
     const alias = COMPANY_SEARCH_ALIASES[q.toLowerCase()];
     if (!alias) return items;
     const rest = items.filter(x => tickerOf(x) !== alias);
@@ -106,12 +116,21 @@
       </div>
 
       <div class="nav-search">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"
-          fill="none" stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <input type="text" id="nav-q" placeholder="Search a ticker or company"
-               autocomplete="off" role="combobox" aria-expanded="false" aria-controls="nav-ac">
-        <kbd>/</kbd>
+        <select id="nav-kind" aria-label="Asset type to search">
+          <option value="">All</option>
+          <option value="stock">Stocks</option>
+          <option value="etf">ETFs</option>
+          <option value="fund">Funds</option>
+          <option value="crypto">Crypto</option>
+        </select>
+        <div class="nav-qwrap">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"
+            fill="none" stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <input type="text" id="nav-q" placeholder="Search a ticker or company"
+                 autocomplete="off" role="combobox" aria-expanded="false" aria-controls="nav-ac">
+          <kbd>/</kbd>
+        </div>
         <div class="nav-ac" id="nav-ac" role="listbox"></div>
       </div>
 
@@ -228,7 +247,33 @@
 
   /* ---- ticker search ---------------------------------------------------- */
   const q = document.getElementById("nav-q"), ac = document.getElementById("nav-ac");
-  let items = [], idx = -1, timer = null;
+  const kindSel = document.getElementById("nav-kind");
+  let items = [], idx = -1, timer = null, seq = 0;
+
+  /* The asset-type filter. search_companies already returns a kind on every
+     row, so this is a client-side sieve, not a new query. "Funds" folds in
+     money markets -- a visitor picking Funds means both. When a filter is on,
+     the fetch asks for the RPC's maximum rather than the default dozen,
+     because the sieve is applied after ranking and a dozen rows of mostly
+     stocks could starve a crypto search of its actual answers. */
+  const KIND_MATCH = { stock: ["stock"], etf: ["etf"],
+                       fund: ["fund", "money_market"], crypto: ["crypto"] };
+  const kindFilter = rows => {
+    const k = kindSel && kindSel.value;
+    if (!k) return rows;
+    return rows.filter(x => KIND_MATCH[k].includes(String(x.kind || "stock")));
+  };
+  if (kindSel) kindSel.addEventListener("change", () => {
+    const k = kindSel.value;
+    q.placeholder = k === "stock" ? "Search stocks…"
+      : k === "etf" ? "Search ETFs…"
+      : k === "fund" ? "Search funds…"
+      : k === "crypto" ? "Search crypto…"
+      : "Search a ticker or company";
+    // A term already typed should re-answer under the new filter.
+    if (q.value.trim()) q.dispatchEvent(new Event("input"));
+    q.focus();
+  });
 
   const close = () => { ac.classList.remove("open"); q.setAttribute("aria-expanded", "false"); idx = -1; };
   const open = t => {
@@ -244,8 +289,17 @@
     const term = q.value.trim();
     if (!term) return close();
     timer = setTimeout(async () => {
+      // Answers arrive out of order: a broad 25-row query fired before a
+      // narrow one can resolve after it and paint the wrong list. Each request
+      // takes a ticket, and only the newest is allowed to touch the box.
+      const mine = ++seq;
       try {
-        items = await searchCompanies(term);
+        const k = kindSel && kindSel.value;
+        // The sieve stays on after the server filter: it is what answers when
+        // the RPC predates 0062 and falls back to an unfiltered query.
+        const rows = kindFilter(await searchCompanies(term, k ? 25 : null, k || null));
+        if (mine !== seq) return;
+        items = rows;
         idx = -1;
         if (!items.length) return close();
         ac.innerHTML = items.map((x, i) => {

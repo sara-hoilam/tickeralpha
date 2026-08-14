@@ -80,7 +80,20 @@
 .nav-links a:hover { background: var(--sunk); color: var(--ink); }
 .nav-links a.on { color: var(--accent); background: var(--accent-soft); }
 
-.nav-search { position: relative; flex: 1; min-width: 0; max-width: 460px; margin: 0 auto; }
+.nav-search { position: relative; flex: 1; min-width: 0; max-width: 460px; margin: 0 auto;
+  display: flex; align-items: stretch; }
+/* The asset-type filter, drawn as the left segment of the search pill. */
+.nav .nav-search select {
+  flex: 0 0 auto; min-height: 0; background: var(--sunk); color: var(--ink-2);
+  border: 1px solid var(--rule); border-right: 0; border-radius: 9px 0 0 9px;
+  padding: 0 4px 0 10px; font: inherit; font-size: 12.5px; cursor: pointer;
+}
+.nav .nav-search select:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: -1px;
+}
+/* The input and its icons keep their own positioning context, so the
+   magnifier and the "/" hint sit against the field rather than the pill. */
+.nav-qwrap { position: relative; flex: 1; min-width: 0; }
 .nav-search svg {
   position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
   width: 15px; height: 15px; color: var(--ink-3); pointer-events: none;
@@ -91,7 +104,7 @@
    of its own placeholder. */
 .nav .nav-search input {
   width: 100%; min-width: 0; background: var(--sunk); border: 1px solid var(--rule);
-  border-radius: 9px; padding: 9px 34px 9px 34px; min-height: 0;
+  border-radius: 0 9px 9px 0; padding: 9px 34px 9px 34px; min-height: 0;
   font: inherit; font-family: inherit; font-size: 13px; color: var(--ink);
 }
 .nav .nav-search input::placeholder { color: var(--ink-3); }
