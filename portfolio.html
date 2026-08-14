@@ -1009,8 +1009,10 @@ tr.on td{background:var(--accent-soft)}
         <input id="f-symbol" name="symbol" autocomplete="off" required maxlength="10" placeholder="e.g. AAPL">
       </div>
       <div class="field">
-        <label for="f-date">Today's date</label>
+        <label for="f-date">Purchase date</label>
         <input id="f-date" name="date" type="date" required>
+        <div class="hint">Today is fine — the real date makes the chart's
+          return history accurate.</div>
       </div>
       <div class="field">
         <label for="f-qty">Quantity</label>
@@ -1208,6 +1210,10 @@ const S = {
   indexes: Object.fromEntries(INDEXES.map(i => [i.sym, i.sym === "SPY" || i.sym === "QQQ"])),
   range: "YTD",
   priceCache: {},
+  /** symbol → [{d,c}] from price_close_long, for chart windows that reach
+      further back than the ~300 days price_daily keeps. */
+  longCache: {},
+  longRequested: false,
   /** symbol → 'etf' | 'crypto' from ledger.market_symbol (or search). */
   assetKindBySym: {},
   busy: false,
@@ -2863,30 +2869,147 @@ async function seriesForSymbol(sym, fromISO){
   return bars;
 }
 
-/** Portfolio NAV path for the chart: today's share counts × historical closes.
- *  This is a simulated “current mix” path — not the user’s personal return
- *  before they logged the portfolio. Book P/L in the table uses avg buy cost. */
+/** A decade of closes for symbols whose window reaches past the ~300 days
+ *  price_daily keeps. One batched call; misses are cached as empty so a
+ *  symbol without long history is not re-asked every redraw. The backfill
+ *  request is fired once per session, so a portfolio's symbols become
+ *  available on a later visit even when they are missing on this one. */
+async function ensureLongCloses(symbols){
+  const want = symbols.filter(s => !(s in S.longCache));
+  if (!want.length) return;
+  if (!S.longRequested) {
+    S.longRequested = true;
+    rpc("request_long_closes", { p_symbols: symbols }).catch(() => {});
+  }
+  let got = {};
+  try { got = await rpc("get_long_closes", { p_symbols: want }) || {}; } catch {}
+  want.forEach(sym => {
+    const closes = ((got[sym] || {}).closes || [])
+      .map(b => ({ d: String(b.d).slice(0, 10), c: Number(b.c) }))
+      .filter(b => b.d && Number.isFinite(b.c) && b.c > 0);
+    S.longCache[sym] = closes;
+  });
+}
+
+/** All closes for one symbol from `fromISO`, long history stitched under the
+ *  daily bars. Daily wins on overlap: it is fresher and includes today. */
+function stitchedBars(sym, fromISO){
+  const daily = ((S.priceCache[sym] || {}).bars || [])
+    .map(b => ({ d: b.d || b.date, c: Number(b.c) }))
+    .filter(b => b.d && Number.isFinite(b.c) && b.c > 0);
+  const dailyStart = daily.length ? daily[0].d : null;
+  const by = new Map();
+  (S.longCache[sym] || []).forEach(b => {
+    if (b.d >= fromISO && (!dailyStart || b.d < dailyStart)) by.set(b.d, b.c);
+  });
+  daily.forEach(b => { if (b.d >= fromISO) by.set(b.d, b.c); });
+  return [...by.entries()].map(([d, c]) => ({ d, c })).sort((a, b) => a.d < b.d ? -1 : 1);
+}
+
+/** Portfolio value path for the chart, from the transactions as filed:
+ *  shares held on day D are the transactions dated on or before D, valued at
+ *  that day's close. This replaces a simulated "current mix" path -- today's
+ *  share counts drawn backwards over history -- which charted what the
+ *  current portfolio would have done, not what the visitor's did.
+ *
+ *  Each point carries the day's net external flow (buys minus sells, at
+ *  transaction prices), so the percent series can chain daily returns with
+ *  flows taken out -- otherwise a $5,000 purchase reads as a +10% day on a
+ *  $50,000 book. The path cannot start before the first transaction, so a
+ *  window reaching further back is clamped and says so via `since`. */
 async function portfolioSeries(fromISO){
   // Scoped to the active asset tab, so switching to Crypto charts the crypto
   // sleeve rather than the whole book against the indexes.
-  const positions = assetTabRows(S.positions).filter(p => p.quantity > 0);
-  if (!positions.length) return [];
-  const series = await Promise.all(positions.map(async p => ({
-    qty: p.quantity,
-    bars: await seriesForSymbol(p.symbol, fromISO),
-  })));
-  const dates = new Set();
-  series.forEach(s => s.bars.forEach(b => dates.add(b.d)));
-  const sorted = [...dates].sort();
-  return sorted.map(d => {
-    let v = 0, ok = true;
-    for (const s of series) {
-      const bar = [...s.bars].reverse().find(b => b.d <= d);
-      if (!bar) { ok = false; break; }
-      v += bar.c * s.qty;
+  const scoped = assetTabRows(S.positions).filter(p => p.quantity > 0);
+  if (!scoped.length) return { bars: [], since: null, clamped: false };
+  const symSet = new Set(scoped.map(p => String(p.symbol).toUpperCase()));
+
+  // Splits are ignored here because positionsFromTxns ignores them too; the
+  // path and the table must disagree with each other never, and with reality
+  // only in ways they share.
+  const txns = sortTxnsChrono(S.transactions).filter(t => {
+    const sym = String(t.symbol || "").toUpperCase();
+    return symSet.has(sym) && (t.kind === "buy" || t.kind === "sell");
+  });
+  if (!txns.length) return { bars: [], since: null, clamped: false };
+
+  const firstTrade = String(txns[0].tradeDate || "").slice(0, 10);
+  const clamped = firstTrade > fromISO;
+  const start = clamped ? firstTrade : fromISO;
+  const syms = [...symSet];
+
+  // Price history first: daily bars via the existing per-symbol cache, long
+  // closes only when the window actually reaches past them.
+  await Promise.all(syms.map(s => seriesForSymbol(s, start)));
+  const needLong = syms.some(s => {
+    const bars = (S.priceCache[s] || {}).bars || [];
+    const first = bars.length ? (bars[0].d || bars[0].date) : null;
+    return !first || first > start;
+  });
+  if (needLong) await ensureLongCloses(syms);
+
+  const barsBySym = {}, ptr = {}, shares = {}, lastClose = {};
+  syms.forEach(s => { barsBySym[s] = stitchedBars(s, start); ptr[s] = 0; shares[s] = 0; });
+
+  // Opening position: everything traded before the window (empty when the
+  // window is clamped to the first trade).
+  let ti = 0, pendingFlow = 0;
+  const apply = (t, countFlow) => {
+    const sym = String(t.symbol).toUpperCase();
+    const q = Number(t.quantity) || 0;
+    shares[sym] += t.kind === "buy" ? q : -q;
+    if (countFlow) {
+      // Net external flow at transaction prices, fees included on the way in
+      // and out: they are money that crossed the boundary too. Accrued as the
+      // transaction is applied rather than looked up by date, because a trade
+      // can be dated on a weekend and the axis only has trading days.
+      const px = Number(t.price) || 0, fee = Number(t.fee) || 0;
+      pendingFlow += t.kind === "buy" ? q * px + fee : -(q * px - fee);
     }
-    return ok ? { d, c: v } : null;
-  }).filter(Boolean);
+  };
+  while (ti < txns.length && String(txns[ti].tradeDate).slice(0, 10) < start) apply(txns[ti++], false);
+
+  const dates = [...new Set(Object.values(barsBySym).flat().map(b => b.d))].sort();
+  const out = [];
+  for (const d of dates) {
+    while (ti < txns.length && String(txns[ti].tradeDate).slice(0, 10) <= d) apply(txns[ti++], true);
+    let v = 0, ok = true;
+    for (const s of syms) {
+      const bars = barsBySym[s];
+      while (ptr[s] < bars.length && bars[ptr[s]].d <= d) lastClose[s] = bars[ptr[s]++].c;
+      if (shares[s] > 1e-9) {
+        if (lastClose[s] == null) { ok = false; break; }
+        v += shares[s] * lastClose[s];
+      }
+    }
+    // A held symbol with no close yet (bought before its stored history
+    // starts) skips the day rather than pricing it wrong; its flow rolls into
+    // the first day that can be valued honestly.
+    if (!ok) continue;
+    if (v <= 0 && !out.length) { pendingFlow = 0; continue; }  // nothing held yet
+    out.push({ d, c: v, f: pendingFlow });
+    pendingFlow = 0;
+  }
+  return { bars: out, since: out.length ? out[0].d : null, clamped };
+}
+
+/** Percent series for the portfolio: daily returns chained with each day's
+ *  external flow removed, so buying more is not "gaining" and selling is not
+ *  "losing". The first valued day is the base at 0%. */
+function toPortfolioPctSeries(bars){
+  const out = [];
+  let cum = 0, prevV = null;
+  for (const b of bars) {
+    if (prevV == null) {
+      if (b.c > 0) { out.push({ d: b.d, c: 0 }); prevV = b.c; }
+      continue;
+    }
+    const base = prevV + (b.f || 0);
+    if (base > 0) cum = (1 + cum) * (b.c / base) - 1;
+    out.push({ d: b.d, c: cum * 100 });
+    prevV = b.c;
+  }
+  return out;
 }
 
 function toPctSeries(bars){
@@ -3121,7 +3244,7 @@ async function drawRightChart(){
     metaEl.innerHTML =
       `<span id="c-ret">Total <span class="${dir(book.pct)}">${esc(pct(book.pct))}</span></span>` +
       ` · ${esc(rangeLabel)} realized <span class="${dir(rangeBook.realized)}">${esc(moneySigned(rangeBook.realized))}</span>` +
-      ` · chart = current mix (simulated) vs indexes`;
+      `<span id="c-chartnote"> · chart = your holdings vs indexes</span>`;
   } else {
     setSym("Market", { logo: false });
     priceEl.textContent = "";
@@ -3130,25 +3253,34 @@ async function drawRightChart(){
       : "Market indexes · log in to track your portfolio here";
   }
 
+  // The window the index lines cover must be the portfolio path's own, or the
+  // comparison flatters whichever line got the longer run-up.
+  let idxFrom = from;
   if (live) {
-    const portBars = toPctSeries(await portfolioSeries(from));
+    const port = await portfolioSeries(from);
+    const portBars = toPortfolioPctSeries(port.bars);
     if (portBars.length) {
+      idxFrom = portBars[0].d;
       lines.push({ id: "Portfolio", colour: "#38b37d", points: portBars });
-      // Restate the return over the selected range. Taken from the series that
-      // is actually drawn, so the number and the line cannot disagree -- the
-      // book return it replaces was all-time and ignored the range buttons.
+      // Restate the return over the drawn window. Taken from the series that
+      // is actually on screen, so the number and the line cannot disagree --
+      // and when the window is clamped to the first transaction, the label
+      // says "since <date>" rather than claiming a range the data cannot
+      // cover. Flows are chained out, so this is the return on what was
+      // invested, not the growth of the balance.
       const retEl = document.getElementById("c-ret");
       const last = portBars[portBars.length - 1];
       const rangePct = last && Number.isFinite(last.c) ? last.c : null;
-      if (retEl && metaRange && rangePct != null) {
-        retEl.innerHTML = `${esc(metaRange)} <span class="${dir(rangePct)}">${
+      const label = port.clamped ? `Since ${formatChartDate(port.since)}` : metaRange;
+      if (retEl && label && rangePct != null) {
+        retEl.innerHTML = `${esc(label)} <span class="${dir(rangePct)}">${
           esc(pct(rangePct))}</span>`;
       }
     }
   }
   for (const ix of INDEXES) {
     if (!S.indexes[ix.sym]) continue;
-    const bars = toPctSeries(await seriesForSymbol(ix.sym, from));
+    const bars = toPctSeries(await seriesForSymbol(ix.sym, idxFrom));
     lines.push({ id: ix.sym, colour: ix.colour, points: bars });
   }
   drawLineChart(host, lines, { unit: "pct" });
@@ -3400,6 +3532,8 @@ function setModalMode(kind, symbol, prefill){
 
   document.querySelector('label[for="f-price"]').textContent =
     kind === "sell" ? "Sale price per share" : "Average buy price per share";
+  document.querySelector('label[for="f-date"]').textContent =
+    kind === "sell" ? "Sale date" : "Purchase date";
   priceHint.textContent = kind === "sell"
     ? "Price you sold at. Sale proceeds go to Cash."
     : "Your cost basis per share from your brokerage.";
