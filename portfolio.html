@@ -340,6 +340,10 @@ tr.on td{background:var(--accent-soft)}
   padding:4px 9px;font:inherit;font-size:11.5px;cursor:pointer;color:var(--ink-2)
 }
 .range button[aria-pressed=true]{border-color:var(--ink);color:var(--ink);font-weight:600}
+/* A range the portfolio's history cannot fill. Still clickable — it clamps to
+   the first transaction — but dimmed so four identical charts read as "your
+   history is short", not "the buttons are broken". */
+.range button.range-clamped{opacity:.55}
 
 /* ---- modal --------------------------------------------------------------- */
 .modal{
@@ -1399,13 +1403,18 @@ function openAvgCost(symbol){
     ? pos.avgCost : null;
 }
 
-/** Spendable cash from deposits and withdrawals (buys/sells write these). */
+/** Spendable cash from deposits, withdrawals and dividends. Sale proceeds
+ *  arrive as deposits already; dividends were credited as transactions but
+ *  never reached this balance, so money the page said you received was
+ *  nowhere to be found in Cash. A dividend row's price field holds the cash
+ *  amount. */
 function cashBalance(txns = S.transactions){
   let c = 0;
   for (const t of txns || []) {
     const px = Number(t.price) || 0;
     if (t.kind === "deposit") c += px;
     else if (t.kind === "withdrawal") c -= Math.abs(px);
+    else if (t.kind === "dividend") c += px;
   }
   // Avoid noisy −0 in the UI.
   if (Math.abs(c) < 1e-9) return 0;
@@ -1696,6 +1705,23 @@ async function syncDividends(positions){
       .filter(t => t.kind === "dividend" && t.note)
       .map(t => `${t.symbol}|${t.note}`));
 
+  /* Shares actually held on a given day, replayed from the ledger. The credit
+     used to be today's quantity times the dividend -- so a position built up
+     over time was paid its full current size for every past ex-date, and a
+     backdated purchase retroactively minted quarters of dividends at today's
+     count. The transaction dates can answer the real question, so they do. */
+  const heldOn = (symbol, iso) => {
+    let q = 0;
+    for (const t of sortTxnsChrono(S.transactions)) {
+      if (String(t.symbol || "").toUpperCase() !== symbol) continue;
+      if (String(t.tradeDate || "").slice(0, 10) > iso) break;
+      const n = Number(t.quantity) || 0;
+      if (t.kind === "buy") q += n;
+      else if (t.kind === "sell") q -= n;
+    }
+    return q;
+  };
+
   let added = 0;
   for (const p of positions) {
     if (!(p.quantity > 0)) continue;
@@ -1706,14 +1732,16 @@ async function syncDividends(positions){
       const note = `ex:${ev.exDate}`;
       const key = `${p.symbol}|${note}`;
       if (existing.has(key)) continue;
-      const cash = Number((p.quantity * ev.amount).toFixed(4));
+      const qtyAtEx = heldOn(p.symbol, ev.exDate);
+      if (!(qtyAtEx > 0)) continue;
+      const cash = Number((qtyAtEx * ev.amount).toFixed(4));
       if (!(cash > 0)) continue;
       try {
         await addTransaction({
           symbol: p.symbol,
           kind: "dividend",
           tradeDate: ev.exDate,
-          quantity: p.quantity,
+          quantity: qtyAtEx,
           price: cash,
           note,
           quiet: true,
@@ -1723,7 +1751,7 @@ async function syncDividends(positions){
         // Keep the in-memory ledger in step, or the next run re-credits this.
         (S.transactions || (S.transactions = [])).push({
           symbol: p.symbol, kind: "dividend", tradeDate: ev.exDate,
-          quantity: p.quantity, price: cash, fee: 0, note,
+          quantity: qtyAtEx, price: cash, fee: 0, note,
         });
         added += 1;
       } catch (err) {
@@ -2002,7 +2030,7 @@ function wireInfoTips(root){
   });
 }
 
-function allocation(positions){
+function allocation(positions, { includeCash = true } = {}){
   const totals = { Cash: 0, Stocks: 0, Funds: 0, ETFs: 0, Crypto: 0 };
   let sum = 0;
   for (const p of positions) {
@@ -2013,7 +2041,9 @@ function allocation(positions){
     totals[cls] += v;
     sum += v;
   }
-  const cash = Math.max(0, cashBalance());
+  // Cash belongs to the whole account, not to a sleeve: the Crypto tab's
+  // headline was crypto plus all cash, which read as a much bigger position.
+  const cash = includeCash ? Math.max(0, cashBalance()) : 0;
   totals.Cash = cash;
   sum += cash;
   const parts = Object.entries(totals).map(([name, value]) => ({
@@ -2599,17 +2629,22 @@ async function renderList(){
       <path d="M3.5 10a6.5 6.5 0 0 1 11.2-4.5M16.5 10a6.5 6.5 0 0 1-11.2 4.5"/>
       <path d="M14.2 2.8v4.2h-4.2M5.8 17.2v-4.2h4.2"/></svg>`;
     const plTip = "Open holdings vs avg buy, plus dividends and realized gains from sells (by sell date).";
-    const divTip = "Dividend received (credited on the ex-dividend date if the stock was logged by then), in USD before tax.";
+    const divTip = "Dividend received for the shares held on each ex-dividend date, in USD before tax. Credited to Cash.";
     const holdingsMv = rows.reduce((s, r) => {
       const px = markPrice(r);
       return s + ((px != null && r.quantity) ? px * r.quantity : 0);
     }, 0);
     const cash = cashBalance();
-    const totalMv = holdingsMv + Math.max(0, cash);
-    let totalQty = 0, totalDay = 0, dayN = 0, totalPl = 0, plN = 0;
+    // Cash is the account's, not a sleeve's: it shows on All and Funds, and
+    // stays out of the other tabs' totals and weights entirely.
+    const showCash = S.assetTab === "all" || S.assetTab === "funds";
+    const totalMv = holdingsMv + (showCash ? Math.max(0, cash) : 0);
+    // No summed quantity: 70 shares of KO plus 0.0965 BTC plus 100 fund units
+    // added up to a number that meant nothing, displayed as if it did. The
+    // Total row shows a position count instead.
+    let totalDay = 0, dayN = 0, totalPl = 0, plN = 0;
     let totalCost = 0, totalDiv = 0;
     for (const r of rows) {
-      totalQty += Number(r.quantity) || 0;
       const day = todayPl(r);
       if (day != null && Number.isFinite(day)) { totalDay += day; dayN++; }
       const pl = holdingPl(r);
@@ -2629,7 +2664,7 @@ async function renderList(){
     const totalBasis = totalCost + soldCost;
     const totalRet = totalBasis > 0 && plN ? (totalPl / totalBasis) * 100 : null;
     const totalDivRet = holdingsMv > 0 && totalDiv > 0 ? (totalDiv / holdingsMv) * 100 : null;
-    const cashWeight = totalMv > 0 ? (Math.max(0, cash) / totalMv) * 100 : null;
+    const cashWeight = showCash && totalMv > 0 ? (Math.max(0, cash) / totalMv) * 100 : null;
     const dash = `<div class="stack-cell"><span class="top">—</span><span class="bot">—</span></div>`;
     const counts = {};
     for (const t of ASSET_TABS) {
@@ -2657,9 +2692,12 @@ async function renderList(){
           S.assetTab = id;
           // A row selected under the old tab may not exist under the new one;
           // fall back to the portfolio series rather than charting a symbol
-          // that is no longer listed.
-          if (S.selected !== "PORTFOLIO" && S.selected !== "CASH"
-              && !assetTabRows(S.positions).some(p => p.symbol === S.selected)) {
+          // that is no longer listed. Cash counts too: its row only exists on
+          // the All and Funds tabs.
+          const cashVisible = id === "all" || id === "funds";
+          if (S.selected === "CASH" ? !cashVisible
+              : S.selected !== "PORTFOLIO"
+                && !assetTabRows(S.positions).some(p => p.symbol === S.selected)) {
             S.selected = "PORTFOLIO";
           }
           renderList();
@@ -2693,7 +2731,7 @@ async function renderList(){
             <span class="tsym-n">vs indexes on the chart</span></span></td>
           <td class="col-num"><div class="stack-cell">
             <span class="top">${esc(money(totalMv || null))}</span>
-            <span class="bot">${esc(String(Number(totalQty.toFixed(4))))}</span>
+            <span class="bot">${rows.length} position${rows.length === 1 ? "" : "s"}</span>
           </div></td>
           <td class="col-px">${dash}</td>
           <td class="col-num num ${dayN ? dir(totalDay) : ""}">${dayN ? esc(moneySigned(totalDay)) : "—"}</td>
@@ -2708,7 +2746,7 @@ async function renderList(){
           <td class="col-num num">${totalMv > 0 ? "100.0%" : "—"}</td>
           <td class="col-act"></td>
         </tr>
-        <tr data-sym="CASH" class="cash-row ${S.selected === "CASH" ? "on" : ""}">
+        ${showCash ? `<tr data-sym="CASH" class="cash-row ${S.selected === "CASH" ? "on" : ""}">
           <td class="idcol"><span class="tsym"><span class="tsym-t">Cash</span>
             <span class="tsym-n">Available balance</span></span></td>
           <td class="col-num"><div class="stack-cell">
@@ -2724,7 +2762,7 @@ async function renderList(){
             <button type="button" class="icon-btn" data-act="edit-cash"
                     title="Edit cash" aria-label="Edit cash">${penSvg}</button>
           </div></td>
-        </tr>
+        </tr>` : ""}
         ${rows.map(r => {
           const livePx = r.price != null ? r.price : null;
           const avg = r.avgCost != null ? r.avgCost : null;
@@ -3220,14 +3258,19 @@ async function drawRightChart(){
 
   const live = signedIn() && hasHoldings();
   // Scoped like the series above: the headline value must describe the
-  // sleeve being charted, not the whole book.
-  const alloc = allocation(assetTabRows(S.positions));
+  // sleeve being charted, not the whole book — including its cash, which
+  // only the All and Funds views carry.
+  const tabHasCash = S.assetTab === "all" || S.assetTab === "funds";
+  const alloc = allocation(assetTabRows(S.positions), { includeCash: tabHasCash });
   const lines = [];
   let metaRange = null;
 
   if (live && S.selected === "CASH") {
     setSym("Cash", { logo: false });
-    priceEl.textContent = money(alloc.cash).replace("$", "");
+    // Straight from the ledger, not from alloc -- alloc's cash is zero on
+    // tabs that scope it out, and the cash view must never show $0 for money
+    // that exists.
+    priceEl.textContent = money(cashBalance()).replace("$", "");
     metaEl.innerHTML = `${alloc.sum > 0 ? ((alloc.cash / alloc.sum) * 100).toFixed(1) : "0.0"}% of total assets`;
   } else if (live) {
     setSym(assetTabLabel(), { logo: false });
@@ -3244,7 +3287,7 @@ async function drawRightChart(){
     metaEl.innerHTML =
       `<span id="c-ret">Total <span class="${dir(book.pct)}">${esc(pct(book.pct))}</span></span>` +
       ` · ${esc(rangeLabel)} realized <span class="${dir(rangeBook.realized)}">${esc(moneySigned(rangeBook.realized))}</span>` +
-      `<span id="c-chartnote"> · chart = your holdings vs indexes</span>`;
+      `<span id="c-chartnote" style="cursor:help" title="The chart chains daily price moves with buys and sells taken out — money you add is not a gain. P/L in the table compares price to your average cost. The two answer different questions and can differ."> · chart = your holdings vs indexes</span>`;
   } else {
     setSym("Market", { logo: false });
     priceEl.textContent = "";
@@ -3256,8 +3299,9 @@ async function drawRightChart(){
   // The window the index lines cover must be the portfolio path's own, or the
   // comparison flatters whichever line got the longer run-up.
   let idxFrom = from;
+  let port = null;
   if (live) {
-    const port = await portfolioSeries(from);
+    port = await portfolioSeries(from);
     const portBars = toPortfolioPctSeries(port.bars);
     if (portBars.length) {
       idxFrom = portBars[0].d;
@@ -3283,6 +3327,18 @@ async function drawRightChart(){
     const bars = toPctSeries(await seriesForSymbol(ix.sym, idxFrom));
     lines.push({ id: ix.sym, colour: ix.colour, points: bars });
   }
+  // Ranges the history cannot fill are dimmed, not disabled: every clamped
+  // range draws the same since-first-trade chart, and without the cue that
+  // sameness reads as the buttons being broken.
+  const rangeHost = document.getElementById("range");
+  if (rangeHost) rangeHost.querySelectorAll("[data-r]").forEach(b => {
+    const clamped = !!(port && port.clamped && port.since
+      && rangeStartISO(b.dataset.r) < port.since);
+    b.classList.toggle("range-clamped", clamped);
+    b.title = clamped
+      ? `Your portfolio's history starts ${port.since}; this range clamps to it.`
+      : "";
+  });
   drawLineChart(host, lines, { unit: "pct" });
 }
 
@@ -3512,7 +3568,7 @@ function setModalMode(kind, symbol, prefill){
 
   if (kind === "edit") {
     title.textContent = "Edit holding";
-    sub.textContent = "Update this ticker’s quantity and average buy price. P/L updates from the live quote. Delete removes it from your portfolio.";
+    sub.textContent = "Fixing the quantity keeps this ticker’s history and adds a dated correction. Changing the average price rewrites it as a single lot (you’ll be asked first). Delete removes it entirely.";
     save.textContent = "Save changes";
     del.hidden = false;
     symEl.readOnly = true;
@@ -3830,10 +3886,66 @@ function wireModal(){
     save.disabled = true;
     try {
       if (addKind === "edit") {
-        await replaceHolding({ symbol, tradeDate, quantity, price });
-        closeAddModal();
-        toast(`Updated ${symbol}`);
+        /* Editing used to delete the symbol's whole transaction history and
+           re-add one buy dated today -- so fixing a typo in quantity silently
+           erased purchase dates, the chart's backdated path, and the realized
+           P/L trail. Now:
+
+           A quantity fix with the average price left alone appends a delta
+           transaction and touches nothing else. The sell side carries
+           realizedPl 0 explicitly: a correction is not a gain.
+
+           Changing the average price genuinely cannot be expressed as an
+           append under average-cost accounting, so that path still rewrites --
+           but it says so first, and the replacement lot keeps the position's
+           original first-trade date instead of today, so the chart's history
+           survives even a rewrite. */
+        const pos = S.positions.find(p => p.symbol === symbol);
+        const held = pos ? pos.quantity : 0;
+        const avg = pos && pos.avgCost != null && Number.isFinite(pos.avgCost)
+          ? pos.avgCost : null;
+        const avgSame = avg != null
+          && Math.abs(price - avg) <= Math.max(0.005, Math.abs(avg) * 1e-4);
+        if (pos && avgSame && Math.abs(quantity - held) <= 1e-9) {
+          closeAddModal();
+          toast(`${symbol} unchanged`);
+        } else if (pos && avgSame) {
+          const dq = quantity - held;
+          if (dq > 0) {
+            await addTransaction({ symbol, kind: "buy", tradeDate,
+              quantity: dq, price: avg, note: "adjust:edit" });
+          } else {
+            await addTransaction({ symbol, kind: "sell", tradeDate,
+              quantity: -dq, price: avg, realizedPl: 0, note: "adjust:edit" });
+          }
+          closeAddModal();
+          toast(`Updated ${symbol} to ${quantity}`);
+        } else {
+          const keepDate = (pos && pos.firstTrade) || tradeDate;
+          if (!confirm(
+            `Changing the average price rewrites ${symbol} as a single lot `
+            + `dated ${keepDate}. Its buy/sell history and realized gains `
+            + `records are replaced. Dividends are kept. Continue?`)) {
+            save.disabled = false;
+            return;
+          }
+          await replaceHolding({ symbol, tradeDate: keepDate, quantity, price });
+          closeAddModal();
+          toast(`Rewrote ${symbol} as one lot`);
+        }
       } else if (addKind === "sell") {
+        // The modal has always promised "quantity cannot exceed what you
+        // currently hold"; nothing enforced it. An over-sell went through,
+        // toasted a realized gain on shares never owned, and left a negative
+        // position with a zero cost basis in the table.
+        const heldNow = (S.positions.find(p => p.symbol === symbol) || {}).quantity || 0;
+        if (quantity > heldNow + 1e-9) {
+          err.textContent = heldNow > 1e-9
+            ? `You hold ${Number(heldNow.toFixed(4))} ${symbol} — cannot sell ${quantity}.`
+            : `No open ${symbol} position to sell.`;
+          save.disabled = false;
+          return;
+        }
         const proceeds = quantity * price;
         const avg = openAvgCost(symbol);
         const realized = avg != null ? (price - avg) * quantity : null;
