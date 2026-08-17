@@ -5536,6 +5536,20 @@ async function extendWithLongCloses(sym){
     // line rather than a candle with no body.
     .map(b => ({ d: b.d, o: b.c, h: b.c, l: b.c, c: b.c, v: 0, a: 1 }));
   if (!old.length) return;
+  // The two series must meet: the last stored close against the first daily
+  // bar. A stored history that lands a multiple away is a different
+  // instrument under the same name -- SPX's long closes were a penny-priced
+  // stray fetched without the index alias -- and stitching it in scales the
+  // whole chart to nonsense. Refuse it; the fixed worker replaces the row on
+  // its next backfill pass.
+  const joinOld = old[old.length - 1].c;
+  const joinNew = Number(PRICE.bars[0].c);
+  if (!(joinOld > 0) || !(joinNew > 0)
+      || joinOld / joinNew > 3 || joinNew / joinOld > 3) {
+    console.warn(`[chart] discarding stored long closes for ${sym}: `
+      + `${joinOld} vs ${joinNew} at the join reads as a different instrument`);
+    return;
+  }
   PRICE.bars = [...old, ...PRICE.bars];
   PRICE.approxBefore = dailyStart;
   // Repaint only what the longer base changes: the drawn window (via its
@@ -5773,13 +5787,17 @@ function resample(bars, interval){
     if (bk !== k) {
       if (cur) out.push(cur);
       k = bk;
-      cur = { d: b.d, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v || 0 };
+      cur = { d: b.d, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v || 0, a: b.a };
     } else {
       cur.h = Math.max(cur.h ?? b.h, b.h ?? cur.h);
       cur.l = Math.min(cur.l ?? b.l, b.l ?? cur.l);
       cur.c = b.c;
       cur.d = b.d;                        // label the period by its last day
       cur.v = (cur.v || 0) + (b.v || 0);
+      // A bucket is close-only when every member is. Dropping the flag here
+      // turned resampled close-only months back into "candles" -- degenerate
+      // marks with no body, which is the dot-row bug in a new interval.
+      cur.a = cur.a && b.a;
     }
   }
   if (cur) out.push(cur);
@@ -6322,17 +6340,32 @@ function drawCandles(){
   // When the window reaches into the stitched decade of closes, say what
   // that region is -- candles there are rebuilt from daily closes, with no
   // intraday range and no volume, and pretending otherwise would be lying
-  // with a chart.
+  // with a chart. And when the chosen range wants more history than is
+  // stored at all, say that too: a 5Y button over 300 days of bars showed
+  // ten months and let the reader believe that was five years.
+  const wantMore = !PRICE.view && PRICE.range > PRICE.bars.length
+    && !PRICE.approxBefore && PRICE.bars.length;
   const approxNote = PRICE.approxBefore && bars[0] && bars[0].d < PRICE.approxBefore
     ? `<div class="note" style="text-align:left;padding:2px 8px 0;font-size:11px">
          Before ${esc(longDate(PRICE.approxBefore))}: shape from daily closes —
          no intraday range or volume.</div>`
+    : wantMore
+    ? `<div class="note" style="text-align:left;padding:2px 8px 0;font-size:11px">
+         Stored history starts ${esc(longDate(PRICE.bars[0].d))}. The deeper
+         backfill is queued and fills in on a later visit.</div>`
     : "";
   host.innerHTML = `${approxNote}
     <svg viewBox="0 0 ${W} ${H}" class="pchart" role="img"
          aria-label="Daily prices for ${esc(PRICE.symbol)}"
          preserveAspectRatio="${mobile ? "none" : "xMidYMid meet"}">
-      ${grid}${taSvg}${vols}${flatLine}${candles}
+      ${/* Overlays are computed with a lead-in of history, so their values
+            can sit outside the visible price range -- a 200-day average far
+            from a one-month window's prices drew straight through the volume
+            band and the date labels. The plot clips them; candles never need
+            it, since the y-domain is built from them. */""}
+      <defs><clipPath id="pclip"><rect x="${ml}" y="${mt}" width="${pw}"
+        height="${ph}"/></clipPath></defs>
+      ${grid}<g clip-path="url(#pclip)">${taSvg}</g>${vols}${flatLine}${candles}
       ${dates}
       <g id="pcross" style="display:none">
         <line id="pcx" y1="${mt}" y2="${H - mb}" stroke="var(--ink-3)"

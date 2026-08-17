@@ -2091,10 +2091,18 @@ def closes(symbol: str, years: int = 11) -> list[dict]:
     The `light` series carries date, close and volume only, which is all the
     seasonality and benchmark charts need and a fraction of the payload of the
     full OHLC series.
+
+    Indexes are quoted under caret symbols at FMP, exactly as in
+    fetch_prices. This fetch skipped the alias, so a request for "SPX"
+    fetched whatever instrument FMP lists under that literal ticker -- a
+    penny-priced stray -- and a decade of near-zero closes was stored under
+    the index's name and drawn under its chart.
     """
+    sym = str(symbol or "").upper()
+    fmp_sym = INDEXES[sym]["fmp"] if sym in INDEXES else sym
     end = dt.date.today()
     start = end - dt.timedelta(days=int(365.25 * max(1, years)))
-    rows = _get("historical-price-eod/light", symbol=symbol,
+    rows = _get("historical-price-eod/light", symbol=fmp_sym,
                 **{"from": start.isoformat(), "to": end.isoformat()}) or []
     out = [{"d": r["date"], "c": r.get("price")}
            for r in rows if r.get("date") and r.get("price") is not None]
