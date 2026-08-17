@@ -377,6 +377,17 @@ tbody tr:hover td{background:var(--sunk)}
   border-radius:6px;padding:2px 7px;line-height:1.5}
 .pq-pill.up{background:var(--up-soft);color:var(--up)}
 .pq-pill.down{background:var(--down-soft);color:var(--down)}
+/* What the shown price IS right now: last close, pre-market, after hours,
+   open session, or a 24/7 market. One glance, one pill, dot coloured by
+   session. Sized to wrap cleanly under the price on a phone. */
+.pq-state{display:inline-flex;align-items:center;gap:6px;margin-top:7px;
+  font-size:11.5px;font-weight:600;border-radius:99px;padding:3px 10px;
+  border:1px solid var(--rule);color:var(--ink-2);background:var(--sunk);
+  width:fit-content;max-width:100%;cursor:help}
+.pq-state i{width:7px;height:7px;border-radius:50%;background:var(--ink-3);flex-shrink:0}
+.pq-state.st-open i,.pq-state.st-live i{background:var(--up)}
+.pq-state.st-pre i{background:#eda100}
+.pq-state.st-after i{background:var(--accent)}
 /* What the houses call it, under the price it is called on. */
 .pq-call{display:flex;align-items:baseline;gap:8px;margin-top:8px}
 .pq-call b{font-size:17px;font-weight:600;letter-spacing:-.01em}
@@ -6229,6 +6240,48 @@ function drawCandles(){
   wirePriceGestures(host);
 }
 
+/** Which US equity session it is right now, in ET, plus what the stored
+ *  price actually represents. The page's data is at best the last worker
+ *  refresh, so the pill never claims "live": it names the session and dates
+ *  the price, which is the pair a reader needs to know what they are looking
+ *  at -- a Monday pre-market visitor is reading Friday's close, and the page
+ *  should say so before they compare it to their broker. */
+function priceStateChip(){
+  const sym = String(PRICE.symbol || "");
+  const asOf = PRICE.asOf ? String(PRICE.asOf).slice(0, 10) : null;
+  // Crypto never closes; an index page follows equity hours like its members.
+  if (/^[A-Z]{2,6}USD$/.test(sym)) {
+    return { cls: "st-live", label: "24/7 market",
+      title: "Crypto trades around the clock. The price is the latest stored quote." };
+  }
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York",
+    hour12: false, weekday: "short", year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date());
+  const g = t => (parts.find(p => p.type === t) || {}).value;
+  const etToday = `${g("year")}-${g("month")}-${g("day")}`;
+  const mins = (+g("hour")) * 60 + (+g("minute"));
+  const wknd = g("weekday") === "Sat" || g("weekday") === "Sun";
+  const dated = asOf ? (asOf === etToday ? "today" : shortDate(asOf)) : "—";
+  const closeBit = dated === "today" ? "today’s session" : `close ${dated}`;
+  if (wknd || mins < 240 || mins >= 1200) {
+    return { cls: "st-closed", label: `Market closed · ${closeBit}`,
+      title: "US markets are closed. The price shown is the last regular-session close." };
+  }
+  if (mins < 570) {
+    return { cls: "st-pre", label: `Pre-market · showing ${closeBit}`,
+      title: "US pre-market is under way (4:00–9:30 ET). The price shown is the last regular-session close, not a pre-market quote." };
+  }
+  if (mins < 960) {
+    return dated === "today"
+      ? { cls: "st-open", label: "Market open · today",
+          title: "The regular US session is open (9:30–16:00 ET). The price is today’s, from the latest refresh." }
+      : { cls: "st-open", label: `Market open · showing ${closeBit}`,
+          title: "The session is open but the stored price is from an earlier day; it refreshes shortly after the page is opened." };
+  }
+  return { cls: "st-after", label: `After hours · ${closeBit}`,
+    title: "The regular US session has closed (after 16:00 ET). The price shown is that session’s close." };
+}
+
 function drawPriceStats(){
   const q = PRICE.quote;
   const host = document.getElementById("price-stats");
@@ -6283,6 +6336,8 @@ function drawPriceStats(){
           <b>${call.word}</b><span>${call.n}/${call.total} ratings</span>
         </div>`}
       </div>
+      ${(() => { const st = priceStateChip();
+        return `<div class="pq-state ${st.cls}" title="${esc(st.title)}"><i></i>${esc(st.label)}</div>`; })()}
       <dl class="pstats">
         ${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
       </dl>
