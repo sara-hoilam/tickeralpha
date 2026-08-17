@@ -832,11 +832,19 @@ def drain_analyst(max_items: int = 5) -> int:
     return sum(1 for sym in pending if fetch_analyst(sym))
 
 
-def refresh_sections() -> bool:
+def refresh_sections(do_trades: bool = True) -> bool:
     """Heatmap, sector rotation, insider and congressional trades.
 
     Slower and less time-critical than prices, so it runs on its own cadence:
     the treemap costs one request per constituent.
+
+    ``do_trades`` gates the insider/congress pulls onto a slower cadence
+    still. Covering ninety days of the Form 4 feed costs up to a hundred
+    1,000-row pages -- roughly 60MB -- and doing that every hour plus the
+    congress feeds burned ~1.8GB a day, which is how the FMP Starter plan's
+    20GB trailing-30-day bandwidth cap died eleven days into the month and
+    took every price refresh down with it. Disclosures move daily at most;
+    the heatmap does not need to pay for them hourly.
     """
     if not market.configured():
         return False
@@ -875,6 +883,12 @@ def refresh_sections() -> bool:
         # 0053 not applied yet. The panel shows its empty state; nothing else
         # in this refresh should be lost over it.
         log(f"  sector risk write (apply 0053_sector_risk.sql): {exc}")
+
+    if not do_trades:
+        # The trades and their derived flow ride the slower trades cadence.
+        log(f"sections: {len(rows)} heatmap, {len(hist)} sector series, "
+            f"trades skipped (own cadence), {time.time()-started:.1f}s")
+        return True
 
     try:
         # Pull sixty days once. FMP caps page at 100, so the worker uses
@@ -1105,6 +1119,13 @@ def run() -> None:
     last_sweep_day: dt.date | None = None
     market_every = int(os.environ.get("MARKET_REFRESH_SECONDS", "900"))
     sections_every = int(os.environ.get("SECTIONS_REFRESH_SECONDS", "3600"))
+    # The insider/congress pulls cost ~65MB of FMP bandwidth per run (up to a
+    # hundred 1,000-row pages to cover ninety days). Hourly, that was ~1.8GB a
+    # day and exhausted the Starter plan's 20GB/30-day cap mid-month. Every
+    # six hours is ~260MB/day -- inside the cap with room for everything else
+    # -- and still four refreshes through each trading day.
+    last_trades = 0.0
+    trades_every = int(os.environ.get("TRADES_REFRESH_SECONDS", "21600"))
     # Pace Logo.dev: a small batch each cycle until the priority set is warm.
     logos_every = int(os.environ.get("LOGOS_REFRESH_SECONDS", "3600"))
     # Larger priority set (indexes + common stocks + crypto) — 50/hour warms
@@ -1146,7 +1167,10 @@ def run() -> None:
                 except market.MarketError as exc:
                     log(f"industry PE failed (continuing): {exc}")
                 try:
-                    refresh_sections()
+                    trades_due = now - last_trades > trades_every
+                    refresh_sections(do_trades=trades_due)
+                    if trades_due:
+                        last_trades = now
                 except market.MarketError as exc:
                     log(f"sections refresh failed (continuing): {exc}")
                 try:

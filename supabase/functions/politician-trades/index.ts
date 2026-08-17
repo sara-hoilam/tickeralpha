@@ -301,6 +301,14 @@ Deno.serve(async (req: Request) => {
 
   const cutoff = new Date(Date.now() - DAYS * 86400000).toISOString().slice(0, 10);
 
+  // ?debug=1 surfaces what FMP itself answered -- status and the first bit of
+  // the body, never the URL, which carries the key. When FMP refuses a key it
+  // says why in the body (rate limit, bandwidth, plan), and with the errors
+  // swallowed here that message was invisible: an account limit looked
+  // identical to a member with no trades.
+  const debug = new URL(req.url).searchParams.get("debug") === "1";
+  const upstream: Record<string, unknown>[] = [];
+
   // Both chambers: a name is in one or the other, and asking both costs one
   // extra request rather than making the caller know which.
   const paths = ["house-trades-by-name", "senate-trades-by-name"];
@@ -308,10 +316,18 @@ Deno.serve(async (req: Request) => {
     const u = `${FMP}/${p}?name=${encodeURIComponent(name)}&apikey=${encodeURIComponent(key)}`;
     try {
       const r = await fetch(u);
-      if (!r.ok) return [] as unknown[];
+      if (!r.ok) {
+        if (debug) upstream.push({ path: p, status: r.status,
+          body: (await r.text().catch(() => "")).slice(0, 300) });
+        return [] as unknown[];
+      }
       const b = await r.json();
+      if (debug) upstream.push({ path: p, status: r.status,
+        rows: Array.isArray(b) ? b.length : null,
+        body: Array.isArray(b) ? undefined : JSON.stringify(b).slice(0, 300) });
       return Array.isArray(b) ? b : [];
-    } catch {
+    } catch (e) {
+      if (debug) upstream.push({ path: p, error: String(e).slice(0, 200) });
       return [] as unknown[];
     }
   }));
@@ -366,6 +382,7 @@ Deno.serve(async (req: Request) => {
     {
       person: name, days: DAYS, since: cutoff,
       count: all.length, sources, trades: all,
+      ...(debug ? { upstream } : {}),
       congressCount: trades.length,
       // The EDGAR half reaches further back than the chamber feeds and says so
       // separately, rather than letting one window label two spans.
