@@ -524,6 +524,31 @@ def refresh_news() -> bool:
     return True
 
 
+_FMP_PAUSED_UNTIL = 0.0
+
+
+def _fmp_limited(exc) -> bool:
+    """An account-level refusal (rate or bandwidth cap), not a bad symbol."""
+    m = str(exc).lower()
+    return "429" in m or "limit" in m or "bandwidth" in m
+
+
+def _pause_fmp(reason: str, seconds: int = 600) -> None:
+    """Stop draining request queues for a while.
+
+    During the August bandwidth outage every queued request was attempted,
+    failed with a 429, and was marked done anyway -- the mark that stops a bad
+    symbol from spinning the queue also locked every good symbol out for the
+    request table's 12-hour re-ask window. When the plan recovered, the queue
+    stayed silent for hours while the timed jobs worked fine. A limit error
+    now leaves the request pending and pauses the drains instead: the retry
+    happens when the pause lapses, not twelve hours later.
+    """
+    global _FMP_PAUSED_UNTIL
+    _FMP_PAUSED_UNTIL = time.time() + seconds
+    log(f"FMP limit hit ({reason}); pausing request drains {seconds}s")
+
+
 def fetch_prices(symbol: str) -> bool:
     """Daily bars and a quote for one company. Two FMP requests."""
     if not market.configured():
@@ -542,6 +567,12 @@ def fetch_prices(symbol: str) -> bool:
         q = market.quote_detail(sym)
     except market.MarketError as exc:
         log(f"  prices {sym}: {exc}")
+        if _fmp_limited(exc):
+            # The account is refused, not the symbol. Leave the request
+            # pending and back off; marking it done here is what silenced the
+            # queue for twelve hours after the bandwidth cap lifted.
+            _pause_fmp(f"prices {sym}")
+            return False
         # Mark it finished anyway, or the queue spins on a bad symbol.
         store.upsert_prices(sym, [], None, None)
         return False
@@ -773,10 +804,14 @@ def drain_prices(max_items: int = 5) -> int:
     """
     if not market.configured():
         return 0
+    if time.time() < _FMP_PAUSED_UNTIL:
+        return 0
     done = 0
     for sym in store.pending_prices(max_items):
         if fetch_prices(sym):
             done += 1
+        if time.time() < _FMP_PAUSED_UNTIL:
+            break                       # the account just got refused; stop
     return done
 
 
@@ -790,6 +825,8 @@ def drain_long_closes(max_items: int = 3) -> int:
     """
     if not market.configured():
         return 0
+    if time.time() < _FMP_PAUSED_UNTIL:
+        return 0
     try:
         pending = store.pending_long_closes(max_items)
     except store.StoreError as exc:
@@ -801,6 +838,11 @@ def drain_long_closes(max_items: int = 3) -> int:
             rows = market.closes(sym, years=10)
         except market.MarketError as exc:
             log(f"  long closes {sym}: {exc}")
+            if _fmp_limited(exc):
+                # Same rule as prices: an account refusal must not consume
+                # the request. Stop this pass; retry after the pause.
+                _pause_fmp(f"long closes {sym}")
+                break
             rows = []
         try:
             n = store.upsert_long_closes(sym, rows)
