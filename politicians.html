@@ -185,6 +185,9 @@ td.who{text-align:left;font-family:"IBM Plex Sans",sans-serif;font-size:12.5px;
 /* ---- insiders ----------------------------------------------------------- */
 .ins-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:20px;align-items:start}
 .ibars{padding:12px 18px 6px}
+/* The chart's finding in a sentence, for readers who don't read bars. */
+.ins-take{padding:0 0 10px;font-size:12.5px;color:var(--ink-2);line-height:1.45}
+.ins-take b{color:var(--ink)}
 
 /* Ticker search over the insider filings. Sits in the table's panel because
    the table is what it reads like it searches, though it governs the bars
@@ -1170,9 +1173,32 @@ function paintInsiders(){
   const max = Math.max(...top.map(r => Math.max(
     showSell ? (r.sellAmt || 0) : 0, showBuy ? (r.buyAmt || 0) : 0)), 1);
   const pc = v => Math.max(v > 0 ? 2 : 0, Math.round((v / max) * 88));
+  /* The panel's finding, stated: which way the money leaned, by how much,
+     and where it leaned hardest. Computed from the same rows as the bars,
+     so the sentence and the chart cannot disagree. */
+  const tBuy = rows.reduce((s, r) => s + (r.buyAmt || 0), 0);
+  const tSell = rows.reduce((s, r) => s + (r.sellAmt || 0), 0);
+  const lead = top[0];
+  const leanSell = tSell >= tBuy;
+  // On a one-sided view the "against" clause goes: the rows are already
+  // filtered to one side, and quoting their incidental other-side total reads
+  // as a market figure it is not.
+  const oneSided = S.insFlow !== "all";
+  const shown = S.insFlow === "in" ? tBuy : S.insFlow === "out" ? tSell
+    : leanSell ? tSell : tBuy;
+  const verb = S.insFlow === "in" ? "bought" : S.insFlow === "out" ? "sold"
+    : leanSell ? "sold" : "bought";
+  const leadAmt = S.insFlow === "in" ? (lead && lead.buyAmt)
+    : S.insFlow === "out" ? (lead && lead.sellAmt)
+    : lead && (lead.buyAmt || 0) + (lead.sellAmt || 0);
+  const take = `<div class="ins-take">Insiders ${verb}
+    <b>${kfmt(shown)}</b>${oneSided ? "" : ` against ${kfmt(leanSell ? tBuy : tSell)}
+    ${leanSell ? "bought" : "sold"}`} over the last ${S.insDays} days${lead
+      ? ` — heaviest at <b>${esc(lead.symbol)}</b> (${kfmt(leadAmt)}${
+          lead.people ? `, ${lead.people} ${lead.people === 1 ? "person" : "people"}` : ""})` : ""}.</div>`;
   // top is a slice of a non-empty rows, so it always has at least one bar --
   // the "nothing on this side" case was handled on the way in.
-  chart.innerHTML = top.map(r => `
+  chart.innerHTML = take + top.map(r => `
     <div class="ibar">
       <span class="co" data-s="${esc(r.symbol)}" role="link" tabindex="0">
         <span class="dot" data-logo="${esc(r.symbol)}" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>

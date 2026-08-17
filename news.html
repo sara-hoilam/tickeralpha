@@ -336,8 +336,70 @@ const avatarColour = s => {
 };
 
 const S = { view: "market_cap", q: null, label: null, page: 0, total: 0,
-            keywords: [], loading: false };
+            keywords: [], loading: false,
+            // Cross-page memory of headlines already shown, so a wire story
+            // syndicated to four publishers appears once with a count instead
+            // of four times; and the reader's own symbols, for the boost.
+            seenKeys: null, mySyms: null };
 const PAGE = 12;
+
+/* ---- relevance ----------------------------------------------------------
+   The feed pulls plenty and fresh; what made it feel stale was volume without
+   an editor. Two mechanical editors stand in. Near-duplicate headlines are
+   collapsed to one card carrying an "also on N sources" note -- syndication is
+   most of the sameness in a finance feed. And stories naming a symbol the
+   reader holds or watches float to the top of each page, labelled with why.
+   No model anywhere: a token key and a set lookup. */
+
+/** Symbols this browser cares about: the portfolio's local mirror plus the
+    watchlist cache. Both best-effort -- an empty set just means no boost. */
+function mySymbols(){
+  if (S.mySyms) return S.mySyms;
+  const out = new Set();
+  try {
+    (JSON.parse(localStorage.getItem("alphaticker-portfolio") || "[]") || [])
+      .forEach(t => { const s = String(t.symbol || "").toUpperCase();
+                      if (s && s !== "CASH") out.add(s); });
+  } catch {}
+  try {
+    const wl = JSON.parse(localStorage.getItem("alphaticker-watchlist") || "[]");
+    (Array.isArray(wl) ? wl : (wl && wl.items) || []).forEach(x =>
+      { const s = String((x && x.symbol) || x || "").toUpperCase(); if (s) out.add(s); });
+  } catch {}
+  S.mySyms = out;
+  return out;
+}
+
+/** One key per story-as-written: significant title words, sorted, plus the
+    symbol. Publishers reword syndicated copy lightly and suffix themselves
+    ("— Reuters"), so token identity beats string identity. */
+function newsKey(a){
+  const toks = String(a.title || "").toLowerCase()
+    .replace(/[-–—|:]\s*[a-z .]{3,24}$/, "")      // trailing "— publisher"
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .split(/\s+/).filter(w => w.length >= 3);
+  return `${a.symbol || ""}|${[...new Set(toks)].sort().slice(0, 10).join(" ")}`;
+}
+
+/** Dedupe against everything shown so far, then float the reader's symbols
+    to the top of this batch (stable: time order survives within each band). */
+function prepareBatch(arts, reset){
+  if (reset || !S.seenKeys) S.seenKeys = new Map();
+  const mine = mySymbols();
+  const kept = [];
+  for (const a of arts) {
+    const k = newsKey(a);
+    const first = S.seenKeys.get(k);
+    if (first) { first._dupes = (first._dupes || 0) + 1; continue; }
+    a._dupes = 0;
+    if (a.symbol && mine.has(String(a.symbol).toUpperCase())) a._mine = true;
+    S.seenKeys.set(k, a);
+    kept.push(a);
+  }
+  return kept.map((a, i) => ({ a, i }))
+    .sort((x, y) => ((y.a._mine ? 1 : 0) - (x.a._mine ? 1 : 0)) || (x.i - y.i))
+    .map(x => x.a);
+}
 
 /* ---- left column --------------------------------------------------------- */
 async function setView(v){
@@ -377,7 +439,9 @@ function storyCard(a){
     <p>${esc(a.summary || "")}</p>
     <span class="by">
       ${a.symbol ? `<span class="tag">${esc(a.symbol)}</span>` : ""}
+      ${a._mine ? `<span class="tag" style="background:var(--up-soft,#e3f4ec);color:var(--up,#0b7a4b)">yours</span>` : ""}
       <span>${esc(a.publisher || "")}</span><span>·</span><span>${esc(ago(a.published))}</span>
+      ${a._dupes ? `<span>·</span><span>${a._dupes} more source${a._dupes === 1 ? "" : "s"}</span>` : ""}
     </span></a>`;
 }
 
@@ -411,7 +475,7 @@ async function loadNews(reset){
       return;
     }
   }
-  const arts = (d && d.articles) || [];
+  const arts = prepareBatch((d && d.articles) || [], reset);
   S.total = (d && d.total) || 0;
 
   if (reset && !arts.length){

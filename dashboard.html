@@ -606,6 +606,10 @@ tbody tr:hover td{background:var(--sunk)}
   margin-right:5px;vertical-align:2px}
 .lkey i.dash{height:0;border-top:2px dashed currentColor;background:none!important}
 .lread{min-height:19px;font-family:"IBM Plex Mono",monospace;font-size:11px}
+/* One plain sentence per chart saying what it shows. The chart is the
+   evidence; this is the finding, for the reader who does not speak chart. */
+.chart-take{padding:2px 0 8px;font-size:12.5px;color:var(--ink-2);line-height:1.45}
+.chart-take b{color:var(--ink)}
 .lread b{color:var(--ink);font-family:"IBM Plex Sans",sans-serif;font-size:11.5px}
 
 .swrap{padding:0 14px 14px;overflow-x:auto}
@@ -3178,7 +3182,19 @@ function drawIndexDrawdown(hostId, state, idPrefix){
     ? Math.max(1, Math.round((Date.parse(full[full.length - 1].d) - Date.parse(full[0].d)) / (365.25 * 864e5)))
     : 0;
 
-  host.innerHTML = `
+  /* The finding, in words: where the price stands against its high today,
+     and how rare that is in the cached history -- the exact question the
+     green bands answer, for readers who do not read bands. */
+  const ddNow = pts[pts.length - 1].dd;
+  const rarest = probs.filter(l => ddNow <= l.dd).map(l => l.p).sort((a, b) => a - b)[0];
+  const takeaway = `<div class="chart-take">${esc(name)} sits <b>${Math.abs(ddNow).toFixed(1)}%
+      below</b> its all-time high${
+      rarest ? ` — it has closed at least this far down on only ~<b>${rarest}%</b> of days${
+                  yearsUsed ? ` in ${yearsUsed} years` : ""}` :
+      Number.isFinite(avgDd) ? ` — shallower than the ${Math.abs(avgDd).toFixed(1)}% a typical
+        day in this window has sat below its high` : ""}.</div>`;
+
+  host.innerHTML = `${takeaway}
     <svg viewBox="0 0 ${W} ${H}" class="lchart" role="img"
       aria-label="${esc(name)} percent off all-time high">
       ${bandsSvg}${probLabels}${yLabels}
@@ -5121,7 +5137,12 @@ addEventListener("themechange", () => {
 =========================================================================== */
 const PRICE = { symbol: null, bars: [], quote: null, range: 126, view: null, poll: null,
   flipped: false, descOpen: false, asOf: null, stale: false };
-const RANGES = [["1M", 21], ["3M", 63], ["6M", 126], ["1Y", 252], ["Max", 0]];
+const RANGES = [["1M", 21], ["3M", 63], ["6M", 126], ["1Y", 252], ["5Y", 1260], ["Max", 0]];
+/* Reading five years of daily candles is 1,260 hairlines; each long range
+   opens at the interval a reader can actually see, and the interval buttons
+   still override it. */
+const RANGE_INTERVAL = { 21: "daily", 63: "daily", 126: "daily", 252: "daily",
+                         1260: "weekly", 0: "monthly" };
 
 /** Sticky tab offset under the shared nav (and tape, when present). */
 function syncMtabOffset(){
@@ -5351,6 +5372,10 @@ async function loadPrices(){
   PRICE.quote = d.quote || null;
   PRICE.asOf = d.asOf || null;
   PRICE.stale = !!d.stale;
+  // Fresh symbol, fresh history: the stitched decade belongs to the previous
+  // one, and a stale approxBefore would caption the new chart wrongly.
+  PRICE.longFor = null;
+  PRICE.approxBefore = null;
   applyQuoteName();
   PRICE.view = null;
 
@@ -5365,6 +5390,40 @@ async function loadPrices(){
     refreshStale(sym, PRICE.asOf);
   }
   paintPrices();
+  extendWithLongCloses(sym);
+}
+
+/** Stretch the chart's history: price_daily keeps ~300 days, price_close_long
+ *  a decade of closes. The old closes are stitched under the daily bars as
+ *  degenerate candles (open = high = low = close, no volume) -- every range,
+ *  resample and zoom then works on the full span unchanged, and the weekly or
+ *  monthly views the long ranges open in rebuild honest-looking candles from
+ *  the daily closes inside each bucket. A symbol with no long history stored
+ *  yet is requested once, so the worker backfills it for the next visit. */
+async function extendWithLongCloses(sym){
+  if (PRICE.longFor === sym) return;
+  PRICE.longFor = sym;
+  let got = null;
+  try { got = await rpc("get_long_closes", { p_symbols: [sym] }); } catch {}
+  const closes = ((got && got[sym]) || {}).closes || [];
+  if (!closes.length) {
+    rpc("request_long_closes", { p_symbols: [sym] }).catch(() => {});
+    return;
+  }
+  // The user may have moved on while the closes were in flight.
+  if (PRICE.symbol !== sym || !PRICE.bars.length) return;
+  const dailyStart = PRICE.bars[0].d;
+  const old = closes
+    .map(b => ({ d: String(b.d).slice(0, 10), c: Number(b.c) }))
+    .filter(b => b.d && b.d < dailyStart && Number.isFinite(b.c) && b.c > 0)
+    .sort((a, b) => a.d < b.d ? -1 : 1)
+    .map(b => ({ d: b.d, o: b.c, h: b.c, l: b.c, c: b.c, v: 0 }));
+  if (!old.length) return;
+  PRICE.bars = [...old, ...PRICE.bars];
+  PRICE.approxBefore = dailyStart;
+  // Repaint only what the longer base changes: the drawn window (via its
+  // buttons' pressed state) is unchanged, but Max now means the full span.
+  drawCandles();
 }
 
 /** Watch for the refresh requested above and swap it in when it lands.
@@ -5390,6 +5449,9 @@ function refreshStale(sym, wasAsOf){
       applyQuoteName();
       PRICE.view = null;          // so the new bar is inside the window
       paintPrices();                        // redraws the stats panel too
+      // The fresh daily bars replaced the stitched array; stitch again.
+      PRICE.longFor = null;
+      extendWithLongCloses(sym);
       return;
     }
     PRICE.poll = setTimeout(tick, 3500);
@@ -5430,7 +5492,10 @@ function pollPrices(sym){
       PRICE.bars = d.bars; PRICE.quote = d.quote;
       applyQuoteName();
       restorePriceRow();
-      return paintPrices();
+      paintPrices();
+      PRICE.longFor = null;
+      extendWithLongCloses(sym);
+      return;
     }
     PRICE.poll = setTimeout(tick, 3000);
   };
@@ -5516,6 +5581,10 @@ function paintPrices(){
     b.onclick = () => {
       PRICE.range = +b.dataset.n;
       PRICE.view = null;
+      // Each range opens at a readable interval (5Y as weekly candles, Max as
+      // monthly); the interval menu still overrides afterwards.
+      const iv = RANGE_INTERVAL[PRICE.range];
+      if (iv) PRICE.interval = iv;
       GA.track("change_chart_range",
         { ticker: PRICE.symbol || S.ticker, range: b.dataset.r, source: "ticker_page" });
       paintPrices();
@@ -6054,7 +6123,16 @@ function drawCandles(){
   }).join("");
 
   const keptTip = document.getElementById("ptip");
-  host.innerHTML = `
+  // When the window reaches into the stitched decade of closes, say what
+  // that region is -- candles there are rebuilt from daily closes, with no
+  // intraday range and no volume, and pretending otherwise would be lying
+  // with a chart.
+  const approxNote = PRICE.approxBefore && bars[0] && bars[0].d < PRICE.approxBefore
+    ? `<div class="note" style="text-align:left;padding:2px 8px 0;font-size:11px">
+         Before ${esc(longDate(PRICE.approxBefore))}: shape from daily closes —
+         no intraday range or volume.</div>`
+    : "";
+  host.innerHTML = `${approxNote}
     <svg viewBox="0 0 ${W} ${H}" class="pchart" role="img"
          aria-label="Daily prices for ${esc(PRICE.symbol)}"
          preserveAspectRatio="${mobile ? "none" : "xMidYMid meet"}">
