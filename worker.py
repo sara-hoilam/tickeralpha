@@ -868,21 +868,23 @@ def refresh_sections(do_trades: bool = True) -> bool:
         log(f"  sector history: {exc}")
         hist = []
 
-    # Risk and return per sector. Twenty-two requests -- eleven price
-    # histories and eleven screener pages -- so it belongs on the slow
-    # sections cadence rather than the fifteen-minute market one. The
-    # underlying numbers are years of closes; they do not move hourly.
-    try:
-        risk = market.sector_risk_return()
-        if risk:
-            store.replace_sector_risk(risk)
-            log(f"  sector risk: {len(risk)} sectors")
-    except market.MarketError as exc:
-        log(f"  sector risk: {exc}")
-    except store.StoreError as exc:
-        # 0053 not applied yet. The panel shows its empty state; nothing else
-        # in this refresh should be lost over it.
-        log(f"  sector risk write (apply 0053_sector_risk.sql): {exc}")
+    # Risk and return per sector. Eleven *full* price histories -- each ETF
+    # from 1990 -- is ~4.5MB a run, ~108MB a day on the hourly cycle, second
+    # only to the trade feeds in what ate the bandwidth cap. The underlying
+    # numbers are years of closes; they do not move hourly, so they ride the
+    # trades cadence (six-hourly) rather than the hourly one.
+    if do_trades:
+        try:
+            risk = market.sector_risk_return()
+            if risk:
+                store.replace_sector_risk(risk)
+                log(f"  sector risk: {len(risk)} sectors")
+        except market.MarketError as exc:
+            log(f"  sector risk: {exc}")
+        except store.StoreError as exc:
+            # 0053 not applied yet. The panel shows its empty state; nothing
+            # else in this refresh should be lost over it.
+            log(f"  sector risk write (apply 0053_sector_risk.sql): {exc}")
 
     if not do_trades:
         # The trades and their derived flow ride the slower trades cadence.
