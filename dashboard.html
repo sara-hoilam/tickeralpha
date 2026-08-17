@@ -961,6 +961,8 @@ tbody tr:hover td{background:var(--sunk)}
 .tbtn:hover{border-color:var(--accent);color:var(--accent)}
 .tbtn svg{width:9px;height:6px}
 .tbtn.off{opacity:.45;cursor:default}
+/* A menu naming a live choice rather than its own category. */
+.tbtn-on{color:var(--ink);border-color:var(--ink-3)}
 .tmenu.open>.tbtn{border-color:var(--accent);color:var(--accent)}
 .tpop{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:60;
   min-width:216px;background:var(--card);border:1px solid var(--rule);
@@ -5441,7 +5443,9 @@ async function extendWithLongCloses(sym){
     .map(b => ({ d: String(b.d).slice(0, 10), c: Number(b.c) }))
     .filter(b => b.d && b.d < dailyStart && Number.isFinite(b.c) && b.c > 0)
     .sort((a, b) => a.d < b.d ? -1 : 1)
-    .map(b => ({ d: b.d, o: b.c, h: b.c, l: b.c, c: b.c, v: 0 }));
+    // a: this bar is a close, not a session. drawCandles draws these as a
+    // line rather than a candle with no body.
+    .map(b => ({ d: b.d, o: b.c, h: b.c, l: b.c, c: b.c, v: 0, a: 1 }));
   if (!old.length) return;
   PRICE.bars = [...old, ...PRICE.bars];
   PRICE.approxBefore = dailyStart;
@@ -5849,9 +5853,9 @@ const INTERVALS = [["Daily", "daily"], ["Weekly", "weekly"], ["Monthly", "monthl
 
 /** The two dropdown groups above the chart. */
 function chartToolbar(){
-  const menu = (id, label, body) => `
+  const menu = (id, label, body, active) => `
     <div class="tmenu" data-menu="${id}">
-      <button type="button" class="tbtn" aria-expanded="false">${esc(label)}
+      <button type="button" class="tbtn${active ? " tbtn-on" : ""}" aria-expanded="false">${esc(label)}
         <svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none"
           stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
       <div class="tpop">${body}</div>
@@ -5861,14 +5865,28 @@ function chartToolbar(){
     `<button type="button" data-interval="${v}"
        class="${PRICE.interval === v ? "on" : ""}">${lab}</button>`).join("");
 
+  /* A closed menu says what is chosen inside it, not what it is called. The
+     buttons read "Time", "Trend", "Volatility" whatever was picked, so the
+     chart's state was legible only by opening all four. One choice takes its
+     name; several take a count, because three indicator names do not fit. */
+  const chosen = (g) => {
+    const on = Object.entries(g.items).filter(([id]) => PRICE.active.has(id));
+    return !on.length ? g.label
+      : on.length === 1 ? on[0][1].name
+      : `${g.label} · ${on.length}`;
+  };
+  const intervalLabel = (INTERVALS.find(([, v]) => v === PRICE.interval) || [])[0];
+
   const groups = Object.entries(TA).map(([gid, g]) =>
-    menu(gid, g.label, `<div class="tpop-h">${esc(g.label)}</div>` +
+    menu(gid, chosen(g), `<div class="tpop-h">${esc(g.label)}</div>` +
       Object.entries(g.items).map(([id, it]) =>
         `<button type="button" data-ta="${id}"
-           class="${PRICE.active.has(id) ? "on" : ""}">${esc(it.name)}</button>`).join(""))).join("");
+           class="${PRICE.active.has(id) ? "on" : ""}">${esc(it.name)}</button>`).join(""),
+      Object.keys(g.items).some(id => PRICE.active.has(id)))).join("");
 
   const anyOn = PRICE.active.size > 0;
-  return menu("time", "Time", `<div class="tpop-h">Interval</div>${timeBody}`) + groups +
+  return menu("time", intervalLabel || "Time",
+              `<div class="tpop-h">Interval</div>${timeBody}`, !!intervalLabel) + groups +
     `<button type="button" class="tbtn ${anyOn ? "" : "off"}" data-ta-clear
        ${anyOn ? "" : "disabled"}>Clear</button>`;
 }
@@ -5916,14 +5934,45 @@ function activeOverlays(bars){
   return out;
 }
 
-function visibleBars(){
+/** [from, to) of PRICE.bars the chart is showing. */
+function visibleRange(){
   if (PRICE.view) {
     const a = Math.max(0, Math.min(PRICE.view.a, PRICE.bars.length - 2));
     const b = Math.max(a + 5, Math.min(PRICE.view.b, PRICE.bars.length));
-    return PRICE.bars.slice(a, b);
+    return [a, b];
   }
   const n = PRICE.range;
-  return n > 0 ? PRICE.bars.slice(-n) : PRICE.bars;
+  return n > 0 ? [Math.max(0, PRICE.bars.length - n), PRICE.bars.length]
+               : [0, PRICE.bars.length];
+}
+
+function visibleBars(){
+  const [a, b] = visibleRange();
+  return PRICE.bars.slice(a, b);
+}
+
+/* Indicators are computed over history, then cropped to the window.
+   Feeding them only the visible bars meant a 200-day average had 200 of its
+   252 visible days spent warming up, and drew as a stub in the last quarter
+   of the chart -- an average of the window rather than of the stock. The
+   lead-in is generous enough for the longest period on offer; where the
+   stored history is shorter, the indicator still starts late, which is then
+   a fact about the data rather than about the zoom. */
+const TA_LEAD_BARS = 320;
+
+/** Crop every full-length series in an indicator's output by `off`. Written
+    structurally rather than per-indicator so a new shape needs no change
+    here: any array as long as the computed input is a series. */
+function cropSeries(v, off, len){
+  if (Array.isArray(v)) {
+    return v.length === len ? v.slice(off) : v.map(x => cropSeries(x, off, len));
+  }
+  if (v && typeof v === "object") {
+    const out = {};
+    for (const k of Object.keys(v)) out[k] = cropSeries(v[k], off, len);
+    return out;
+  }
+  return v;
 }
 
 /** Pinch/pan state lives outside drawCandles so a redraw mid-gesture does not
@@ -6058,7 +6107,16 @@ function drawCandles(){
   const x = i => ml + step * (i + 0.5);
   const col = b => (b.c ?? 0) >= (b.o ?? b.c ?? 0) ? "var(--up)" : "var(--down)";
 
+  /* Close-only history cannot be a candle. The stitched decade carries one
+     close per day, so at daily interval those bars have no body and no wick
+     and drew as a row of coloured dots -- which reads as a broken chart, not
+     as "this part is closes only". They are drawn as a line instead, in a
+     neutral colour, joined to the first real candle so the series is
+     continuous. Resampled to weekly or monthly they regain a real high and
+     low from the closes in each bucket, and draw as candles again. */
+  const isFlat = b => !!b.a && (b.h ?? b.c) === (b.l ?? b.c);
   const candles = bars.map((b, i) => {
+    if (isFlat(b)) return "";
     const top = y(Math.max(b.o ?? b.c, b.c)), bot = y(Math.min(b.o ?? b.c, b.c));
     return `<line x1="${x(i).toFixed(1)}" x2="${x(i).toFixed(1)}"
               y1="${y(b.h ?? b.c).toFixed(1)}" y2="${y(b.l ?? b.c).toFixed(1)}"
@@ -6068,14 +6126,37 @@ function drawCandles(){
               fill="${col(b)}"/>`;
   }).join("");
 
+  const flatPts = [];
+  for (let i = 0; i < bars.length; i++) {
+    if (isFlat(bars[i])) {
+      flatPts.push(`${x(i).toFixed(1)},${y(bars[i].c).toFixed(1)}`);
+    } else if (flatPts.length) {
+      // Meet the first real candle at its open, so there is no gap.
+      flatPts.push(`${x(i).toFixed(1)},${y(bars[i].o ?? bars[i].c).toFixed(1)}`);
+      break;
+    }
+  }
+  const flatLine = flatPts.length > 1
+    ? `<polyline points="${flatPts.join(" ")}" fill="none" stroke="var(--ink-3)"
+         stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>`
+    : "";
+
   const vols = bars.map((b, i) =>
     `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${vy(b.v || 0).toFixed(1)}"
        width="${bw.toFixed(1)}" height="${(H - mb - vy(b.v || 0)).toFixed(1)}"
        fill="${col(b)}" opacity=".26"/>`).join("");
 
   // Overlays replace the old fixed 50-day line: the same information is now
-  // one option among many rather than the only one on offer.
-  const overlays = activeOverlays(bars);
+  // one option among many rather than the only one on offer. They are fed
+  // the window plus a lead-in of earlier history and cropped back, so a long
+  // average is drawn from the stock's past rather than from the zoom.
+  const [va, vb] = visibleRange();
+  const ctx = resample(PRICE.bars.slice(Math.max(0, va - TA_LEAD_BARS), vb), PRICE.interval);
+  const firstVisible = bars.length ? bars[0].d : null;
+  // Matched on date: resampling can merge the window's opening bucket with
+  // days before it, so counting backwards from the end would be off by one.
+  const off = Math.max(0, ctx.findIndex(b => b.d === firstVisible));
+  const overlays = activeOverlays(ctx).map(o => cropSeries(o, off, ctx.length));
   const path = pts => pts.map((v, i) => v === null || v === undefined ? null
       : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).join(" ");
 
@@ -6128,12 +6209,14 @@ function drawCandles(){
   }).join("");
 
   const ticks = bandTicks(y0, y1, 5);
-  // Price labels sit inside the plot (right edge) so they stay within the
-  // white chart card rather than hanging outside the border.
+  // Price labels sit in the right margin, not inside the plot. Drawn inside
+  // and right-aligned, they landed on top of the newest candles -- the most
+  // recent prices, which are the ones a reader is looking at. The margin is
+  // reserved for exactly this and is wide enough for the numbers.
   const grid = ticks.map(t => `
     <line x1="${ml}" x2="${W - mr}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"
       stroke="var(--rule-2)" stroke-width="1"/>
-    <text x="${W - mr - 4}" y="${(y(t) + 3.5).toFixed(1)}" class="ax" text-anchor="end">${
+    <text x="${W - mr + 5}" y="${(y(t) + 3.5).toFixed(1)}" class="ax" text-anchor="start">${
       t < 10 ? t.toFixed(2) : Math.round(t)}</text>`).join("");
 
   // Dates at a readable density, whatever the range. Always include ends.
@@ -6160,7 +6243,7 @@ function drawCandles(){
     <svg viewBox="0 0 ${W} ${H}" class="pchart" role="img"
          aria-label="Daily prices for ${esc(PRICE.symbol)}"
          preserveAspectRatio="${mobile ? "none" : "xMidYMid meet"}">
-      ${grid}${taSvg}${vols}${candles}
+      ${grid}${taSvg}${vols}${flatLine}${candles}
       ${dates}
       <g id="pcross" style="display:none">
         <line id="pcx" y1="${mt}" y2="${H - mb}" stroke="var(--ink-3)"
