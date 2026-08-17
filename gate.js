@@ -241,6 +241,7 @@
 
     veil.querySelector(".gate-cta").onclick = () => {
       GA().track("gate_click", { gate: reason });
+      if (window.posthog) window.posthog.capture("signup_gate_clicked", { gate: reason });
       // On an app page the sheet is right here. A report has no nav and so no
       // sheet; sending it straight to Google would quietly drop the email
       // route on the one wall that matters most, so it goes to the app with
@@ -256,6 +257,7 @@
 
     live.add({ host, rest, blur });
     GA().track("gate_view", { gate: reason });
+    if (window.posthog) window.posthog.capture("signup_gate_shown", { gate: reason });
     return true;
   }
 

@@ -20,6 +20,7 @@
 #   favicon-*     the same mark at tab size; nav.js picks one by the
 #                 browser's colour scheme, favicon.ico is the fallback
 #   analytics.js  Google Analytics 4 (gtag.js) and the consent banner
+#   posthog-init.js + vendor/posthog/array.js  PostHog analytics (@posthog/js)
 #   clarity-init.js + vendor/clarity  Microsoft Clarity (@microsoft/clarity)
 #   logo.js       cached Logo.dev company logos (via Supabase)
 set -euo pipefail
@@ -60,8 +61,12 @@ cp gate.js public/
 cp brand-logo-light.png brand-logo-dark.png public/
 cp favicon.ico favicon-light.png favicon-dark.png public/
 cp analytics.js public/
+cp posthog-init.js public/
 cp logo.js public/
 cp clarity-init.js public/
+# PostHog browser bundle — served locally so no CDN URL appears in source.
+mkdir -p public/vendor/posthog
+cp node_modules/posthog-js/dist/array.js public/vendor/posthog/
 cp node_modules/@microsoft/clarity/index.js      public/vendor/clarity/
 cp node_modules/@microsoft/clarity/package.json  public/vendor/clarity/
 cp node_modules/@microsoft/clarity/src/utils.js  public/vendor/clarity/src/
@@ -77,7 +82,7 @@ cp node_modules/@microsoft/clarity/src/utils.js  public/vendor/clarity/src/
 # point), and clarity-init.js stays put because it imports ./vendor/clarity by
 # relative path.
 mkdir -p public/assets
-for f in nav.js nav.css logo.js analytics.js gate.js; do
+for f in nav.js nav.css logo.js analytics.js gate.js posthog-init.js; do
   base="${f%.*}"; ext="${f##*.}"
   h=$(md5sum "public/$f" | cut -c1-8)
   mv "public/$f" "public/assets/$base.$h.$ext"
@@ -121,6 +126,14 @@ fi
 
 if [ -n "${GA_MEASUREMENT_ID:-}" ]; then
   inject gaMeasurementId "$GA_MEASUREMENT_ID" GA_MEASUREMENT_ID
+fi
+
+if [ -n "${POSTHOG_API_KEY:-}" ]; then
+  inject posthogApiKey "$POSTHOG_API_KEY" POSTHOG_API_KEY
+fi
+
+if [ -n "${POSTHOG_HOST:-}" ]; then
+  inject posthogHost "$POSTHOG_HOST" POSTHOG_HOST
 fi
 
 echo "built public/: $(ls -1 public | tr '\n' ' ')"

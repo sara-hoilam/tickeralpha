@@ -30,4 +30,9 @@ window.ALPHATICKER_CONFIG = {
   // Logo.dev publishable key (safe client-side). Logos are cached in Supabase
   // by the worker; this key is kept for reference / future CDN fallbacks.
   logoDevPublishableKey: "pk_RQkedGufR1uCvTvlztKeQg",
+
+  // PostHog product analytics. Public client key and ingest host injected by
+  // build.sh from POSTHOG_API_KEY / POSTHOG_HOST env vars. See posthog-init.js.
+  posthogApiKey: "",
+  posthogHost: "",
 };

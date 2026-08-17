@@ -7,6 +7,7 @@
 <script src="config.js"></script>
 <script src="logo.js"></script>
 <script src="analytics.js"></script>
+<script src="posthog-init.js"></script>
 <script type="module" src="clarity-init.js"></script>
 <link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1661,6 +1662,9 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee, n
       : row.kind === "dividend" ? "portfolio_dividend" : "portfolio_buy", {
       ticker: row.symbol,
     });
+    if (window.posthog && (row.kind === "buy" || row.kind === "sell")) {
+      window.posthog.capture("portfolio_trade_added", { ticker: row.symbol, kind: row.kind });
+    }
   }
   if (reload) await loadPortfolio();
 }
@@ -3768,7 +3772,10 @@ async function deleteSymbolHoldings(symbol, { keepDividends = false } = {}){
       }
     }
   }
-  if (!keepDividends) GA.track("portfolio_delete", { ticker: sym });
+  if (!keepDividends) {
+    GA.track("portfolio_delete", { ticker: sym });
+    if (window.posthog) window.posthog.capture("portfolio_trade_removed", { ticker: sym });
+  }
   await loadPortfolio();
 }
 

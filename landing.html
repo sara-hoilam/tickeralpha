@@ -7,6 +7,7 @@
 <script src="config.js"></script>
 <script src="logo.js"></script>
 <script src="analytics.js"></script>
+<script src="posthog-init.js"></script>
 <script type="module" src="clarity-init.js"></script>
 <link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1248,8 +1249,12 @@ function askWatchPrices(sym){
 async function toggleWatch(symbol, source){
   const sym = String(symbol || "").toUpperCase();
   if (!sym) return false;
-  const report = watching => GA.track(
-    watching ? "add_to_watchlist" : "remove_from_watchlist", { ticker: sym, source });
+  const report = watching => {
+    GA.track(watching ? "add_to_watchlist" : "remove_from_watchlist", { ticker: sym, source });
+    if (window.posthog) window.posthog.capture(
+      watching ? "watchlist_ticker_added" : "watchlist_ticker_removed",
+      { ticker: sym, source });
+  };
   // The watchlist is the gate. This used to save to localStorage and *then*
   // ask for an account, which meant the visitor already had what they came
   // for and the modal was pure interruption -- the reason it converted at
@@ -2365,6 +2370,7 @@ function wireRiskControls(){
       if (fallback) RISK.interval = fallback;
     }
     GA.track("change_chart_range", { range: RISK.period, source: "sector_risk" });
+    if (window.posthog) window.posthog.capture("sector_range_changed", { range: RISK.period });
     renderRisk();
   });
 
@@ -2486,6 +2492,7 @@ function wirePanelInfoTips(root){
   // the visitor never chose is not a screener they ran.
   document.querySelectorAll("#views button").forEach(b => b.onclick = () => {
     GA.track("run_screener", { screener_name: b.dataset.v });
+    if (window.posthog) window.posthog.capture("market_view_changed", { view: b.dataset.v });
     setView(b.dataset.v);
   });
 

@@ -281,6 +281,7 @@
     // search nobody could answer is the interesting half of the report.
     const term = q.value.trim();
     if (term) GA.track("search", { search_term: term });
+    if (term && window.posthog) window.posthog.capture("ticker_searched", { search_term: term });
     location.href = `company.html?t=${encodeURIComponent(t)}&src=search_results`;
   };
 
