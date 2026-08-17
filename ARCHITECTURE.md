@@ -30,7 +30,8 @@ They meet only in the database.
 ## 1. The sources
 
 Everything comes from SEC EDGAR. There is no market-data vendor, no scraping
-of finance sites, and no LLM anywhere in the runtime.
+of finance sites, and no LLM in the request path — see §10 for the one place a
+model does run, which is a nightly batch and not part of serving a page.
 
 | What | Endpoint | Used for |
 |---|---|---|
@@ -227,3 +228,45 @@ python worker.py backfill             # drain the queue once
 recorded as `failed` with its error and surfaces as "no breakdown available" —
 never as a guess. `python worker.py stats` reports `filings_failed`, and a
 rising count is the signal that a filer has changed how it renders its tables.
+
+---
+
+## 10. The one model call
+
+The market page opens with **Today's Brief**: three to five short paragraphs
+on what is scheduled for the day and why it matters. Those are written by
+Claude, once each weekday morning, by `.github/workflows/insights.yml`.
+
+It is worth being precise about where that sits, because it is the only part
+of the product that is not deterministic:
+
+```
+GitHub Actions, 10:30 UTC ──▶ insights.py
+   (weekdays only)              │  reads the same public RPCs a visitor calls
+                                │  picks ~14 candidates in Python
+                                │  one Claude API call
+                                │  seven validation gates
+                                ▼
+                        ledger.market_insight   ◀── the page reads this
+```
+
+**No model runs while a page is being served.** The browser reads a stored
+row, so the token cost is one call a day whether the page is opened twice or
+twenty thousand times, and nobody waits on inference. If the job fails, the
+previous day's brief stays up with its own date on it.
+
+Two properties keep it honest, and both live in `insights.py` rather than in
+the prompt:
+
+* **The code decides what is important; the model only explains it.** Ranking
+  and filtering are settled in Python before the call — the model receives a
+  short list of already-chosen candidates and cannot surface an event that was
+  never selected.
+* **Every number is copied, not computed.** Each candidate carries its figures
+  as pre-formatted strings, and a validator rejects the whole run if any
+  number in the output is not a substring of the candidate it cites. Other
+  gates reject advice language, unknown tickers, missing sources, and briefs
+  that ignore the day's schedule. A rejected run writes nothing.
+
+`python insights.py --dry-run` prints the candidates and the generated brief
+without writing, which is how to check the output after changing the prompt.

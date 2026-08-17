@@ -297,6 +297,89 @@ svg{display:block;max-width:100%}
 @keyframes sp{to{transform:rotate(360deg)}}
 
 /* ---- market pulse + news strip (above Market Summary) -------------------- */
+/* ---- Today's Brief -------------------------------------------------------
+   Insights left, the day's calendar right, in the same proportions the list
+   and chart below use. Both halves are fixed-height and scroll internally, so
+   a heavy news day cannot push the market-cap table off the fold. */
+.brief{
+  display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.9fr);
+  gap:18px;margin:0 0 18px;align-items:start;
+}
+@media (max-width:980px){ .brief{grid-template-columns:minmax(0,1fr)} }
+.brief .panel{display:flex;flex-direction:column;min-width:0}
+.bstamp{font-size:11.5px;color:var(--ink-3);white-space:nowrap;flex-shrink:0}
+/* ~3 cards and ~4 calendar rows before either side scrolls; the two columns
+   are deliberately the same height so the section reads as one block. */
+#brief-list,.cal-scroll{height:268px;overflow-y:auto;scrollbar-gutter:stable}
+.bcard{
+  display:block;padding:11px 14px;border-bottom:1px solid var(--rule-2);
+  text-decoration:none;color:inherit;
+}
+.bcard:last-child{border-bottom:0}
+.bcard h4{
+  margin:0 0 4px;font-size:13.5px;font-weight:650;letter-spacing:-.01em;
+  color:var(--ink);line-height:1.3;
+}
+.bcard p{margin:0;font-size:12.5px;line-height:1.5;color:var(--ink-2)}
+.bfoot{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:7px}
+.bwhen{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
+  color:var(--ink-3);letter-spacing:.02em;
+}
+.bkind{
+  font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;
+  color:var(--ink-3);border:1px solid var(--rule);border-radius:99px;
+  padding:1px 7px;
+}
+.bsym{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;
+  color:var(--accent);text-decoration:none;border:1px solid var(--rule);
+  border-radius:99px;padding:1px 7px;
+}
+.bsym:hover{border-color:var(--accent);background:var(--accent-soft)}
+/* Calendar rows, matching the portfolio page's so the two read as one product. */
+.brow{
+  display:flex;align-items:center;gap:10px;padding:0 12px;height:56px;
+  border-bottom:1px solid var(--rule-2);box-sizing:border-box;
+}
+.brow:last-child{border-bottom:0}
+.brow .av{
+  width:30px;height:30px;border-radius:50%;flex-shrink:0;display:grid;
+  place-items:center;font-family:"IBM Plex Mono",monospace;font-size:10px;
+  font-weight:700;color:#fff;overflow:hidden;
+}
+.brow .av img{width:100%;height:100%;object-fit:cover}
+.brow .body{min-width:0;flex:1}
+.brow .row1{display:flex;align-items:baseline;gap:8px;min-width:0}
+.brow .nm{
+  font-size:12.5px;font-weight:600;color:var(--ink);text-decoration:none;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+a.nm:hover{color:var(--accent)}
+.brow .when{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-3);
+  flex-shrink:0;margin-left:auto;
+}
+.brow .meta{
+  font-size:11.5px;color:var(--ink-3);margin-top:2px;line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+/* Impact dot: the releases that move the whole market read first. */
+.idot{
+  width:7px;height:7px;border-radius:50%;flex-shrink:0;
+  background:var(--ink-3);display:inline-block;
+}
+.idot.high{background:var(--down)} .idot.medium{background:#eda100}
+.bmore{
+  display:block;padding:10px 12px;font-size:12px;color:var(--ink-3);
+  text-decoration:none;text-align:center;
+}
+.bmore:hover{color:var(--accent)}
+.bempty{
+  height:100%;display:grid;place-items:center;padding:0 20px;text-align:center;
+  color:var(--ink-3);font-size:12.5px;line-height:1.5;
+}
+
 .pulse{
   display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
   background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
@@ -592,6 +675,42 @@ svg{display:block;max-width:100%}
   <div class="pulse" id="pulse" aria-label="Market pulse">
     <div class="note" style="grid-column:1/-1;padding:18px"><span class="load"></span></div>
   </div>
+
+  <div class="brief" id="brief">
+    <section class="panel">
+      <div class="hmhead">
+        <div class="htitle">
+          <h3>Today's Brief</h3>
+          <button type="button" class="info-i" aria-label="About Today's Brief">
+            <span aria-hidden="true">i</span>
+            <span class="info-bubble">Written once each morning before the
+              open, from the day's scheduled releases, the companies reporting
+              and the last day of news. It describes what is happening, not
+              what to do about it — nothing here is investment advice.</span>
+          </button>
+        </div>
+        <div class="bstamp" id="brief-stamp"></div>
+      </div>
+      <div id="brief-list"><div class="note"><span class="load"></span></div></div>
+    </section>
+
+    <section class="panel">
+      <div class="hmhead">
+        <div class="htitle">
+          <h3>On the Calendar</h3>
+          <button type="button" class="info-i" aria-label="About the calendar">
+            <span aria-hidden="true">i</span>
+            <span class="info-bubble">US economic releases first, most
+              market-moving at the top, then the largest companies reporting
+              today. Times are Eastern.</span>
+          </button>
+        </div>
+        <div class="bstamp" id="brief-day"></div>
+      </div>
+      <div class="cal-scroll" id="brief-cal"><div class="note"><span class="load"></span></div></div>
+    </section>
+  </div>
+
   <section class="panel">
     <div class="split">
       <div>
@@ -2511,6 +2630,170 @@ function wirePanelInfoTips(root){
   });
 }
 
+/* ---- Today's Brief -------------------------------------------------------
+   Insights are written once a morning by .github/workflows/insights.yml and
+   stored; this only reads them. get_market_brief (migration 0065) returns the
+   insights, the day's US economic releases and its largest earnings in one
+   call, because the block sits above the fold and must not arrive in pieces. */
+
+const BRIEF_KIND = {
+  economics: "Economy", earnings: "Earnings", news: "News", market: "Markets",
+};
+
+function briefDayLabel(iso){
+  const [y, m, d] = String(iso || "").split("-").map(Number);
+  if (!y) return "";
+  return new Date(y, m - 1, d).toLocaleDateString(undefined,
+    { weekday: "short", day: "numeric", month: "short" });
+}
+
+/** A stable colour per symbol, so a company keeps its dot between visits. */
+function briefAvatar(sym){
+  let h = 0;
+  for (const ch of String(sym || "?")) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return `hsl(${h} 42% 42%)`;
+}
+
+function renderBriefInsights(data){
+  const host = document.getElementById("brief-list");
+  const stamp = document.getElementById("brief-stamp");
+  if (!host) return;
+  const rows = (data && data.insights) || [];
+
+  if (!rows.length) {
+    host.innerHTML = `<div class="bempty">The brief is written each morning
+      before the market opens. Check back shortly.</div>`;
+    if (stamp) stamp.textContent = "";
+    return;
+  }
+
+  // The brief is written in the morning; a visitor before that run, or on a
+  // weekend, sees the last one. Say which day it is rather than letting it
+  // pass for today's.
+  if (stamp) {
+    const from = data.insightsDay, today = data.day;
+    stamp.textContent = from && today && from !== today
+      ? `From ${briefDayLabel(from)}` : "";
+  }
+
+  host.innerHTML = rows.map(r => {
+    const syms = (r.symbols || []).map(s =>
+      `<a class="bsym" href="company.html?t=${encodeURIComponent(s)}&src=market_brief"
+          data-sym="${esc(s)}">${esc(s)}</a>`).join("");
+    const when = r.eventTime ? `<span class="bwhen">${esc(r.eventTime)} ET</span>` : "";
+    const kind = BRIEF_KIND[r.kind] ? `<span class="bkind">${esc(BRIEF_KIND[r.kind])}</span>` : "";
+    const foot = when || kind || syms
+      ? `<div class="bfoot">${when}${kind}${syms}</div>` : "";
+    return `<div class="bcard">
+      <h4>${esc(r.headline)}</h4>
+      <p>${esc(r.body)}</p>
+      ${foot}
+    </div>`;
+  }).join("");
+
+  host.querySelectorAll(".bsym").forEach(a => a.addEventListener("click", () => {
+    GA.track("select_content", { content_type: "ticker", item_id: a.dataset.sym });
+    if (window.posthog) {
+      window.posthog.capture("brief_ticker_clicked", { symbol: a.dataset.sym });
+    }
+  }));
+}
+
+function renderBriefCalendar(data){
+  const host = document.getElementById("brief-cal");
+  const dayLabel = document.getElementById("brief-day");
+  if (!host) return;
+  const econ = (data && data.economics) || [];
+  const earn = (data && data.earnings) || [];
+  if (dayLabel) dayLabel.textContent = briefDayLabel(data && data.day);
+
+  if (!econ.length && !earn.length) {
+    // Weekends and holidays land here: the RPC is asked for today, and today
+    // has nothing on it.
+    host.innerHTML = `<div class="bempty">Nothing scheduled today. US markets
+      are closed at weekends and on market holidays.</div>`;
+    return;
+  }
+
+  const num = v => v === null || v === undefined || !Number.isFinite(Number(v))
+    ? null : (Math.abs(v) >= 1000 ? Number(v).toLocaleString() : String(v));
+  const cap = v => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+    if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+    return `$${(n / 1e6).toFixed(0)}M`;
+  };
+
+  const econRows = econ.map(e => {
+    const impact = String(e.impact || "").toLowerCase();
+    const bits = [];
+    for (const [k, v] of [["Est.", e.estimate], ["Act.", e.actual], ["Prev.", e.previous]]) {
+      const n = num(v);
+      if (n !== null) bits.push(`${k} ${n}`);
+    }
+    return `<div class="brow">
+      <span class="av" style="background:var(--ink-3)">E</span>
+      <div class="body">
+        <div class="row1">
+          <span class="idot ${esc(impact)}" title="${esc(impact || "low")} impact"></span>
+          <span class="nm">${esc(e.event || "Economic release")}</span>
+          <span class="when">${esc(e.time || "")}</span>
+        </div>
+        <div class="meta">${esc(bits.join(" · ") || "No forecast published")}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const earnRows = earn.map(e => {
+    const sym = String(e.symbol || "");
+    const sess = { bmo: "Pre-Mkt", amc: "Post-Mkt" }[String(e.time || "").toLowerCase()] || "";
+    const bits = [cap(e.marketCap), e.epsEstimated != null
+      ? `EPS est. ${Number(e.epsEstimated).toFixed(2)}` : null].filter(Boolean);
+    return `<div class="brow">
+      <span class="av" data-logo="${esc(sym)}" style="background:${briefAvatar(sym)}"
+        >${esc(sym.slice(0, 2))}</span>
+      <div class="body">
+        <div class="row1">
+          <a class="nm" href="company.html?t=${encodeURIComponent(sym)}&src=market_brief"
+             >${esc(e.name || sym)}</a>
+          <span class="when">${esc(sess)}</span>
+        </div>
+        <div class="meta">${esc(sym)}${bits.length ? " · " + esc(bits.join(" · ")) : ""}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  // The RPC caps the earnings array at twelve; say so rather than implying
+  // that is the whole day.
+  const total = Number(data.earningsTotal || earn.length);
+  const more = total > earn.length
+    ? `<a class="bmore" href="earnings.html">${total - earn.length} more companies
+       reporting today →</a>` : "";
+
+  host.innerHTML = econRows + earnRows + more;
+  if (window.TickerLogos) {
+    window.TickerLogos.hydrate(earn.map(e => e.symbol).filter(Boolean), host);
+  }
+}
+
+async function loadBrief(){
+  try {
+    const data = await rpc("get_market_brief");
+    renderBriefInsights(data);
+    renderBriefCalendar(data);
+  } catch (e) {
+    // Before migration 0065 is applied the RPC does not exist. That should
+    // read as "not here yet", not as a broken page.
+    const host = document.getElementById("brief-list");
+    const cal = document.getElementById("brief-cal");
+    if (host) host.innerHTML = `<div class="bempty">The brief is unavailable
+      right now.</div>`;
+    if (cal) cal.innerHTML = `<div class="bempty">The calendar is unavailable
+      right now.</div>`;
+  }
+}
+
 /* ---- boot ---------------------------------------------------------------- */
 (async function boot(){
   wireChartRange();
@@ -2555,6 +2838,9 @@ function wirePanelInfoTips(root){
     catch { try { pulse = await assemblePulseFallback(); } catch {} }
     renderPulse(pulse);
   })();
+
+  // Above the fold, and independent of everything else on the page.
+  loadBrief();
 
   wireDiscover();
   loadDiscover();

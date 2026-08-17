@@ -1,0 +1,56 @@
+name: market brief
+
+# Writes the market page's "Today's Brief" insights once each weekday
+# morning, before the US open. The job talks to Supabase only -- it never
+# commits to this repository.
+#
+# 10:30 UTC is 06:30 in New York on eastern daylight time and 05:30 on
+# eastern standard time. GitHub's cron is UTC year-round while the market
+# keeps wall-clock hours, so the gap to the 09:30 open shifts by an hour
+# across the DST boundary; either way the brief is up hours before anyone
+# reads it. insights.py resolves the trading day in Eastern itself and
+# exits quietly on weekends and market holidays.
+
+on:
+  schedule:
+    - cron: "30 10 * * 1-5"
+  workflow_dispatch:
+
+# Two runs writing the same day would race on the same rows. The second
+# waits rather than doubling up.
+concurrency:
+  group: market-brief
+  cancel-in-progress: false
+
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The job writes to Supabase, not to git.
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the Anthropic SDK
+        run: pip install --quiet anthropic
+
+      - name: Write today's brief
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          missing=""
+          [ -z "$ANTHROPIC_API_KEY" ] && missing="$missing ANTHROPIC_API_KEY"
+          [ -z "$SUPABASE_URL" ] && missing="$missing SUPABASE_URL"
+          [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] && missing="$missing SUPABASE_SERVICE_ROLE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::missing repository secrets:$missing"
+            exit 1
+          fi
+          python insights.py
