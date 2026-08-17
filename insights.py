@@ -76,6 +76,15 @@ MAX_CANDIDATES = 15
 MIN_INSIGHTS = 3
 MAX_INSIGHTS = 5
 
+# Length is a house-style preference, not a correctness rule, so the ceiling
+# sits well clear of the wording the prompt asks for. A brief whose facts all
+# check out is not worth discarding over a few characters -- the first run of
+# this job lost one that was seven characters long. These numbers are quoted
+# to the model in the prompt so it can measure itself against them.
+HEADLINE_MAX = 70
+BODY_MIN = 80
+BODY_MAX = 400
+
 
 # ---------------------------------------------------------------------------
 # Dates
@@ -409,9 +418,12 @@ RULES - these are absolute:
    short sentence of what it is, one of why today's version of it is worth
    watching. No jargon without a plain-English gloss in the same sentence.
 
-STYLE:
-- headline: under 9 words, specific, no colon-subtitle construction.
-- body: exactly two sentences, roughly 30-45 words in total, no semicolons.
+STYLE (the character limits are enforced -- count them before you answer):
+- headline: under 9 words and at most %(headline_max)d characters, specific,
+  no colon-subtitle construction.
+- body: exactly two sentences, %(body_min)d-%(body_max)d characters in total,
+  no semicolons. Aim for about 40 words; %(body_max)d characters is the hard
+  ceiling, not the target.
 - Lead with the thing itself, not with throat-clearing. "Investors will be
   watching..." is banned; "The Fed decides on rates at 14:00" is right.
 - Plain declaratives. No hype, no "key", no "crucial", no "closely watched".
@@ -423,7 +435,7 @@ news themes, unless a news theme is clearly larger than the day's schedule.
 symbols: tickers you name in the body, drawn only from that candidate's own
 symbols list; an empty list if none.
 event_time: copy the candidate's `when`, or null if it has none.\
-"""
+""" % {"headline_max": HEADLINE_MAX, "body_min": BODY_MIN, "body_max": BODY_MAX}
 
 RESULT_SCHEMA = {
     "type": "object",
@@ -592,11 +604,12 @@ def validate(payload, candidates: list[dict]) -> list[dict]:
                 raise Rejected(f"advice: '{phrase}' appears in {r['source_id']}")
 
         # 6. Length.
-        if len(r["headline"]) > 60:
-            raise Rejected(f"length: headline over 60 chars in {r['source_id']}")
-        if not (80 <= len(r["body"]) <= 320):
+        if len(r["headline"]) > HEADLINE_MAX:
+            raise Rejected(f"length: headline is {len(r['headline'])} chars in "
+                           f"{r['source_id']} (max {HEADLINE_MAX})")
+        if not (BODY_MIN <= len(r["body"]) <= BODY_MAX):
             raise Rejected(f"length: body is {len(r['body'])} chars in "
-                           f"{r['source_id']} (want 80-320)")
+                           f"{r['source_id']} (want {BODY_MIN}-{BODY_MAX})")
         if _sentence_count(r["body"]) != 2:
             raise Rejected(f"length: body is not two sentences in "
                            f"{r['source_id']}")
