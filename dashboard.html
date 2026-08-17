@@ -385,9 +385,16 @@ tbody tr:hover td{background:var(--sunk)}
   border:1px solid var(--rule);color:var(--ink-2);background:var(--sunk);
   width:fit-content;max-width:100%;cursor:help}
 .pq-state i{width:7px;height:7px;border-radius:50%;background:var(--ink-3);flex-shrink:0}
+.pq-state b{font-weight:600;color:var(--ink)}
+.pq-state span{font-weight:400;color:var(--ink-3)}
 .pq-state.st-open i,.pq-state.st-live i{background:var(--up)}
 .pq-state.st-pre i{background:#eda100}
 .pq-state.st-after i{background:var(--accent)}
+/* A close older than the last completed session: the reason a prev-close can
+   disagree with what the reader saw elsewhere, so it is flagged, not muted. */
+.pq-state.st-behind{border-color:var(--down);background:var(--down-soft)}
+.pq-state.st-behind i{background:var(--down)}
+.pq-state.st-behind span{color:var(--down)}
 /* What the houses call it, under the price it is called on. */
 .pq-call{display:flex;align-items:baseline;gap:8px;margin-top:8px}
 .pq-call b{font-size:17px;font-weight:600;letter-spacing:-.01em}
@@ -6240,46 +6247,85 @@ function drawCandles(){
   wirePriceGestures(host);
 }
 
-/** Which US equity session it is right now, in ET, plus what the stored
- *  price actually represents. The page's data is at best the last worker
- *  refresh, so the pill never claims "live": it names the session and dates
- *  the price, which is the pair a reader needs to know what they are looking
- *  at -- a Monday pre-market visitor is reading Friday's close, and the page
- *  should say so before they compare it to their broker. */
-function priceStateChip(){
-  const sym = String(PRICE.symbol || "");
-  const asOf = PRICE.asOf ? String(PRICE.asOf).slice(0, 10) : null;
-  // Crypto never closes; an index page follows equity hours like its members.
-  if (/^[A-Z]{2,6}USD$/.test(sym)) {
-    return { cls: "st-live", label: "24/7 market",
-      title: "Crypto trades around the clock. The price is the latest stored quote." };
-  }
+/** What the displayed price IS, said first, with the session as context.
+ *
+ *  The first version led with the session -- "Pre-market · showing close 12
+ *  Aug" -- and was read as "this is the pre-market price", which is the one
+ *  thing it is not. The number is always a regular-session close until
+ *  extended-hours quotes are wired, so the label now opens with that close
+ *  and its date, and mentions the session afterwards.
+ *
+ *  It also checks the close against the session the market has actually
+ *  completed. A close older than that is not a quiet fact -- it is why the
+ *  prev-close in the table disagrees with what a reader saw elsewhere -- so
+ *  it says how far behind it is and that a refresh is under way. */
+function marketSessionNow(){
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York",
     hour12: false, weekday: "short", year: "numeric", month: "2-digit",
     day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date());
   const g = t => (parts.find(p => p.type === t) || {}).value;
-  const etToday = `${g("year")}-${g("month")}-${g("day")}`;
+  const today = `${g("year")}-${g("month")}-${g("day")}`;
   const mins = (+g("hour")) * 60 + (+g("minute"));
-  const wknd = g("weekday") === "Sat" || g("weekday") === "Sun";
-  const dated = asOf ? (asOf === etToday ? "today" : shortDate(asOf)) : "—";
-  const closeBit = dated === "today" ? "today’s session" : `close ${dated}`;
-  if (wknd || mins < 240 || mins >= 1200) {
-    return { cls: "st-closed", label: `Market closed · ${closeBit}`,
-      title: "US markets are closed. The price shown is the last regular-session close." };
+  const dow = g("weekday");
+  const weekend = dow === "Sat" || dow === "Sun";
+  const phase = weekend ? "closed"
+    : mins < 240 ? "closed"
+    : mins < 570 ? "pre"
+    : mins < 960 ? "open"
+    : mins < 1200 ? "after"
+    : "closed";
+  // The most recent regular session that has finished. Weekday arithmetic
+  // only: a market holiday makes this one session optimistic, which shows a
+  // "1 session behind" note that clears itself on the next refresh -- better
+  // than silently vouching for a stale price.
+  const d = new Date(`${today}T12:00:00Z`);
+  if (phase === "open" || phase === "pre" || (weekend === false && mins < 240)) {
+    d.setUTCDate(d.getUTCDate() - 1);                 // today has not closed yet
   }
-  if (mins < 570) {
-    return { cls: "st-pre", label: `Pre-market · showing ${closeBit}`,
-      title: "US pre-market is under way (4:00–9:30 ET). The price shown is the last regular-session close, not a pre-market quote." };
+  while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() - 1);
+  return { today, phase, lastClose: d.toISOString().slice(0, 10) };
+}
+
+function priceStateChip(){
+  const sym = String(PRICE.symbol || "");
+  const asOf = PRICE.asOf ? String(PRICE.asOf).slice(0, 10) : null;
+  if (/^[A-Z]{2,6}USD$/.test(sym)) {
+    return { cls: "st-live", lead: "Latest quote", rest: "24/7 market",
+      title: "Crypto trades around the clock. This is the most recent stored quote." };
   }
-  if (mins < 960) {
-    return dated === "today"
-      ? { cls: "st-open", label: "Market open · today",
-          title: "The regular US session is open (9:30–16:00 ET). The price is today’s, from the latest refresh." }
-      : { cls: "st-open", label: `Market open · showing ${closeBit}`,
-          title: "The session is open but the stored price is from an earlier day; it refreshes shortly after the page is opened." };
+  const { phase, lastClose } = marketSessionNow();
+  const sessionWord = phase === "pre" ? "pre-market now"
+    : phase === "open" ? "market open now"
+    : phase === "after" ? "after hours now"
+    : "market closed now";
+  if (!asOf) {
+    return { cls: "st-closed", lead: "Last close", rest: sessionWord,
+      title: "The price is the most recent regular-session close available." };
   }
-  return { cls: "st-after", label: `After hours · ${closeBit}`,
-    title: "The regular US session has closed (after 16:00 ET). The price shown is that session’s close." };
+  const behind = asOf < lastClose;
+  const lead = `${shortDate(asOf)} close`;
+  if (behind) {
+    // Sessions between, counted in weekdays -- the same approximation as above.
+    let n = 0;
+    for (const d = new Date(`${asOf}T12:00:00Z`);
+         d.toISOString().slice(0, 10) < lastClose && n < 30;) {
+      d.setUTCDate(d.getUTCDate() + 1);
+      if (![0, 6].includes(d.getUTCDay())) n++;
+    }
+    return { cls: "st-behind", lead,
+      rest: `${n} session${n === 1 ? "" : "s"} behind · refreshing`,
+      title: `This is the close from ${longDate(asOf)}, not the latest session (${longDate(lastClose)}). A refresh has been requested and the page updates when it arrives.` };
+  }
+  return { cls: phase === "open" ? "st-open" : phase === "pre" ? "st-pre"
+              : phase === "after" ? "st-after" : "st-closed",
+    lead, rest: sessionWord,
+    title: phase === "pre"
+      ? `The number is the ${longDate(asOf)} close. US pre-market is trading now (4:00–9:30 ET); pre-market prices are not shown.`
+      : phase === "open"
+      ? `The number is the ${longDate(asOf)} close, refreshed while the session runs.`
+      : phase === "after"
+      ? `The number is the ${longDate(asOf)} close. After-hours trading is under way; after-hours prices are not shown.`
+      : `The number is the ${longDate(asOf)} close. US markets are closed.` };
 }
 
 function drawPriceStats(){
@@ -6327,8 +6373,7 @@ function drawPriceStats(){
       <div class="pqhead">
         <div class="pq">
           <div class="pq-price ${dirClass}">${n(price)}</div>
-          ${chg === null || chg === undefined ? "" : `
-            <span class="pq-pill ${dirClass}">${chg >= 0 ? "+" : ""}${n(chg)}</span>
+          ${chgPct === null || chgPct === undefined ? "" : `
             <span class="pq-pill ${dirClass}">${chgPct >= 0 ? "+" : ""}${n(chgPct)}%</span>`}
         </div>
         ${!call ? "" : `<div class="pq-call ${call.tone}"
@@ -6337,18 +6382,15 @@ function drawPriceStats(){
         </div>`}
       </div>
       ${(() => { const st = priceStateChip();
-        return `<div class="pq-state ${st.cls}" title="${esc(st.title)}"><i></i>${esc(st.label)}</div>`; })()}
+        return `<div class="pq-state ${st.cls}" title="${esc(st.title)}"><i></i>` +
+               `<b>${esc(st.lead)}</b><span>· ${esc(st.rest)}</span></div>`; })()}
       <dl class="pstats">
         ${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
       </dl>
-      <p class="pnote">${
-        /* "Last trading day" is a claim, and it was being made whatever the
-           age of the stored row -- Natera read "Last trading day" on the 12th
-           over a close from the 7th. When the series is behind, name the day
-           it actually is. */
-        PRICE.stale && PRICE.asOf
-          ? `As of ${esc(longDate(PRICE.asOf))}`
-          : "Last trading day"}${q && q.exchange ? ` · ${esc(q.exchange)}` : ""}</p>
+      ${/* The date used to live here as "As of …", repeating what the state
+            pill above now says. The exchange is the only part left that the
+            pill does not carry. */""}
+      ${q && q.exchange ? `<p class="pnote">${esc(q.exchange)}</p>` : ""}
       ${consensusSummary(price)}
       <p class="pflip-hint">Flip for company profile</p>
     </div>`;
