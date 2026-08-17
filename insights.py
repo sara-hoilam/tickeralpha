@@ -69,7 +69,10 @@ FALLBACK_MODEL = os.environ.get("ANTHROPIC_FALLBACK_MODEL") or ""
 # Thinking is on by default on the current models and counts against
 # max_tokens, so leave headroom above what the brief itself needs (~800).
 MAX_TOKENS = 8000
-MAX_CANDIDATES = 14
+# Five economic releases, four earnings, five news themes and the last
+# session: on a busy day the list is exactly full, and a lower cap would
+# always be the market-context item that fell off the end.
+MAX_CANDIDATES = 15
 MIN_INSIGHTS = 3
 MAX_INSIGHTS = 5
 
@@ -488,7 +491,13 @@ NOT_TICKERS = {
     "FDA", "SEC", "ECB", "BOJ", "NYSE", "S&P", "ADP", "JOLTS", "NAHB", "TIC",
 }
 
-_NUM_TOKEN = re.compile(r"\d{1,2}:\d{2}|\$?\d[\d,]*(?:\.\d+)?%?")
+# A comma only belongs to a number when it separates thousands. Written as
+# [\d,]* this swallowed the comma in "a previous 34, so it offers" and then
+# looked for "34," in the facts, rejecting a run whose numbers were all real.
+_NUM_TOKEN = re.compile(
+    r"\d{1,2}:\d{2}"                         # clock times
+    r"|\$?\d+(?:,\d{3})*(?:\.\d+)?[BMTK]?%?"  # 3.1  $223.45B  1,234  15.6%
+)
 _CAPS_TOKEN = re.compile(r"\b[A-Z][A-Z.\-]{1,5}\b")
 _ABBREV = ("U.S.", "U.K.", "E.U.", "Inc.", "Corp.", "Co.", "Ltd.", "Jr.",
            "vs.", "approx.", "St.", "Dr.", "a.m.", "p.m.")
@@ -553,7 +562,9 @@ def validate(payload, candidates: list[dict]) -> list[dict]:
                 continue
             if tok in hay:
                 continue
-            if tok.lstrip("$").rstrip("%") in hay:
+            # The same figure with the currency, percent or scale marker the
+            # sentence added around it, e.g. "$35" against a fact of "35".
+            if tok.lstrip("$").rstrip("%").rstrip("BMTK") in hay:
                 continue
             raise Rejected(f"number: '{tok}' in {r['source_id']} is not in "
                            f"that candidate's facts")
