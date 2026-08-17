@@ -2,10 +2,16 @@
 insights.py -- writes the market page's "Today's Brief" insights.
 
 Run once each weekday morning by .github/workflows/insights.yml, before the
-US open. Reads the day's scheduled events and the last 24 hours of news
-through the same public RPCs a visitor's browser calls, asks Claude to pick
-the three to five that matter and explain them in plain English, and writes
-the result to ledger.market_insight (migration 0065).
+US open. Reads through the same public RPCs a visitor's browser calls, works
+out what actually moved -- industries running together, names clearing
+prices they have never closed above, runs weeks in the making -- alongside
+the day's schedule and news, asks Claude to pick the three to five worth
+knowing about, and writes the result to ledger.market_insight (0065).
+
+Movement leads on purpose. The first version of this was handed the calendar
+and nothing else, so it could only narrate the calendar, and it read like a
+timetable. What a reader is talking about on a given morning is usually a
+move.
 
 The governing idea: the code decides what is important, the model only
 explains it. Ranking, filtering, and every number are settled here in Python
@@ -69,10 +75,10 @@ FALLBACK_MODEL = os.environ.get("ANTHROPIC_FALLBACK_MODEL") or ""
 # Thinking is on by default on the current models and counts against
 # max_tokens, so leave headroom above what the brief itself needs (~800).
 MAX_TOKENS = 8000
-# Five economic releases, four earnings, five news themes and the last
-# session: on a busy day the list is exactly full, and a lower cap would
-# always be the market-context item that fell off the end.
-MAX_CANDIDATES = 15
+# Three themes, three standout movers, three releases, three reporters, four
+# news items and the last session. The cap sits just above a full day so
+# nothing is silently dropped off the end.
+MAX_CANDIDATES = 18
 MIN_INSIGHTS = 3
 MAX_INSIGHTS = 5
 
@@ -208,7 +214,9 @@ def fmt_money(v) -> str | None:
         f = float(v)
     except (TypeError, ValueError):
         return None
-    return f"${f:.2f}"
+    # Thousands separated, because a four-figure share price is written
+    # "$1,024.50" by anyone describing it and the fact should match.
+    return f"${f:,.2f}"
 
 
 def fmt_cap(v) -> str | None:
@@ -243,21 +251,212 @@ MACRO_WORDS = (
 
 
 # ---------------------------------------------------------------------------
+# What is actually moving
+# ---------------------------------------------------------------------------
+# The brief was flat for a structural reason: it was handed the calendar and
+# nothing else, so it could only ever narrate the calendar. What a reader is
+# actually talking about on a given morning is usually a move -- a whole
+# corner of the market running together, a name clearing a number it has
+# never cleared before, a run that has been building for weeks. All of that
+# is derivable from data already in the database, so it is computed here and
+# offered as candidates in its own right.
+
+# A theme needs several names moving together, not one big name dragging a
+# cap-weighted average around: three members at 3% is a story about an
+# industry, one member at 12% is a story about a company.
+THEME_MEMBER_MOVE = 3.0
+THEME_MIN_MEMBERS = 3
+THEME_MIN_WEIGHTED = 1.5
+# Below this the "industry" is a handful of microcaps nobody is discussing.
+THEME_MIN_CAP = 5e10
+
+# Round numbers a price crossing gets talked about: 10, 25, 50, 100, 250 ...
+_ROUND_STEPS = (10, 25, 50, 100, 250, 500, 1000, 2000, 5000, 10000)
+
+
+def round_number_crossed(prev_close, close) -> str | None:
+    """The largest round number a close has just moved up through."""
+    try:
+        a, b = float(prev_close), float(close)
+    except (TypeError, ValueError):
+        return None
+    hit = [s for s in _ROUND_STEPS if a < s <= b]
+    return f"${hit[-1]:,}" if hit else None
+
+
+def find_themes(industries: list) -> list[dict]:
+    """Industries where a group of names moved together today."""
+    themes = []
+    for ind in industries or []:
+        items = ind.get("items") or []
+        weighted = ind.get("changePct")
+        if weighted is None or (ind.get("marketCap") or 0) < THEME_MIN_CAP:
+            continue
+        direction = 1 if weighted > 0 else -1
+        movers = [i for i in items
+                  if i.get("changePct") is not None
+                  and i["changePct"] * direction >= THEME_MEMBER_MOVE]
+        if len(movers) < THEME_MIN_MEMBERS or abs(weighted) < THEME_MIN_WEIGHTED:
+            continue
+        movers.sort(key=lambda i: abs(i["changePct"]), reverse=True)
+        themes.append({
+            "industry": ind.get("industry"),
+            "sector": ind.get("sector"),
+            "weighted": weighted,
+            "members": movers[:4],
+            "n": len(movers),
+            # Rank by how broad the move is and how hard it moved: a whole
+            # industry up 4% outranks two names up 9%.
+            "score": abs(weighted) * (len(movers) ** 0.5),
+        })
+    themes.sort(key=lambda t: t["score"], reverse=True)
+    return themes
+
+
+def price_story(symbol: str, quote: dict | None, bars: list | None) -> dict:
+    """Multi-day context for one name: the run behind today's move."""
+    story: dict = {}
+    closes = []
+    for b in (bars or [])[-260:]:
+        try:
+            closes.append(float(b.get("c")))
+        except (TypeError, ValueError):
+            pass
+
+    if len(closes) >= 6:
+        # "has been ripping" is a run, not a day.
+        wk = (closes[-1] / closes[-6] - 1) * 100
+        if abs(wk) >= 5:
+            story["week"] = f"{wk:+.1f}% over five sessions"
+    if len(closes) >= 22:
+        mo = (closes[-1] / closes[-22] - 1) * 100
+        if abs(mo) >= 10:
+            story["month"] = f"{mo:+.1f}% over a month"
+    if len(closes) >= 3:
+        streak = 0
+        for i in range(len(closes) - 1, 0, -1):
+            if closes[i] > closes[i - 1]:
+                streak += 1
+            else:
+                break
+        if streak >= 3:
+            story["streak"] = f"up {streak} sessions in a row"
+
+    q = quote or {}
+    price, high = q.get("price"), q.get("year_high")
+    try:
+        price, high = float(price), float(high)
+        if price >= high:
+            story["high"] = "at a 52-week high"
+        elif high > 0 and (high - price) / high <= 0.02:
+            story["high"] = f"within {((high - price) / high * 100):.1f}% of its 52-week high"
+    except (TypeError, ValueError):
+        pass
+
+    if len(closes) >= 2:
+        crossed = round_number_crossed(closes[-2], closes[-1])
+        if crossed:
+            story["crossed"] = f"closed above {crossed} for the first time in this run"
+    return story
+
+
+def fetch_price_stories(symbols: list[str]) -> dict[str, dict]:
+    """One get_prices call per shortlisted name. Missing history is fine."""
+    out: dict[str, dict] = {}
+    for sym in symbols:
+        try:
+            d = read_rpc("get_prices", {"p_symbol": sym}) or {}
+        except SystemExit:
+            continue
+        story = price_story(sym, d.get("quote"), d.get("bars"))
+        if story:
+            out[sym] = story
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Candidate selection -- deterministic, in Python
 # ---------------------------------------------------------------------------
 
 def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
-                     news: list, sectors: dict) -> list[dict]:
+                     news: list, sectors: dict,
+                     industries: list | None = None,
+                     stories: dict | None = None) -> list[dict]:
     """The short list the model chooses from, in priority order."""
     out: list[dict] = []
+    stories = stories or {}
 
-    # 1. Scheduled economics. High impact first, capped at five: these are the
-    #    releases that move the whole market rather than one company.
+    # 1. Themes -- a whole corner of the market moving together. This is the
+    #    "memory stocks are ripping" case, and it is first because it is what
+    #    a reader is most likely to have already heard about.
+    for i, t in enumerate(find_themes(industries or [])[:3]):
+        facts = [f"{t['industry']} {fmt_pct(t['weighted'])} today",
+                 f"{t['n']} names in the industry moved more than "
+                 f"{THEME_MEMBER_MOVE:.0f}%"]
+        syms = []
+        for m in t["members"]:
+            sym = str(m.get("symbol") or "")
+            if not sym:
+                continue
+            syms.append(sym)
+            bits = [fmt_pct(m.get("changePct"))]
+            price = fmt_money(m.get("price"))
+            if price:
+                bits.append(f"at {price}")
+            for key in ("month", "week", "streak", "high", "crossed"):
+                if key in stories.get(sym, {}):
+                    bits.append(stories[sym][key])
+            facts.append(f"{sym} {' '.join(b for b in bits if b)}")
+        out.append({
+            "id": f"theme-{i + 1}",
+            "kind": "theme",
+            "when": None,
+            "title": f"{t['industry']} moving together",
+            "facts": facts,
+            "symbols": syms,
+            "url": None,
+        })
+
+    # 2. Standout single names: the biggest movers, with the run behind them.
+    #    A name that has been climbing for a month reads differently from one
+    #    that jumped this morning, and the reader can tell the difference only
+    #    if the brief says which it is.
+    seen_syms = {s for c in out for s in c["symbols"]}
+    standouts = []
+    for row in (gainers or [])[:4] + (losers or [])[:2]:
+        sym = str(row.get("symbol") or "")
+        if not sym or sym in seen_syms:
+            continue
+        seen_syms.add(sym)
+        standouts.append(row)
+    for i, row in enumerate(standouts[:3]):
+        sym = str(row.get("symbol"))
+        facts = [f"{sym} {fmt_pct(row.get('changePct'))} today"]
+        price = fmt_money(row.get("price"))
+        if price:
+            facts.append(f"trading at {price}")
+        cap = fmt_cap(row.get("marketCap"))
+        if cap:
+            facts.append(f"market cap {cap}")
+        facts += list(stories.get(sym, {}).values())
+        out.append({
+            "id": f"move-{i + 1}",
+            "kind": "move",
+            "when": None,
+            "title": f"{row.get('name') or sym} ({sym})",
+            "facts": facts,
+            "symbols": [sym],
+            "url": None,
+        })
+
+    # 3. Scheduled economics. High impact first: these move the whole market
+    #    rather than one company, but they no longer crowd out everything
+    #    else -- three slots, not five.
     econ = list(brief.get("economics") or [])
     rank = {"high": 0, "medium": 1}
     econ.sort(key=lambda e: (rank.get(str(e.get("impact") or "").lower(), 2),
                              e.get("time") or "99:99", e.get("event") or ""))
-    for i, e in enumerate(econ[:5]):
+    for i, e in enumerate(econ[:3]):
         # Spelled out rather than "est." / "prev.": these strings are copied
         # into prose, and an abbreviation's full stop reads as a sentence end
         # to both a reader and the two-sentence check.
@@ -281,8 +480,8 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
             "url": None,
         })
 
-    # 2. The four biggest companies reporting. Already cap-sorted by the RPC.
-    for i, e in enumerate((brief.get("earnings") or [])[:4]):
+    # 4. The biggest companies reporting. Already cap-sorted by the RPC.
+    for i, e in enumerate((brief.get("earnings") or [])[:3]):
         facts = []
         cap = fmt_cap(e.get("marketCap"))
         if cap:
@@ -307,8 +506,8 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
             "url": None,
         })
 
-    # 3. News themes. Deduped the way the news page dedupes, then the five
-    #    most recent distinct ones, preferring megacaps and macro subjects.
+    # 5. News themes. Deduped the way the news page dedupes, then the most
+    #    recent distinct ones, preferring megacaps and macro subjects.
     big = {str(r.get("symbol") or "").upper() for r in (caps or [])}
     seen: set[str] = set()
     ranked: list[tuple[int, dict]] = []
@@ -327,7 +526,7 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
     # directions.
     ranked.sort(key=lambda pair: str(pair[1].get("published") or ""), reverse=True)
     ranked.sort(key=lambda pair: pair[0])
-    for i, (_, a) in enumerate(ranked[:5]):
+    for i, (_, a) in enumerate(ranked[:4]):
         out.append({
             "id": f"news-{i + 1}",
             "kind": "news",
@@ -338,8 +537,8 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
             "url": a.get("url"),
         })
 
-    # 4. One synthetic candidate carrying yesterday's tape, so an insight can
-    #    say what the market actually did without a second lookup.
+    # 6. One synthetic candidate carrying the last session's tape, so an
+    #    insight can say what the market did without a second lookup.
     facts = []
     for row in (gainers or [])[:2]:
         pct = fmt_pct(row.get("changePct"))
@@ -393,10 +592,18 @@ SYSTEM_PROMPT = """\
 You write the morning market brief for Ticker Alpha, a stock dashboard read by
 individual investors who are not finance professionals.
 
-You will be given a JSON list of candidate items already selected from today's
-scheduled economic releases, today's earnings reports, the last 24 hours of
-market news, and the last session's closing moves. Your job is to choose the
-3-5 that matter most for the day ahead and explain each one in plain English.
+You will be given a JSON list of candidates already selected for you: whole
+industries moving together, individual names making unusual moves, scheduled
+economic releases, companies reporting, the last day of news, and the last
+session's tape. Your job is to pick the 3-5 a reader will actually want to
+know about this morning and explain each in plain English.
+
+Write it the way a sharp market columnist would: energetic, specific, and
+concrete. The energy has to come from the facts -- the size of a move, how
+long it has been running, a price crossed for the first time -- and never
+from adjectives, exclamation marks, or telling the reader something is
+exciting. A precise number is more thrilling than an intensifier, and it has
+the advantage of being true.
 
 RULES - these are absolute:
 
@@ -414,28 +621,50 @@ RULES - these are absolute:
    words buy, sell, hold, bullish, bearish, overvalued, or undervalued, and do
    not name price targets. You describe what is scheduled and what it
    measures; the reader decides what to do about it.
-5. Write for someone who does not know what CPI or an inverted curve is. One
-   short sentence of what it is, one of why today's version of it is worth
-   watching. No jargon without a plain-English gloss in the same sentence.
+5. Write for someone who does not know what CPI or an inverted curve is. No
+   jargon without a plain-English gloss in the same sentence.
+6. Describing a big move is not a prediction and is encouraged: say how far,
+   over how long, and alongside what. Never suggest it continues, never say a
+   name is cheap or expensive, and never tell the reader what to do. "Micron
+   closed above $1,000 for the first time and is up 22% over a month" is
+   right; "Micron is on a tear and there is more to come" is not.
 
 STYLE (the character limits are enforced -- count them before you answer):
-- headline: under 9 words and at most %(headline_max)d characters, specific,
-  no colon-subtitle construction.
-- body: exactly two sentences, %(body_min)d-%(body_max)d characters in total,
-  no semicolons. Aim for about 40 words; %(body_max)d characters is the hard
+- headline: under 9 words and at most <HEADLINE_MAX> characters. Put the
+  number in it where there is one -- "Memory names rip, Micron clears $1,000"
+  beats "Semiconductor stocks rally". No colon-subtitle construction.
+- body: exactly two sentences, <BODY_MIN>-<BODY_MAX> characters in total,
+  no semicolons. Aim for about 40 words; <BODY_MAX> characters is the hard
   ceiling, not the target.
-- Lead with the thing itself, not with throat-clearing. "Investors will be
-  watching..." is banned; "The Fed decides on rates at 14:00" is right.
-- Plain declaratives. No hype, no "key", no "crucial", no "closely watched".
+- Open on the hardest fact you have. Throat-clearing is banned: no
+  "Investors will be watching", no "Markets are focused on".
+- Name names. A theme insight should say which tickers moved and by how much,
+  because that is what makes it a story rather than a statistic.
+- Earn the interest with detail, not volume. No exclamation marks, and no
+  "key", "crucial", "massive", "soaring" or "closely watched" -- if the move
+  is big, the number already says so.
+- Second sentence carries the "so what": what the move is tied to, what it
+  says about demand, or what happens next on the calendar.
 
-ORDERING: rank 1 is the item most likely to move the broad market today.
-Scheduled high-impact economics outrank single-company earnings, which outrank
-news themes, unless a news theme is clearly larger than the day's schedule.
+ORDERING: rank 1 is what a reader who follows the market is most likely to be
+talking about this morning. That is usually a move, not a schedule entry: a
+whole industry running together, a name clearing a price it has never closed
+above, a run that has been building for weeks. Lead with those. A scheduled
+release earns rank 1 only when it genuinely dominates the day, such as a Fed
+decision or an inflation print. Give the calendar at most two of the slots --
+a brief that is all scheduled events has buried the story.
 
 symbols: tickers you name in the body, drawn only from that candidate's own
 symbols list; an empty list if none.
 event_time: copy the candidate's `when`, or null if it has none.\
-""" % {"headline_max": HEADLINE_MAX, "body_min": BODY_MIN, "body_max": BODY_MAX}
+"""
+# Plain token replacement rather than %-formatting or .format(): this
+# prompt is largely about percentages, and a literal "22% over a month"
+# reads as a format spec to both of those.
+for _token, _value in (("<HEADLINE_MAX>", HEADLINE_MAX),
+                       ("<BODY_MIN>", BODY_MIN),
+                       ("<BODY_MAX>", BODY_MAX)):
+    SYSTEM_PROMPT = SYSTEM_PROMPT.replace(_token, str(_value))
 
 RESULT_SCHEMA = {
     "type": "object",
@@ -449,7 +678,8 @@ RESULT_SCHEMA = {
                     "headline": {"type": "string"},
                     "body": {"type": "string"},
                     "kind": {"type": "string",
-                             "enum": ["economics", "earnings", "news", "market"]},
+                             "enum": ["theme", "move", "economics", "earnings",
+                                      "news", "market"]},
                     "source_id": {"type": "string"},
                     "symbols": {"type": "array", "items": {"type": "string"}},
                     "event_time": {"type": ["string", "null"]},
@@ -488,11 +718,21 @@ class Rejected(Exception):
     pass
 
 
+# Two families, and the second is the one that matters now the brief is
+# allowed to be energetic. Describing a move that happened is the point;
+# implying it carries on is a prediction wearing a description's clothes,
+# and it is the sentence a reader would act on.
 BANNED = [
+    # advice
     "buy", "sell", "bullish", "bearish", "overvalued", "undervalued",
-    "price target", "should invest", "we expect", "will rise", "will fall",
-    "will beat", "will miss", "poised to", "set to surge", "outperform",
-    "underperform",
+    "price target", "should invest", "worth a look", "one to watch",
+    # prediction and continuation
+    "we expect", "will rise", "will fall", "will beat", "will miss",
+    "poised to", "set to surge", "outperform", "underperform",
+    "more to come", "room to run", "further upside", "just getting started",
+    "only the beginning", "next leg", "keep climbing", "keep running",
+    "likely to continue", "should continue", "expect more", "no sign of",
+    "shows no signs", "don't miss", "do not miss", "if the trend holds",
 ]
 
 # Uppercase words that are not tickers. Short and explicit on purpose -- a
@@ -523,6 +763,51 @@ def _sentence_count(body: str) -> int:
     # A decimal point sits between two digits; a sentence end does not.
     masked = re.sub(r"(?<=\d)\.(?=\d)", "_", masked)
     return len(re.findall(r"[.!?](?=\s|$)", masked.strip()))
+
+
+def _numeric(tok: str) -> tuple[float, int] | None:
+    """A token's value and how many decimals it was written to."""
+    if ":" in tok:
+        return None                        # a clock time, matched literally
+    s = tok.replace(",", "").lstrip("$").rstrip("%").rstrip("BMTK")
+    try:
+        value = float(s)
+    except ValueError:
+        return None
+    return value, len(s.split(".")[1]) if "." in s else 0
+
+
+def _numbers_in(text: str) -> list[float]:
+    out = []
+    for tok in _NUM_TOKEN.findall(text):
+        n = _numeric(tok)
+        if n is not None:
+            out.append(n[0])
+    return out
+
+
+def _number_is_sourced(tok: str, hay: str, hay_values: list[float]) -> bool:
+    """Is this figure the candidate's, allowing for how prose renders it?
+
+    The check is on the value, not the characters. A fact of "+6.80%" is
+    written "6.8%" by anyone describing it, and "$1,024.50" and "$1024.50"
+    are the same price -- rejecting those as fabrications cost two runs
+    before this existed. An invented figure still has no source value to
+    match, which is the thing worth catching.
+    """
+    if tok in hay:
+        return True
+    n = _numeric(tok)
+    if n is None:
+        return False
+    value, decimals = n
+    for h in hay_values:
+        if abs(h - value) < 1e-9:
+            return True
+        # Quoting 22.4 as "22" is a fair simplification, not an invention.
+        if round(h, decimals) == value:
+            return True
+    return False
 
 
 def _haystack(cand: dict) -> str:
@@ -567,16 +852,13 @@ def validate(payload, candidates: list[dict]) -> list[dict]:
         text = f"{r['headline']} {r['body']}"
         hay = _haystack(cand)
 
-        # 3. Number provenance. Bare years pass; everything else must appear
-        #    in the candidate we handed over, character for character.
+        # 3. Number provenance. Bare years pass; every other figure has to
+        #    come from the candidate we handed over.
+        hay_values = _numbers_in(hay)
         for tok in _NUM_TOKEN.findall(text):
             if re.fullmatch(r"(19|20)\d{2}", tok):
                 continue
-            if tok in hay:
-                continue
-            # The same figure with the currency, percent or scale marker the
-            # sentence added around it, e.g. "$35" against a fact of "35".
-            if tok.lstrip("$").rstrip("%").rstrip("BMTK") in hay:
+            if _number_is_sourced(tok, hay, hay_values):
                 continue
             raise Rejected(f"number: '{tok}' in {r['source_id']} is not in "
                            f"that candidate's facts")
@@ -614,14 +896,16 @@ def validate(payload, candidates: list[dict]) -> list[dict]:
             raise Rejected(f"length: body is not two sentences in "
                            f"{r['source_id']}")
 
-    # 7. Freshness. A brief made only of news on a day with a real schedule
-    #    means selection or ranking broke, not that the day was quiet.
-    scheduled = {c["id"] for c in candidates
-                 if c["kind"] in ("economics", "earnings")}
-    if scheduled and not any(by_id[r["source_id"]]["kind"]
-                             in ("economics", "earnings") for r in rows):
-        raise Rejected("freshness: the day had scheduled events but no "
-                       "insight cites one")
+    # 7. Liveliness. The first version of this brief read like the calendar
+    #    in prose, because the calendar was most of what it was given and the
+    #    ranking rule put it on top. Now that moves are offered as candidates,
+    #    a brief that ignores every one of them on a day when the market
+    #    actually moved has buried the story -- which is a ranking failure,
+    #    not a matter of taste.
+    live = {c["id"] for c in candidates if c["kind"] in ("theme", "move")}
+    if live and not any(r["source_id"] in live for r in rows):
+        raise Rejected("liveliness: the market moved today but every insight "
+                       "cites the calendar or the news")
 
     return rows
 
@@ -769,12 +1053,38 @@ def main() -> int:
         sectors = read_rpc("get_sector_risk") or {}
     except SystemExit:
         sectors = {}                       # optional context, never fatal
+    try:
+        industries = read_rpc("get_industry_heatmap") or []
+    except SystemExit:
+        industries = []
 
-    candidates = build_candidates(brief, caps, gainers, losers, news, sectors)
+    # The names worth a second lookup: whatever is in a theme, plus the day's
+    # biggest movers. One get_prices call each buys the run behind the move --
+    # the difference between "jumped today" and "has been climbing for a
+    # month", which is usually the more interesting half of the story.
+    themes = find_themes(industries)[:3]
+    shortlist: list[str] = []
+    for t in themes:
+        shortlist += [str(m.get("symbol")) for m in t["members"] if m.get("symbol")]
+    shortlist += [str(r.get("symbol")) for r in (gainers or [])[:4] if r.get("symbol")]
+    shortlist += [str(r.get("symbol")) for r in (losers or [])[:2] if r.get("symbol")]
+    seen: set[str] = set()
+    shortlist = [s for s in shortlist
+                 if s and not (s in seen or seen.add(s))][:10]
+    stories = fetch_price_stories(shortlist)
+
+    candidates = build_candidates(brief, caps, gainers, losers, news, sectors,
+                                  industries, stories)
+    kinds: dict[str, int] = {}
+    for c in candidates:
+        kinds[c["kind"]] = kinds.get(c["kind"], 0) + 1
     print(f"[insights] {day}: {len(candidates)} candidates "
-          f"({len(brief.get('economics') or [])} econ, "
-          f"{len(brief.get('earnings') or [])} earnings, "
-          f"{len(news)} stories)")
+          f"({', '.join(f'{v} {k}' for k, v in kinds.items())}) "
+          f"from {len(industries)} industries, {len(news)} stories; "
+          f"price history for {len(stories)}/{len(shortlist)} names")
+    for t in themes:
+        print(f"[insights] theme: {t['industry']} {fmt_pct(t['weighted'])} "
+              f"with {t['n']} movers")
 
     if args.dry_run:
         print(json.dumps(candidates, indent=2))

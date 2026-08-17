@@ -243,7 +243,8 @@ of the product that is not deterministic:
 ```
 GitHub Actions, 10:30 UTC ──▶ insights.py
    (weekdays only)              │  reads the same public RPCs a visitor calls
-                                │  picks ~14 candidates in Python
+                                │  finds themes, movers, runs, milestones
+                                │  picks ~18 candidates in Python
                                 │  one Claude API call
                                 │  seven validation gates
                                 ▼
@@ -261,12 +262,17 @@ the prompt:
 * **The code decides what is important; the model only explains it.** Ranking
   and filtering are settled in Python before the call — the model receives a
   short list of already-chosen candidates and cannot surface an event that was
-  never selected.
+  never selected. Those candidates lead with movement, not the schedule: an
+  industry whose members ran together, a name at a 52-week high, a month-long
+  climb. A brief that ignores every one of them on a day the market moved is
+  rejected as a ranking failure.
 * **Every number is copied, not computed.** Each candidate carries its figures
   as pre-formatted strings, and a validator rejects the whole run if any
   number in the output is not a substring of the candidate it cites. Other
-  gates reject advice language, unknown tickers, missing sources, and briefs
-  that ignore the day's schedule. A rejected run writes nothing.
+  gates reject advice language — including the continuation claims that a
+  livelier voice invites, "room to run" and its cousins — plus unknown
+  tickers, missing sources, and briefs that bury the day's real story. A
+  rejected run writes nothing.
 
 `python insights.py --dry-run` prints the candidates and the generated brief
 without writing, which is how to check the output after changing the prompt.
