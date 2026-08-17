@@ -518,7 +518,10 @@ tbody tr:hover td{background:var(--sunk)}
 .idx-hold .htab tr:hover td{background:var(--sunk)}
 .idx-hold .htab a{color:var(--accent);text-decoration:none;font-family:"IBM Plex Mono",monospace;font-weight:600}
 .idx-hold .htab a:hover{text-decoration:underline}
-.idx-hold .htab .name{color:var(--ink-2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.idx-hold .htab .name{color:var(--ink-2);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Logo beside the company name; the text keeps the ellipsis. */
+.idx-hold .htab .hname{display:inline-flex;align-items:center;gap:7px;max-width:100%;vertical-align:middle}
+.idx-hold .htab .hname>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .idx-hold .htab .ind{color:var(--ink-3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .idx-hold .htab .w,.idx-hold .htab .ret{
   font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap
@@ -528,6 +531,11 @@ tbody tr:hover td{background:var(--sunk)}
 .idx-hold .scroll{
   overflow:auto;border:1px solid var(--rule);border-radius:var(--r);background:var(--card);
   max-height:calc(38px + 14 * 37px);
+  /* The generic .scroll rule pads the top, and a sticky header pins to the
+     padding edge -- so the header floated a band below the container's top
+     and rows showed through the gap while scrolling. Measured: 5px of row
+     text above the header. No top padding, no gap. */
+  padding:0;
 }
 .idx-chart-tools{
   display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;
@@ -613,6 +621,8 @@ tbody tr:hover td{background:var(--sunk)}
 .corr-search button[disabled]{opacity:.5;cursor:not-allowed}
 
 .pairrow{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:4px}
+/* Sector-ETF pages have no index-PE history, so the drawdown card stands alone. */
+.pairrow.idx-solo{grid-template-columns:minmax(0,1fr)}
 .pairrow>.panel{margin-bottom:16px}
 
 .lwrap{padding:2px 14px 12px}
@@ -2321,8 +2331,22 @@ async function marketSymbolMeta(ticker){
   return null;
 }
 
+/* The eleven sector SPDRs, and the S&P sector each one tracks. These open as
+   index pages -- holdings, industry mix, drawdown, seasonality -- rather than
+   as a bare ETF chart. Holdings come from the S&P 500 book filtered to the
+   sector: FMP's own ETF-holdings feed is a higher-tier endpoint, and the
+   S&P members of a sector are the same book these funds hold, reweighted. */
+const SECTOR_ETF_PAGE = {
+  XLK: "Technology", XLF: "Financial Services", XLV: "Healthcare",
+  XLY: "Consumer Cyclical", XLP: "Consumer Defensive", XLI: "Industrials",
+  XLE: "Energy", XLU: "Utilities", XLRE: "Real Estate",
+  XLB: "Basic Materials", XLC: "Communication Services",
+};
+
 function openMarketSymbol(ticker, meta){
   if (meta.kind === "index") return openIndexSymbol(ticker, meta);
+  const sector = SECTOR_ETF_PAGE[String(ticker).toUpperCase()];
+  if (meta.kind === "etf" && sector) return openIndexSymbol(ticker, meta, { sector });
   const kind = meta.kind === "crypto" ? "cryptocurrency" : "ETF/fund";
   return marketOnly(ticker, {
     ticker: meta.symbol || ticker,
@@ -2450,8 +2474,13 @@ function unlockReportBtn(ticker){
   </button>`;
 }
 
-/** Major index page: price chart, holdings+industry, PE vs peers, seasonality. */
-function openIndexSymbol(ticker, meta){
+/** Major index page: price chart, holdings+industry, PE vs peers, seasonality.
+ *  With opts.sector it is a sector-ETF page: same layout, holdings drawn from
+ *  the S&P 500 book filtered to the sector, no index-PE panel (that history
+ *  exists only for the four majors), and seasonality computed from the fund's
+ *  own price history. */
+function openIndexSymbol(ticker, meta, opts){
+  const sector = (opts && opts.sector) || null;
   const c = {
     ticker: meta.symbol || ticker,
     name: meta.name || ticker,
@@ -2468,7 +2497,8 @@ function openIndexSymbol(ticker, meta){
   INDEX_DD.range = "5Y";
   INDEX_DD.interval = "daily";
 
-  const holdTitle = c.ticker === "IXIC" ? "Holdings & industry (Nasdaq-100)" : "Holdings & industry";
+  const holdTitle = sector ? `Holdings & industry (S&P 500 · ${sector})`
+    : c.ticker === "IXIC" ? "Holdings & industry (Nasdaq-100)" : "Holdings & industry";
 
   main.innerHTML = `
     <div class="ident">
@@ -2482,7 +2512,8 @@ function openIndexSymbol(ticker, meta){
         </button>
         <div class="sub">
           <span class="chip key">${esc(c.ticker)}</span>
-          <span class="chip">Index</span>
+          <span class="chip">${sector ? "Sector ETF" : "Index"}</span>
+          ${sector ? `<span class="chip">${esc(sector)}</span>` : ""}
           ${c.exchange ? `<span class="chip">${esc(c.exchange)}</span>` : ""}
         </div>
         </div>
@@ -2493,7 +2524,10 @@ function openIndexSymbol(ticker, meta){
 
     <h3 class="grouphead" id="idx-hold-title">${esc(holdTitle)}</h3>
     <p class="note" id="idx-hold-note" style="text-align:left;padding:0 0 10px;margin:0">
-      ${c.ticker === "IXIC"
+      ${sector
+        ? `S&P 500 members of the ${esc(sector)} sector, weights renormalised within
+           the sector — the same book this fund tracks, stated from data already cached.`
+        : c.ticker === "IXIC"
         ? "Price is the NASDAQ Composite; holdings below are the Nasdaq-100 (the investable large-cap book)."
         : c.ticker === "DJI"
           ? "Dow weights are price-weighted (not market-cap)."
@@ -2508,8 +2542,8 @@ function openIndexSymbol(ticker, meta){
       </div>
     </div>
 
-    <div class="pairrow idx-valrow">
-      <section class="card panel">
+    <div class="pairrow idx-valrow${sector ? " idx-solo" : ""}">
+      ${sector ? "" : `<section class="card panel">
         <div class="phead">
           <div><h2>Forward PE Ratio</h2>
             <p>vs other market indexes</p></div>
@@ -2527,7 +2561,7 @@ function openIndexSymbol(ticker, meta){
         <p class="note" style="text-align:left;padding:4px 14px 14px;margin:0" id="idx-pe-note">
           Forward P/E from History of Market (S&P 500 / Nasdaq-100); Dow approximated from constituent TTM P/Es when needed.
         </p>
-      </section>
+      </section>`}
       <section class="card panel">
         <div class="phead">
           <div><h2>Drawdown ${helpIcon("drawdown")}</h2>
@@ -2564,9 +2598,9 @@ function openIndexSymbol(ticker, meta){
   wireStar();
   wireHelp();
   loadPrices();
-  loadIndexHoldings(c.ticker);
-  loadIndexSeasonality(c.ticker);
-  loadIndexPE(c.ticker);
+  loadIndexHoldings(c.ticker, sector);
+  if (sector) loadEtfSeasonality(c.ticker);
+  else { loadIndexSeasonality(c.ticker); loadIndexPE(c.ticker); }
   hydratePageLogos();
   addEventListener("resize", () => {
     clearTimeout(fitHoldingsRows._t);
@@ -2589,15 +2623,29 @@ function fitHoldingsRows(){
   scroll.style.maxHeight = Math.ceil(headH + bodyH + 1) + "px";
 }
 
-async function loadIndexHoldings(symbol){
+async function loadIndexHoldings(symbol, sector){
   const holdHost = document.getElementById("idx-holdings");
   const indHost = document.getElementById("idx-industry");
   if (!holdHost || !indHost) return;
   let rows = [];
-  try { rows = await rpc("get_index_holdings", { p_symbol: symbol }) || []; } catch {}
+  // A sector page reads the S&P book and keeps its own slice of it.
+  const src = sector ? "SPX" : symbol;
+  try { rows = await rpc("get_index_holdings", { p_symbol: src }) || []; } catch {}
+  if (sector) {
+    rows = rows.filter(r => String(r.sector || "").trim() === sector);
+    const tot = rows.reduce((a, r) => a + (+(r.weightPct ?? r.weight_pct) || 0), 0);
+    if (tot > 0) {
+      rows = rows
+        .map(r => ({ ...r, weightPct: (+(r.weightPct ?? r.weight_pct) || 0) * 100 / tot }))
+        .sort((a, b) => b.weightPct - a.weightPct);
+    }
+  }
   if (!rows.length) {
-    holdHost.innerHTML = `<div class="note">Holdings for ${esc(symbol)} are not cached yet.
-      They appear after the next worker refresh (apply migration 0048/0049 if needed).</div>`;
+    holdHost.innerHTML = `<div class="note">${sector
+      ? `No cached S&P 500 members carry the ${esc(sector)} label yet; they appear
+         after the next index holdings refresh.`
+      : `Holdings for ${esc(symbol)} are not cached yet.
+      They appear after the next worker refresh (apply migration 0048/0049 if needed).`}</div>`;
     indHost.innerHTML = `<div class="note">No industry weights yet.</div>`;
     return;
   }
@@ -2628,7 +2676,8 @@ async function loadIndexHoldings(symbol){
       const ytd = r.ytdPct ?? r.ytd_pct;
       return `<tr>
       <td><a href="company.html?t=${encodeURIComponent(r.symbol)}">${esc(r.symbol)}</a></td>
-      <td class="name" title="${esc(r.name || "")}">${esc(r.name || "—")}</td>
+      <td class="name" title="${esc(r.name || "")}"><span class="hname">${
+        window.TickerLogos ? window.TickerLogos.chip(r.symbol) : ""}<span>${esc(r.name || "—")}</span></span></td>
       <td class="ind" title="${esc(r.industry || r.sector || "")}">${esc(r.industry || r.sector || "—")}</td>
       <td class="w">${r.weightPct != null ? esc((+r.weightPct).toFixed(2) + "%") : "—"}</td>
       <td class="ret ${retClass(day)}">${esc(signedPct(day))}</td>
@@ -2637,15 +2686,19 @@ async function loadIndexHoldings(symbol){
     }).join("")}</tbody></table></div>
     <p class="note" style="text-align:left;padding:10px 2px 0;flex-shrink:0">Today from the latest quote close.
       YTD from cached daily bars when available. Scroll for full holdings.</p>`;
+  if (window.TickerLogos) window.TickerLogos.hydrate(rows.map(r => r.symbol), holdHost);
   requestAnimationFrame(() => fitHoldingsRows());
 
   // Prefer GICS-style sector for the donut (fewer, clearer slices). Fall back
-  // to industry when sector is missing so older caches still chart.
+  // to industry when sector is missing so older caches still chart. On a
+  // sector page every row shares one sector, so the donut slices by industry
+  // -- the level at which that page still has a mix to show.
   const byBucket = new Map();
   rows.forEach(r => {
     const w = r.weightPct != null ? +r.weightPct : +(r.weight_pct || 0);
     if (!w) return;
-    const key = (r.sector || r.industry || "").trim() || "Other / unlisted";
+    const key = (sector ? (r.industry || "") : (r.sector || r.industry || "")).trim()
+      || "Other / unlisted";
     byBucket.set(key, (byBucket.get(key) || 0) + w);
   });
   const slices = [...byBucket.entries()]
@@ -2662,7 +2715,7 @@ async function loadIndexHoldings(symbol){
   // Keep the donut and labels inside one card border.
   indHost.innerHTML = `
     <section class="card panel idx-pie-card">
-      <div class="idx-pie-title">Sector breakdown</div>
+      <div class="idx-pie-title">${sector ? "Industry breakdown" : "Sector breakdown"}</div>
       <div class="idx-pie-wrap" id="idx-pie"></div>
       <div class="idx-pie-legend">${top.map((s, i) => {
         const colour = `var(${INDEX_PIE[i % INDEX_PIE.length]})`;
@@ -2755,6 +2808,42 @@ function drawIndexPie(host, slices, total){
       hideTip();
     });
   });
+}
+
+/** Seasonality for a sector ETF, from its own price history. The index pages
+ *  read worker-cached monthly closes; nothing caches them for the SPDRs, but
+ *  the chart's stitched decade of closes is already on the page, and month-end
+ *  closes are one pass over it. Waits for the bars (and the long-close stitch,
+ *  which is what turns one year of months into ten) before computing. */
+async function loadEtfSeasonality(symbol){
+  const host = document.getElementById("season-grid");
+  if (!host) return;
+  for (let i = 0; i < 60 && (PRICE.symbol !== symbol || !PRICE.bars.length); i++) {
+    await new Promise(r => setTimeout(r, 250));
+  }
+  for (let i = 0; i < 24 && PRICE.longFor !== symbol; i++) {
+    await new Promise(r => setTimeout(r, 250));
+  }
+  if (PRICE.symbol !== symbol) return;          // moved on to another page
+  const bars = PRICE.bars;
+  if (!bars.length) {
+    host.innerHTML = `<div class="note">Seasonality appears once price history has loaded.</div>`;
+    return;
+  }
+  const monthly = [];
+  let cur = null;
+  for (const b of bars) {
+    const k = String(b.d).slice(0, 7);
+    if (!cur || cur.k !== k) { if (cur) monthly.push({ d: cur.d, c: cur.c }); cur = { k, d: b.d, c: b.c }; }
+    else { cur.d = b.d; cur.c = b.c; }
+  }
+  if (cur) monthly.push({ d: cur.d, c: cur.c });
+  EXTRA.symbol = symbol;
+  EXTRA.data = { ...(EXTRA.data || {}), monthly };
+  drawSeasonality();
+  // The drawdown chart merges these monthly closes under the daily bars, the
+  // same way the index pages do -- redraw now that the history exists.
+  if (document.getElementById("idx-dd-chart")) drawIndexDrawdown();
 }
 
 async function loadIndexSeasonality(symbol){

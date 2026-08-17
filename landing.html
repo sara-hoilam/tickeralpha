@@ -2324,10 +2324,18 @@ function wireRiskHover(pts){
 
   // The label is part of the bubble as far as a reader is concerned, so it
   // carries the same tooltip -- and it is the easier target of the two for
-  // the small sectors.
+  // the small sectors. A click opens the tracking ETF's own page: the tooltip
+  // already names it ("Tracked by XLE"), and the sector payload carries the
+  // symbol, so the destination comes from the data rather than a second map.
   svg.querySelectorAll(".rbub, .rlab").forEach(el => {
+    el.style.cursor = "pointer";
     el.addEventListener("mousemove", ev => show(ev, el.dataset.k));
     el.addEventListener("mouseleave", hideTip);
+    el.addEventListener("click", () => {
+      const p = byKey[el.dataset.k];
+      if (p && p.s.etf) location.href =
+        `company.html?t=${encodeURIComponent(p.s.etf)}&src=market_page`;
+    });
   });
 }
 
@@ -2435,8 +2443,9 @@ function renderSectorPerf(history){
     const up = r.changePct >= 0;
     parts.push(`<rect x="${up ? zero : zero + w}" y="${cy - bh/2}" width="${Math.abs(w)}"
         height="${bh}" rx="3" fill="var(${up ? "--up" : "--down"})"
-        data-s="${esc(r.sector)}" data-v="${r.changePct}" style="cursor:default"></rect>
+        data-s="${esc(r.sector)}" data-v="${r.changePct}" style="cursor:pointer"></rect>
       <text x="${ml-10}" y="${cy+5}" text-anchor="end" font-size="15.5"
+        data-s="${esc(r.sector)}" style="cursor:pointer"
         fill="var(--ink-2)">${esc(r.sector)}</text>
       <text x="${up ? zero + w + 6 : zero + w - 6}" y="${cy+5}"
         text-anchor="${up ? "start" : "end"}" font-size="12.5" class="tnum"
@@ -2451,6 +2460,22 @@ function renderSectorPerf(history){
       [[`${PERF.days}d cumulative`, asOf ? `as of ${asOf}` : ""],
        ["Change", pct(+el.dataset.v)]]));
     el.addEventListener("mouseleave", hideTip);
+  });
+  // A bar or its sector name opens the tracking ETF's page. The map mirrors
+  // the worker's SECTOR_ETF, keyed by the same full sector names these rows
+  // already carry.
+  const SECTOR_PAGE = {
+    "Technology": "XLK", "Financial Services": "XLF", "Healthcare": "XLV",
+    "Consumer Cyclical": "XLY", "Consumer Defensive": "XLP",
+    "Industrials": "XLI", "Energy": "XLE", "Utilities": "XLU",
+    "Real Estate": "XLRE", "Basic Materials": "XLB",
+    "Communication Services": "XLC",
+  };
+  host.querySelectorAll("[data-s]").forEach(el => {
+    el.addEventListener("click", () => {
+      const t = SECTOR_PAGE[el.dataset.s];
+      if (t) location.href = `company.html?t=${encodeURIComponent(t)}&src=market_page`;
+    });
   });
 }
 
