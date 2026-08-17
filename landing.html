@@ -616,10 +616,10 @@ svg{display:block;max-width:100%}
             <div class="meta" id="c-meta"></div>
           </div>
           <div class="range" id="chart-range" role="group" aria-label="Chart range">
-            <button type="button" data-r="1W" aria-pressed="true">1W</button>
+            <button type="button" data-r="1W" aria-pressed="false">1W</button>
             <button type="button" data-r="1M" aria-pressed="false">1M</button>
             <button type="button" data-r="YTD" aria-pressed="false">YTD</button>
-            <button type="button" data-r="1Y" aria-pressed="false">1Y</button>
+            <button type="button" data-r="1Y" aria-pressed="true">1Y</button>
           </div>
         </div>
         <div id="chart"></div>
@@ -803,7 +803,9 @@ const avatarColour = s => {
 
 const S = { view: "market_cap", rows: [], symbol: null, overview: null, movement: null,
             pricePoll: null, intraPoll: null, sel: 0, gotIntraday: false,
-            chartRange: "1W", chartBars: [] };
+            // A year is the range that shows a trend rather than noise, and
+            // it is what a first-time visitor should meet.
+            chartRange: "1Y", chartBars: [] };
 
 const INDEX_LABELS = {
   SPX: "S&P 500",
