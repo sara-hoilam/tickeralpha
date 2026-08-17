@@ -337,6 +337,8 @@ svg{display:block;max-width:100%}
   border-radius:99px;padding:1px 7px;
 }
 .bsym:hover{border-color:var(--accent);background:var(--accent-soft)}
+.bsrc{font-size:11px;color:var(--ink-3);text-decoration:none;margin-left:auto}
+.bsrc:hover{color:var(--accent);text-decoration:underline}
 /* Calendar rows, matching the portfolio page's so the two read as one product. */
 .brow{
   display:flex;align-items:center;gap:10px;padding:0 12px;height:56px;
@@ -2637,8 +2639,8 @@ function wirePanelInfoTips(root){
    call, because the block sits above the fold and must not arrive in pieces. */
 
 const BRIEF_KIND = {
-  theme: "Moving together", move: "Big mover", economics: "Economy",
-  earnings: "Earnings", news: "News", market: "Markets",
+  theme: "Moving together", move: "Big mover", buzz: "Most covered",
+  economics: "Economy", earnings: "Earnings", news: "News", market: "Markets",
 };
 
 function briefDayLabel(iso){
@@ -2683,8 +2685,12 @@ function renderBriefInsights(data){
           data-sym="${esc(s)}">${esc(s)}</a>`).join("");
     const when = r.eventTime ? `<span class="bwhen">${esc(r.eventTime)} ET</span>` : "";
     const kind = BRIEF_KIND[r.kind] ? `<span class="bkind">${esc(BRIEF_KIND[r.kind])}</span>` : "";
-    const foot = when || kind || syms
-      ? `<div class="bfoot">${when}${kind}${syms}</div>` : "";
+    // When the reason came from a story, let the reader go and read it.
+    const src = /^https?:\/\//.test(r.sourceUrl || "")
+      ? `<a class="bsrc" href="${esc(r.sourceUrl)}" target="_blank" rel="noopener noreferrer"
+           >Source ↗</a>` : "";
+    const foot = when || kind || syms || src
+      ? `<div class="bfoot">${when}${kind}${syms}${src}</div>` : "";
     return `<div class="bcard">
       <h4>${esc(r.headline)}</h4>
       <p>${esc(r.body)}</p>

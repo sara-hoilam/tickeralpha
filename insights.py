@@ -75,10 +75,10 @@ FALLBACK_MODEL = os.environ.get("ANTHROPIC_FALLBACK_MODEL") or ""
 # Thinking is on by default on the current models and counts against
 # max_tokens, so leave headroom above what the brief itself needs (~800).
 MAX_TOKENS = 8000
-# Three themes, three standout movers, three releases, three reporters, four
-# news items and the last session. The cap sits just above a full day so
-# nothing is silently dropped off the end.
-MAX_CANDIDATES = 18
+# Three themes, three standout movers, two most-covered names, three
+# releases, three reporters, four stories and the last session. The cap
+# sits just above a full day so nothing is silently dropped off the end.
+MAX_CANDIDATES = 20
 MIN_INSIGHTS = 3
 MAX_INSIGHTS = 5
 
@@ -234,6 +234,47 @@ def fmt_cap(v) -> str | None:
 # News dedupe -- mirrors newsKey() in news.html
 # ---------------------------------------------------------------------------
 
+def news_index(news: list) -> dict[str, list[dict]]:
+    """Stories keyed by the ticker they are tagged with, newest first.
+
+    Two things come out of this. A mover gets a headline attached, so the
+    brief can say why it moved rather than only how far -- a 44% jump with
+    no reason given is the least useful sentence on the page. And the count
+    itself is a signal: the name with six stories against it is the one
+    being discussed, whether or not it is the day's biggest percentage move.
+    """
+    by_sym: dict[str, list[dict]] = {}
+    seen: set[str] = set()
+    for a in news or []:
+        sym = str(a.get("symbol") or "").upper()
+        if not sym:
+            continue
+        key = news_key(a)
+        if key in seen:
+            continue                        # the same story from two wires
+        seen.add(key)
+        by_sym.setdefault(sym, []).append(a)
+    for rows in by_sym.values():
+        rows.sort(key=lambda a: str(a.get("published") or ""), reverse=True)
+    return by_sym
+
+
+def headline_facts(symbols: list[str], by_sym: dict[str, list[dict]],
+                   limit: int = 2) -> list[str]:
+    """Up to `limit` headlines covering the names in this candidate."""
+    facts, used = [], 0
+    for sym in symbols:
+        for a in by_sym.get(str(sym).upper(), [])[:1]:
+            title = str(a.get("title") or "").strip()
+            if not title:
+                continue
+            facts.append(f"headline on {sym}: {title}")
+            used += 1
+            if used >= limit:
+                return facts
+    return facts
+
+
 def news_key(article: dict) -> str:
     title = str(article.get("title") or "").lower()
     title = re.sub(r"[-–—|:]\s*[a-z .]{3,24}$", "", title)   # trailing publisher
@@ -268,7 +309,14 @@ THEME_MEMBER_MOVE = 3.0
 THEME_MIN_MEMBERS = 3
 THEME_MIN_WEIGHTED = 1.5
 # Below this the "industry" is a handful of microcaps nobody is discussing.
-THEME_MIN_CAP = 5e10
+THEME_MIN_CAP = 2e10
+# A "big mover" worth a slot of its own. Without a floor the ranking is a
+# microcap leaderboard: percentage moves scale inversely with size, so the
+# names people actually discuss never reach the top of it.
+MOVER_NOTABLE_CAP = 2e10
+# Enough separate stories to count as a conversation rather than one wire
+# report syndicated twice.
+BUZZ_MIN_STORIES = 2
 
 # Round numbers a price crossing gets talked about: 10, 25, 50, 100, 250 ...
 _ROUND_STEPS = (10, 25, 50, 100, 250, 500, 1000, 2000, 5000, 10000)
@@ -385,6 +433,19 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
     """The short list the model chooses from, in priority order."""
     out: list[dict] = []
     stories = stories or {}
+    by_sym = news_index(news)
+    # Today's move for any symbol the heatmap covers, so a name that surfaced
+    # through the news can still be quoted with its price action.
+    moves_by_symbol: dict[str, dict] = {}
+    for row in list(gainers or []) + list(losers or []):
+        sym = str(row.get("symbol") or "").upper()
+        if sym:
+            moves_by_symbol[sym] = row
+    for ind in industries or []:
+        for item in ind.get("items") or []:
+            sym = str(item.get("symbol") or "").upper()
+            if sym:
+                moves_by_symbol.setdefault(sym, item)
 
     # 1. Themes -- a whole corner of the market moving together. This is the
     #    "memory stocks are ripping" case, and it is first because it is what
@@ -407,6 +468,8 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
                 if key in stories.get(sym, {}):
                     bits.append(stories[sym][key])
             facts.append(f"{sym} {' '.join(b for b in bits if b)}")
+        # Why, not just how far.
+        facts += headline_facts(syms, by_sym, limit=3)
         out.append({
             "id": f"theme-{i + 1}",
             "kind": "theme",
@@ -414,21 +477,34 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
             "title": f"{t['industry']} moving together",
             "facts": facts,
             "symbols": syms,
-            "url": None,
+            "url": next((by_sym[s][0].get("url") for s in syms
+                         if by_sym.get(s)), None),
         })
 
-    # 2. Standout single names: the biggest movers, with the run behind them.
-    #    A name that has been climbing for a month reads differently from one
-    #    that jumped this morning, and the reader can tell the difference only
-    #    if the brief says which it is.
+    # 2. Standout single names, with the run and the reason behind them.
+    #    Ranking purely on percentage hands the brief to microcaps: a $1.6B
+    #    pharmaceutical up 44% will always beat a megacap up 7%, and nobody
+    #    is discussing the pharmaceutical. So take the notable names first
+    #    and keep one slot for the outright biggest move whatever its size.
     seen_syms = {s for c in out for s in c["symbols"]}
-    standouts = []
-    for row in (gainers or [])[:4] + (losers or [])[:2]:
+    pool = []
+    for row in (gainers or []) + (losers or []):
         sym = str(row.get("symbol") or "")
         if not sym or sym in seen_syms:
             continue
         seen_syms.add(sym)
-        standouts.append(row)
+        pool.append(row)
+    pool.sort(key=lambda r: abs(r.get("changePct") or 0), reverse=True)
+    notable = [r for r in pool if (r.get("marketCap") or 0) >= MOVER_NOTABLE_CAP]
+    # Notable names first, then fill the remaining slots from the whole pool
+    # rather than leaving them empty when few large caps moved.
+    standouts = list(notable[:2])
+    for r in pool:
+        if len(standouts) >= 3:
+            break
+        if r not in standouts:
+            standouts.append(r)
+
     for i, row in enumerate(standouts[:3]):
         sym = str(row.get("symbol"))
         facts = [f"{sym} {fmt_pct(row.get('changePct'))} today"]
@@ -439,6 +515,7 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
         if cap:
             facts.append(f"market cap {cap}")
         facts += list(stories.get(sym, {}).values())
+        facts += headline_facts([sym], by_sym, limit=2)
         out.append({
             "id": f"move-{i + 1}",
             "kind": "move",
@@ -446,7 +523,37 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
             "title": f"{row.get('name') or sym} ({sym})",
             "facts": facts,
             "symbols": [sym],
-            "url": None,
+            "url": (by_sym.get(sym, [{}])[0] or {}).get("url"),
+        })
+
+    # 3. What is being discussed. Story count is the closest thing in the
+    #    database to the conversation happening on social and in the media,
+    #    and it catches names the percentage ranking misses -- a megacap up
+    #    4% with six stories against it is the day's talking point even
+    #    though it is nowhere near the top of the gainers list.
+    quoted = {s for c in out for s in c["symbols"]}
+    buzz = sorted(((sym, rows) for sym, rows in by_sym.items()
+                   if len(rows) >= BUZZ_MIN_STORIES and sym not in quoted),
+                  key=lambda pair: len(pair[1]), reverse=True)
+    for i, (sym, rows) in enumerate(buzz[:2]):
+        facts = [f"{len(rows)} separate stories on {sym} in the last two days"]
+        move = moves_by_symbol.get(sym) or {}
+        if move.get("changePct") is not None:
+            facts.append(f"{sym} {fmt_pct(move['changePct'])} today")
+        price = fmt_money(move.get("price"))
+        if price:
+            facts.append(f"trading at {price}")
+        facts += list(stories.get(sym, {}).values())
+        facts += [f"headline: {str(a.get('title') or '').strip()}"
+                  for a in rows[:3] if a.get("title")]
+        out.append({
+            "id": f"buzz-{i + 1}",
+            "kind": "buzz",
+            "when": None,
+            "title": f"{sym} in the news",
+            "facts": facts,
+            "symbols": [sym],
+            "url": (rows[0] or {}).get("url"),
         })
 
     # 3. Scheduled economics. High impact first: these move the whole market
@@ -593,10 +700,11 @@ You write the morning market brief for Ticker Alpha, a stock dashboard read by
 individual investors who are not finance professionals.
 
 You will be given a JSON list of candidates already selected for you: whole
-industries moving together, individual names making unusual moves, scheduled
-economic releases, companies reporting, the last day of news, and the last
-session's tape. Your job is to pick the 3-5 a reader will actually want to
-know about this morning and explain each in plain English.
+industries moving together, individual names making unusual moves, the names
+generating the most news coverage, scheduled economic releases, companies
+reporting, recent stories, and the last session's tape. Your job is to pick
+the 3-5 a reader will actually want to know about this morning and explain
+each in plain English.
 
 Write it the way a sharp market columnist would: energetic, specific, and
 concrete. The energy has to come from the facts -- the size of a move, how
@@ -628,6 +736,14 @@ RULES - these are absolute:
    name is cheap or expensive, and never tell the reader what to do. "Micron
    closed above $1,000 for the first time and is up 22% over a month" is
    right; "Micron is on a tear and there is more to come" is not.
+7. Say why it moved when the candidate tells you. A `headline on ...` or
+   `headline:` fact is the reason: use it, in your own words, in the same
+   insight as the move. "Doximity jumped 32% after raising its full-year
+   forecast" is worth reading; "Doximity jumped 32%" is half a sentence.
+   When a candidate carries no headline you do not know the reason -- say
+   what the move was and leave the cause out. Never reach for a plausible
+   explanation, and never write "on no specific news", because a missing
+   headline here is a gap in our data, not evidence that nothing happened.
 
 STYLE (the character limits are enforced -- count them before you answer):
 - headline: under 9 words and at most <HEADLINE_MAX> characters. Put the
@@ -678,8 +794,8 @@ RESULT_SCHEMA = {
                     "headline": {"type": "string"},
                     "body": {"type": "string"},
                     "kind": {"type": "string",
-                             "enum": ["theme", "move", "economics", "earnings",
-                                      "news", "market"]},
+                             "enum": ["theme", "move", "buzz", "economics",
+                                      "earnings", "news", "market"]},
                     "source_id": {"type": "string"},
                     "symbols": {"type": "array", "items": {"type": "string"}},
                     "event_time": {"type": ["string", "null"]},
@@ -746,6 +862,21 @@ NOT_TICKERS = {
 # A comma only belongs to a number when it separates thousands. Written as
 # [\d,]* this swallowed the comma in "a previous 34, so it offers" and then
 # looked for "34," in the facts, rejecting a run whose numbers were all real.
+# Asking the brief to explain why a stock moved introduces a failure the
+# other gates cannot see: a fabricated cause is ordinary prose with no
+# invented number and no unknown ticker in it. "Eton rose 44% after reporting
+# positive trial data" reads perfectly and may be entirely invented. So a
+# causal claim is only allowed where the candidate actually carries a
+# headline to support it.
+_CAUSAL = re.compile(
+    r"\b(after|following|because of|due to|on the back of|thanks to|"
+    r"driven by|prompted by|sparked by|triggered by|in response to|"
+    r"on news|on reports)\b", re.I)
+# "after the close" is a session reference, not a cause.
+_CAUSAL_OK = re.compile(
+    r"\b(after|following)\s+(the\s+)?(close|open|bell|market|hours|session|"
+    r"a\s+\d|\d)", re.I)
+
 _NUM_TOKEN = re.compile(
     r"\d{1,2}:\d{2}"                         # clock times
     r"|\$?\d+(?:,\d{3})*(?:\.\d+)?[BMTK]?%?"  # 3.1  $223.45B  1,234  15.6%
@@ -872,7 +1003,9 @@ def validate(payload, candidates: list[dict]) -> list[dict]:
         for tok in _CAPS_TOKEN.findall(r["body"]):
             if tok in NOT_TICKERS or tok.upper() in allowed:
                 continue
-            if tok in cand.get("title", ""):
+            # Headlines carry tickers of their own, and quoting one back is
+            # sourced -- the haystack is the candidate we handed over.
+            if tok in hay:
                 continue
             raise Rejected(f"symbol: '{tok}' in {r['source_id']} is not a "
                            f"ticker from that candidate")
@@ -885,7 +1018,21 @@ def validate(payload, candidates: list[dict]) -> list[dict]:
             if re.search(pattern, low):
                 raise Rejected(f"advice: '{phrase}' appears in {r['source_id']}")
 
-        # 6. Length.
+        # 6. A cause needs a source. Where the candidate carries no headline
+        #    we do not know why the move happened, and a plausible-sounding
+        #    reason is the one kind of fabrication the other gates cannot
+        #    see -- it contains no invented number and no unknown ticker.
+        has_headline = any(str(f).lower().startswith("headline")
+                           for f in (cand.get("facts") or []))
+        if not has_headline and cand["kind"] != "news":
+            claim = _CAUSAL.search(r["body"])
+            if claim and not _CAUSAL_OK.search(r["body"]):
+                raise Rejected(
+                    f"cause: {r['source_id']} carries no headline, so "
+                    f"'{claim.group(0)}' in the body attributes a reason we "
+                    f"have no source for")
+
+        # 7. Length.
         if len(r["headline"]) > HEADLINE_MAX:
             raise Rejected(f"length: headline is {len(r['headline'])} chars in "
                            f"{r['source_id']} (max {HEADLINE_MAX})")
@@ -896,13 +1043,13 @@ def validate(payload, candidates: list[dict]) -> list[dict]:
             raise Rejected(f"length: body is not two sentences in "
                            f"{r['source_id']}")
 
-    # 7. Liveliness. The first version of this brief read like the calendar
+    # 8. Liveliness. The first version of this brief read like the calendar
     #    in prose, because the calendar was most of what it was given and the
     #    ranking rule put it on top. Now that moves are offered as candidates,
     #    a brief that ignores every one of them on a day when the market
     #    actually moved has buried the story -- which is a ranking failure,
     #    not a matter of taste.
-    live = {c["id"] for c in candidates if c["kind"] in ("theme", "move")}
+    live = {c["id"] for c in candidates if c["kind"] in ("theme", "move", "buzz")}
     if live and not any(r["source_id"] in live for r in rows):
         raise Rejected("liveliness: the market moved today but every insight "
                        "cites the calendar or the news")
@@ -1048,7 +1195,7 @@ def main() -> int:
                        {"p_view": "gainers", "p_limit": 5}) or []
     losers = read_rpc("get_market_summary",
                       {"p_view": "losers", "p_limit": 5}) or []
-    news = read_rpc("get_news_feed", {"p_hours": 24, "p_limit": 30}) or []
+    news = read_rpc("get_news_feed", {"p_hours": 48, "p_limit": 60}) or []
     try:
         sectors = read_rpc("get_sector_risk") or {}
     except SystemExit:
@@ -1073,6 +1220,7 @@ def main() -> int:
                  if s and not (s in seen or seen.add(s))][:10]
     stories = fetch_price_stories(shortlist)
 
+    by_symbol_counts = {s: len(v) for s, v in news_index(news).items()}
     candidates = build_candidates(brief, caps, gainers, losers, news, sectors,
                                   industries, stories)
     kinds: dict[str, int] = {}
@@ -1085,6 +1233,31 @@ def main() -> int:
     for t in themes:
         print(f"[insights] theme: {t['industry']} {fmt_pct(t['weighted'])} "
               f"with {t['n']} movers")
+    # When a theme everyone is discussing does not appear, the question is
+    # which threshold it missed. Show the near misses rather than leaving it
+    # to guesswork.
+    if industries:
+        ranked = sorted(industries,
+                        key=lambda i: abs(i.get("changePct") or 0), reverse=True)
+        chosen = {t["industry"] for t in themes}
+        print("[insights] biggest industry moves:")
+        for ind in ranked[:6]:
+            movers = [i for i in (ind.get("items") or [])
+                      if i.get("changePct") is not None
+                      and abs(i["changePct"]) >= THEME_MEMBER_MOVE]
+            why = ("used" if ind.get("industry") in chosen else
+                   "cap too small" if (ind.get("marketCap") or 0) < THEME_MIN_CAP
+                   else f"only {len(movers)} movers"
+                   if len(movers) < THEME_MIN_MEMBERS
+                   else "move too small")
+            print(f"    {str(ind.get('industry'))[:38]:<38} "
+                  f"{fmt_pct(ind.get('changePct')) or '   —':>8}  "
+                  f"cap {fmt_cap(ind.get('marketCap')) or '—':>9}  "
+                  f"{len(movers)} movers  [{why}]")
+    if by_symbol_counts:
+        top = sorted(by_symbol_counts.items(), key=lambda p: p[1], reverse=True)
+        print("[insights] most covered: " +
+              ", ".join(f"{s} ({n})" for s, n in top[:6]))
 
     if args.dry_run:
         print(json.dumps(candidates, indent=2))

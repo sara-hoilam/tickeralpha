@@ -243,8 +243,10 @@ of the product that is not deterministic:
 ```
 GitHub Actions, 10:30 UTC ──▶ insights.py
    (weekdays only)              │  reads the same public RPCs a visitor calls
-                                │  finds themes, movers, runs, milestones
-                                │  picks ~18 candidates in Python
+                                │  finds themes, movers, runs, milestones,
+                                │    the most-covered names, and the
+                                │    headline behind each move
+                                │  picks ~20 candidates in Python
                                 │  one Claude API call
                                 │  seven validation gates
                                 ▼
@@ -273,6 +275,12 @@ the prompt:
   livelier voice invites, "room to run" and its cousins — plus unknown
   tickers, missing sources, and briefs that bury the day's real story. A
   rejected run writes nothing.
+* **A reason needs a source.** Asking the brief to say *why* a stock moved
+  opens the one hole the other checks cannot see: a fabricated cause is
+  ordinary prose, with no invented number and no unknown ticker in it. So a
+  causal claim ("after…", "driven by…") is rejected unless the candidate it
+  cites actually carries a headline. Where no headline exists the brief
+  states the move and stops.
 
 `python insights.py --dry-run` prints the candidates and the generated brief
 without writing, which is how to check the output after changing the prompt.
