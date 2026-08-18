@@ -1,0 +1,15 @@
+# robots.txt for tickeralpha.ai
+# Last updated: 2026-08-18
+
+# Open to all crawlers, including AI assistants and search engines.
+User-agent: *
+Allow: /
+
+# Common noise: don't waste crawl budget on tracking parameters.
+# (These are hints only — canonical tags are the real fix.)
+Disallow: /*?utm_
+Disallow: /*?fbclid=
+Disallow: /*?gclid=
+
+# Sitemap
+Sitemap: https://tickeralpha.ai/sitemap.xml

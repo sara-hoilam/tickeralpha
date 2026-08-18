@@ -56,6 +56,7 @@ cp nav.js nav.css public/
 # scripts revalidate, so a deploy is visible without clearing a cache.
 cp _headers public/
 cp sitemap.xml public/
+cp robots.txt public/
 # gate.js is loaded by the app pages *and* by the reports, which reach it as
 # ../gate.js from public/reports/. One copy at the root serves both.
 cp gate.js public/
