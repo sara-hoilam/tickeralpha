@@ -567,6 +567,10 @@ body { background: #55585C; }
 
 .bar-back { border-color: transparent !important; padding-left: 0 !important; opacity: .75; }
 .bar-back:hover { opacity: 1; }
+.bar-nav { display: flex; gap: 2px; margin-left: 2px; }
+.bar .bar-nav a { border-color: transparent; opacity: .75; }
+.bar .bar-nav a:hover { opacity: 1; }
+@media (max-width: 900px) { .bar-nav { display: none; } }
 .bar a {
   flex: none; padding: 7px 13px; border: 1px solid rgba(253,253,252,.32); border-radius: 2px;
   color: #FDFDFC; text-decoration: none; font-size: 11px; font-weight: 600; letter-spacing: .04em;
@@ -585,6 +589,12 @@ body { background: #55585C; }
 
 <div class="bar">
   <a class="bar-back" href="../reports.html">&larr;&nbsp; All reports</a>
+  <nav class="bar-nav" aria-label="Ticker Alpha sections">
+    <a href="../index.html">Markets</a>
+    <a href="../news.html">News</a>
+    <a href="../earnings.html">Earnings</a>
+    <a href="../portfolio.html">Portfolio</a>
+  </nav>
   <div class="bar-id">Ticker Alpha <span>&middot;</span> <b>Palantir Technologies Inc.</b> <span>&middot;</span> NASDAQ: PLTR</div>
   <a href="pltr.pdf" download>Download PDF</a>
 </div>

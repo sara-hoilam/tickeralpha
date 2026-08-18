@@ -4,13 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ticker Alpha — Earnings</title>
+<meta name="description" content="The week's earnings calendar — who reports each day, consensus estimates, and results with beats and misses as they land.">
+<link rel="canonical" href="https://tickeralpha.ai/earnings.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ticker Alpha — Earnings">
+<meta property="og:description" content="The week's earnings calendar — who reports each day, consensus estimates, and results as they land.">
+<meta property="og:url" content="https://tickeralpha.ai/earnings.html">
+<meta property="og:site_name" content="Ticker Alpha">
 <script src="config.js"></script>
-<script src="logo.js"></script>
-<script src="analytics.js"></script>
+<script src="assets/logo.fecf2b22.js"></script>
+<script src="assets/analytics.620c6959.js"></script>
+<script src="assets/posthog-init.ca04ed3b.js"></script>
 <script type="module" src="clarity-init.js"></script>
-<link rel="stylesheet" href="nav.css">
+<link rel="stylesheet" href="assets/nav.359aeec5.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Every page's first act is an RPC to Supabase; warming the connection here
+     saves the DNS + TCP + TLS setup that otherwise sits in front of the first
+     byte of data. The origin is already public in config.js. -->
+<link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -132,30 +144,52 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:22px 28px 72px}
 .wl-ac span{font-size:12px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .rows{max-height:min(70vh,640px);overflow-y:auto;scrollbar-width:thin}
-table{width:100%;border-collapse:collapse;font-size:12.5px}
-thead th{position:sticky;top:0;background:var(--card);z-index:1;
+/* table-layout:fixed so the three numeric columns take exactly what they need
+   and the symbol column absorbs whatever is left. Left to size itself the
+   table grew past the sidebar -- every cell is nowrap, so the company name
+   simply pushed the width out -- and the whole thing took a horizontal
+   scrollbar. The sidebar is 300-380px depending on the window, so no fixed
+   name width fits it; the column has to be the elastic one. */
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;
+  table-layout:fixed}
+thead{position:relative;z-index:2}
+thead th:nth-child(2){width:74px}
+thead th:nth-child(3){width:64px}
+thead th:nth-child(4){width:74px}
+thead th{position:sticky;top:0;background:var(--card);z-index:2;
+  background-clip:padding-box;box-shadow:0 1px 0 var(--rule);
   font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
-  font-weight:600;text-align:right;padding:8px 12px 8px 0;border-bottom:1px solid var(--rule)}
+  font-weight:600;text-align:right;padding:8px 12px 8px 0}
 thead th:first-child{text-align:left;padding-left:12px}
-tbody td{padding:8px 0;border-bottom:1px solid var(--rule-2);text-align:right;
+/* The right padding has to match the header's. Without it the body cells ran
+   flush into each other -- a price and the date beside it read as one number
+   -- while the headers above them sat correctly spaced. */
+tbody td{padding:8px 12px 8px 0;border-bottom:1px solid var(--rule-2);text-align:right;
   font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
-tbody td:first-child{text-align:left;padding-left:12px;font-family:"IBM Plex Sans",sans-serif}
+tbody td:first-child{text-align:left;padding-left:12px;font-family:"IBM Plex Sans",sans-serif;
+  overflow:hidden}
 tbody td:last-child{padding-right:12px}
 tbody tr{cursor:pointer}
 tbody tr:hover td{background:var(--sunk)}
-.sym{display:flex;align-items:center;gap:8px}
+.sym{display:flex;align-items:center;gap:8px;min-width:0}
 .dot{width:22px;height:22px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
   font-family:"IBM Plex Mono",monospace;font-size:8.5px;font-weight:600;color:#fff}
 .symtext{min-width:0;display:flex;flex-direction:column;gap:1px}
 .tickline{display:flex;align-items:center;gap:5px}
 .tick{font-weight:600}
-.coname{font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;max-width:120px}
+/* Was a fixed 120px, which is what made the column rigid. It now takes the
+   width the column gives it and truncates there. */
+.coname{font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;
+  max-width:100%;white-space:nowrap}
 .rstar{border:0;background:transparent;cursor:pointer;color:var(--ink-3);font-size:13px;padding:0;line-height:1}
 .rstar.on{color:#d4a017}
 .pill{display:inline-block;min-width:58px;text-align:right;padding:2px 6px;border-radius:5px;
   font-size:12px;font-weight:500}
 .pill.up{background:var(--up-soft)} .pill.down{background:var(--down-soft)}
 .next-earn{font-size:11.5px;color:var(--ink-2)}
+/* Two words wrapped to two lines in a 300px sidebar and dragged the whole
+   table into a horizontal scroll. One word does not. */
+thead th.th-earn{white-space:nowrap}
 
 @media (max-width:720px){
   main{padding:16px 12px 48px}
@@ -224,8 +258,7 @@ tbody tr:hover td{background:var(--sunk)}
   </div>
 </main>
 
-<script src="nav.js"></script>
-<script src="gate.js"></script>
+<script src="assets/nav.385c7da8.js"></script>
 <script>
 "use strict";
 
@@ -278,6 +311,15 @@ const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const DOW_LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const shortDay = d => `${MON[d.getMonth()]} ${d.getDate()}`;
+/** The sidebar's earnings column. "Aug 26" rather than the raw "2026-08-26":
+    ten monospace characters is most of the width of a 300px sidebar, and a
+    next-earnings date is always inside the coming year, so the year earns
+    none of that room. Anything unparseable falls back to a dash rather than
+    rendering "undefined NaN". */
+const earnDate = s => {
+  const d = parseDay(s);
+  return (d instanceof Date && !isNaN(d)) ? shortDay(d) : "—";
+};
 const longDay = d => `${DOW_LONG[d.getDay()]}, ${MON[d.getMonth()]} ${d.getDate()}`;
 const money = v => {
   if (v == null || v === "") return null;
@@ -482,20 +524,6 @@ function paintDay(){
   }).join("");
   host.scrollTop = 0;
   hydrateOnScroll(host);
-
-  // Two companies is enough to show what a day on this calendar looks like --
-  // the layout, the highlights, the link through to the report -- and not
-  // enough to plan a week around, which is the thing worth an account.
-  if (window.TAGate) {
-    window.TAGate.gate(host, {
-      items: ":scope > article.ecard",
-      keep: 2,
-      peek: 300,
-      reason: "earnings",
-      title: `See all ${S.dayRows.length} companies reporting`,
-      note: "The full earnings calendar, every day, with your watchlist on it.",
-    });
-  }
 }
 
 // The calendar hides anything under $1B unless it is on the visitor's
@@ -539,7 +567,7 @@ function paintSidebar(){
     return;
   }
   host.innerHTML = `<table><thead><tr>
-      <th>Symbol</th><th>Price</th><th>Next earning</th><th>% Change</th>
+      <th>Symbol</th><th>Price</th><th class="th-earn">Earnings</th><th>% Change</th>
     </tr></thead><tbody>${S.rows.map(r => `
       <tr data-s="${esc(r.symbol)}">
         <td><span class="sym">
@@ -556,7 +584,7 @@ function paintSidebar(){
             ${r.name ? `<span class="coname">${esc(r.name)}</span>` : ""}
           </span></span></td>
         <td>${esc(price(r.price))}</td>
-        <td class="next-earn">${r.nextEarnings ? esc(r.nextEarnings) : "—"}</td>
+        <td class="next-earn">${r.nextEarnings ? esc(earnDate(r.nextEarnings)) : "—"}</td>
         <td><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
       </tr>`).join("")}</tbody></table>`;
 

@@ -205,16 +205,7 @@
   }
 
   function track(name, params) {
-    if (!name) return;
-    // Mirror business events into PostHog so the whole sign-up funnel
-    // (gate_view -> signup_modal_view -> signup_modal_accept -> sign_up)
-    // is visible in one tool alongside autocapture. page_view stays GA-only:
-    // PostHog already records its own $pageview.
-    if (name !== "page_view" && window.posthog &&
-        typeof window.posthog.capture === "function") {
-      window.posthog.capture(name, params || {});
-    }
-    if (!GA_ID) return;
+    if (!GA_ID || !name) return;
     gtag("event", name, clean(params || {}));
   }
 

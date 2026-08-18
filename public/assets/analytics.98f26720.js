@@ -77,39 +77,12 @@
   const CONSENT_KEY = "alphaticker-consent";
   const SEEN_KEY    = "alphaticker-ga-accounts";  // ids we have sent sign_up for
   const IDS_KEY     = "alphaticker-ga-ids";       // ids written to profile this session
-  const INTERNAL_KEY = "alphaticker-internal";    // this browser is the owner's
 
   const store = {
     get(k){ try { return localStorage.getItem(k); } catch { return null; } },
     set(k, v){ try { localStorage.setItem(k, v); } catch {} },
     del(k){ try { localStorage.removeItem(k); } catch {} },
   };
-
-  /* ---- self-traffic guards ----------------------------------------------
-     Two kinds of visit must not shape the numbers.
-
-     A development server. The old note said local runs report nothing because
-     server.py serves an empty config.js -- true of server.py, but the static
-     preview (`python -m http.server -d public`) serves the real config.js
-     with the real measurement id, and weeks of preview sessions were counted
-     as visits. The hostname is the one signal that survives whatever server
-     is used, so the tag simply does not boot on a local one.
-
-     The owner's own browsing in production. Visiting any page once with
-     ?ta_internal=1 marks the browser in localStorage, and every event it
-     sends from then on carries traffic_type=internal -- which GA4's standard
-     Internal Traffic data filter excludes. ?ta_internal=0 unmarks it. This is
-     a per-browser flag rather than an IP rule because a home IP changes and
-     the flag does not. Clarity has no event parameter for this; clarity-init
-     reads the same flag and skips recording entirely. */
-  const LOCAL_HOST = /^(localhost$|127\.|0\.0\.0\.0$|\[::1\]$)/.test(location.hostname);
-  (function readInternalFlag(){
-    let q = null;
-    try { q = new URLSearchParams(location.search).get("ta_internal"); } catch {}
-    if (q === "1") { store.set(INTERNAL_KEY, "1"); console.info("[TA] this browser is now marked internal; its visits will be filtered."); }
-    else if (q === "0") { store.del(INTERNAL_KEY); console.info("[TA] internal mark removed; this browser counts as a visitor again."); }
-  })();
-  const INTERNAL = store.get(INTERNAL_KEY) === "1";
 
   /* ---- gtag ------------------------------------------------------------- */
   window.dataLayer = window.dataLayer || [];
@@ -170,17 +143,13 @@
      measurement ID has one home and build.sh can inject it per environment.
      Absent locally (server.py serves an empty config.js), where every call
      below becomes a no-op rather than an error. */
-  if (GA_ID && !LOCAL_HOST) {
+  if (GA_ID) {
     const s = document.createElement("script");
     s.async = true;
     s.src = "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(GA_ID);
     document.head.appendChild(s);
 
     gtag("js", new Date());
-    // Before config, so the first page_view carries it too. The events still
-    // send -- GA4's Internal Traffic filter is what drops them, and sending
-    // lets the filter's Testing state show they are being caught.
-    if (INTERNAL) gtag("set", { traffic_type: "internal" });
     // Page views are sent by hand; see pageView below.
     gtag("config", GA_ID, { send_page_view: false });
   }
@@ -205,16 +174,7 @@
   }
 
   function track(name, params) {
-    if (!name) return;
-    // Mirror business events into PostHog so the whole sign-up funnel
-    // (gate_view -> signup_modal_view -> signup_modal_accept -> sign_up)
-    // is visible in one tool alongside autocapture. page_view stays GA-only:
-    // PostHog already records its own $pageview.
-    if (name !== "page_view" && window.posthog &&
-        typeof window.posthog.capture === "function") {
-      window.posthog.capture(name, params || {});
-    }
-    if (!GA_ID) return;
+    if (!GA_ID || !name) return;
     gtag("event", name, clean(params || {}));
   }
 
@@ -230,7 +190,6 @@
     if (file === "earnings.html" || file === "earnings") return "Earnings";
     if (file === "company.html" || file === "company") return "Company";
     if (file === "portfolio.html" || file === "portfolio") return "Portfolio";
-    if (file === "politicians.html" || file === "politicians") return "Congress";
     return "Other";
   }
 

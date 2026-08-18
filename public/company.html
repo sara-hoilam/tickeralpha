@@ -4,15 +4,27 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ticker Alpha — quarterly financials from SEC filings</title>
+<meta name="description" content="Quarterly financials for any listed company, straight from SEC filings — revenue, margins, segments, cash flow, analyst consensus and insider activity.">
+<link rel="canonical" href="https://tickeralpha.ai/company.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ticker Alpha — quarterly financials from SEC filings">
+<meta property="og:description" content="Quarterly financials for any listed company, straight from SEC filings — revenue, margins, segments, cash flow and analyst consensus.">
+<meta property="og:url" content="https://tickeralpha.ai/company.html">
+<meta property="og:site_name" content="Ticker Alpha">
 <!-- Deployed builds ship this pointing at Supabase. Absent locally, where the
      page falls back to server.py. -->
 <script src="config.js"></script>
-<script src="logo.js"></script>
-<script src="analytics.js"></script>
+<script src="assets/logo.fecf2b22.js"></script>
+<script src="assets/analytics.620c6959.js"></script>
+<script src="assets/posthog-init.ca04ed3b.js"></script>
 <script type="module" src="clarity-init.js"></script>
-<link rel="stylesheet" href="nav.css">
+<link rel="stylesheet" href="assets/nav.359aeec5.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Every page's first act is an RPC to Supabase; warming the connection here
+     saves the DNS + TCP + TLS setup that otherwise sits in front of the first
+     byte of data. The origin is already public in config.js. -->
+<link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
 <style>
 /* ---------------------------------------------------------------------------
@@ -372,6 +384,24 @@ tbody tr:hover td{background:var(--sunk)}
   border-radius:6px;padding:2px 7px;line-height:1.5}
 .pq-pill.up{background:var(--up-soft);color:var(--up)}
 .pq-pill.down{background:var(--down-soft);color:var(--down)}
+/* What the shown price IS right now: last close, pre-market, after hours,
+   open session, or a 24/7 market. One glance, one pill, dot coloured by
+   session. Sized to wrap cleanly under the price on a phone. */
+.pq-state{display:inline-flex;align-items:center;gap:6px;margin-top:7px;
+  font-size:11.5px;font-weight:600;border-radius:99px;padding:3px 10px;
+  border:1px solid var(--rule);color:var(--ink-2);background:var(--sunk);
+  width:fit-content;max-width:100%;cursor:help}
+.pq-state i{width:7px;height:7px;border-radius:50%;background:var(--ink-3);flex-shrink:0}
+.pq-state b{font-weight:600;color:var(--ink)}
+.pq-state span{font-weight:400;color:var(--ink-3)}
+.pq-state.st-open i,.pq-state.st-live i{background:var(--up)}
+.pq-state.st-pre i{background:#eda100}
+.pq-state.st-after i{background:var(--accent)}
+/* A close older than the last completed session: the reason a prev-close can
+   disagree with what the reader saw elsewhere, so it is flagged, not muted. */
+.pq-state.st-behind{border-color:var(--down);background:var(--down-soft)}
+.pq-state.st-behind i{background:var(--down)}
+.pq-state.st-behind span{color:var(--down)}
 /* What the houses call it, under the price it is called on. */
 .pq-call{display:flex;align-items:baseline;gap:8px;margin-top:8px}
 .pq-call b{font-size:17px;font-weight:600;letter-spacing:-.01em}
@@ -414,6 +444,43 @@ tbody tr:hover td{background:var(--sunk)}
   font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;
   color:var(--ink-2)}
 .wst-h span{font-weight:500;color:var(--ink-3);white-space:nowrap}
+/* The analyst count opens the ratings. Styled as the label it replaced, with
+   an underline so it reads as something you can press rather than a caption. */
+.wst-n{
+  font:inherit;font-size:inherit;letter-spacing:inherit;text-transform:inherit;
+  font-weight:500;color:var(--ink-3);white-space:nowrap;
+  background:none;border:0;padding:0;cursor:pointer;
+  text-decoration:underline;text-underline-offset:2px;
+  text-decoration-color:var(--rule);
+}
+.wst-n:hover{color:var(--accent);text-decoration-color:currentColor}
+.wst-n:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+
+/* ---- analyst ratings dialog --------------------------------------------- */
+.amodal{
+  position:fixed;inset:0;z-index:400;display:grid;place-items:center;padding:20px;
+  background:rgba(17,24,32,.48);backdrop-filter:blur(4px);
+}
+.amodal[hidden]{display:none}
+.amodal-card{
+  position:relative;width:min(660px,100%);max-height:min(78vh,720px);
+  overflow:auto;background:var(--card);border-radius:var(--r);
+  box-shadow:0 18px 50px -20px rgba(17,24,32,.55);
+}
+/* The card inside is already a .panel; a second border would double it. */
+.amodal-card .acol>.panel{border:0;box-shadow:none;margin:0}
+.amodal-card .ascroll{max-height:none}
+.amodal-x{
+  position:absolute;top:10px;right:10px;z-index:2;
+  width:30px;height:30px;border:0;border-radius:8px;
+  background:var(--sunk);color:var(--ink-3);cursor:pointer;
+  font-size:19px;line-height:1;display:grid;place-items:center;
+}
+.amodal-x:hover{background:var(--rule);color:var(--ink)}
+@media (max-width:720px){
+  .amodal{padding:12px}
+  .amodal-card{max-height:86vh}
+}
 .wst-t{display:flex;align-items:baseline;gap:10px;margin-top:6px}
 .wst-t b{font-family:"IBM Plex Mono",monospace;font-size:22px;font-weight:600;
   letter-spacing:-.02em;font-variant-numeric:tabular-nums}
@@ -458,8 +525,11 @@ tbody tr:hover td{background:var(--sunk)}
 .idx-hold .htab tr:hover td{background:var(--sunk)}
 .idx-hold .htab a{color:var(--accent);text-decoration:none;font-family:"IBM Plex Mono",monospace;font-weight:600}
 .idx-hold .htab a:hover{text-decoration:underline}
-.idx-hold .htab .name{color:var(--ink-2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.idx-hold .htab .ind{color:var(--ink-3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.idx-hold .htab .name{color:var(--ink-2);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+/* Logo beside the company name; the text keeps the ellipsis. */
+.idx-hold .htab .hname{display:inline-flex;align-items:center;gap:7px;max-width:100%;vertical-align:middle}
+.idx-hold .htab .hname>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.idx-hold .htab .ind{color:var(--ink-3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 .idx-hold .htab .w,.idx-hold .htab .ret{
   font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap
 }
@@ -468,6 +538,11 @@ tbody tr:hover td{background:var(--sunk)}
 .idx-hold .scroll{
   overflow:auto;border:1px solid var(--rule);border-radius:var(--r);background:var(--card);
   max-height:calc(38px + 14 * 37px);
+  /* The generic .scroll rule pads the top, and a sticky header pins to the
+     padding edge -- so the header floated a band below the container's top
+     and rows showed through the gap while scrolling. Measured: 5px of row
+     text above the header. No top padding, no gap. */
+  padding:0;
 }
 .idx-chart-tools{
   display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;
@@ -553,6 +628,8 @@ tbody tr:hover td{background:var(--sunk)}
 .corr-search button[disabled]{opacity:.5;cursor:not-allowed}
 
 .pairrow{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:4px}
+/* Sector-ETF pages have no index-PE history, so the drawdown card stands alone. */
+.pairrow.idx-solo{grid-template-columns:minmax(0,1fr)}
 .pairrow>.panel{margin-bottom:16px}
 
 .lwrap{padding:2px 14px 12px}
@@ -565,6 +642,10 @@ tbody tr:hover td{background:var(--sunk)}
   margin-right:5px;vertical-align:2px}
 .lkey i.dash{height:0;border-top:2px dashed currentColor;background:none!important}
 .lread{min-height:19px;font-family:"IBM Plex Mono",monospace;font-size:11px}
+/* One plain sentence per chart saying what it shows. The chart is the
+   evidence; this is the finding, for the reader who does not speak chart. */
+.chart-take{padding:2px 0 8px;font-size:12.5px;color:var(--ink-2);line-height:1.45}
+.chart-take b{color:var(--ink)}
 .lread b{color:var(--ink);font-family:"IBM Plex Sans",sans-serif;font-size:11.5px}
 
 .swrap{padding:0 14px 14px;overflow-x:auto}
@@ -636,10 +717,6 @@ tbody tr:hover td{background:var(--sunk)}
   /* Cards keep a gutter so there is somewhere to start a scroll that is not a
      chart, and so a card reads as a card. */
   .card,.panel{border-radius:var(--r)}
-
-  /* The news tab leads with analyst coverage before any news, which is a lot
-     of screen before the thing the tab is named for. Hidden here only. */
-  #mtab-news #analyst-home,#mtab-news #analyst{display:none}
 
   /* Type scale: these were desktop sizes inherited down. */
   h2{font-size:17px}
@@ -873,16 +950,15 @@ tbody tr:hover td{background:var(--sunk)}
   /* Moved under the price panel -- see placeAnalyst. It follows a card with
      no bottom edge, so it brings its own gap. */
   #mtab-chart>.acol{margin:10px 0 0}
-  /* Alone in its tab, the feed is titled twice over by the tab itself. */
-  #mtab-news .grouphead,
-  #conews-panel .phead{display:none}
 }
 .ascroll{max-height:330px;overflow-y:auto;scrollbar-width:thin;
   scrollbar-color:var(--rule) transparent}
-.atable{width:100%;border-collapse:collapse;font-size:12.5px}
-.atable th{position:sticky;top:0;background:var(--card);z-index:1;text-align:left;
+.atable{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
+.atable thead{position:relative;z-index:2}
+.atable th{position:sticky;top:0;background:var(--card);z-index:2;text-align:left;
+  background-clip:padding-box;box-shadow:0 1px 0 var(--rule);
   font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
-  font-weight:600;padding:8px 14px;border-bottom:1px solid var(--rule)}
+  font-weight:600;padding:8px 14px}
 .atable td{padding:9px 14px;border-bottom:1px solid var(--rule-2)}
 .atable tr:last-child td{border-bottom:0}
 .atable td:nth-child(2){font-family:"IBM Plex Mono",monospace;color:var(--ink-3);
@@ -902,6 +978,8 @@ tbody tr:hover td{background:var(--sunk)}
 .tbtn:hover{border-color:var(--accent);color:var(--accent)}
 .tbtn svg{width:9px;height:6px}
 .tbtn.off{opacity:.45;cursor:default}
+/* A menu naming a live choice rather than its own category. */
+.tbtn-on{color:var(--ink);border-color:var(--ink-3)}
 .tmenu.open>.tbtn{border-color:var(--accent);color:var(--accent)}
 .tpop{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:60;
   min-width:216px;background:var(--card);border:1px solid var(--rule);
@@ -1358,7 +1436,6 @@ async function loadExtras(){
   if (!EXTRA.data) return;
   row.hidden = false;
   drawSeasonality();          // needs only the monthly closes
-  gateDeepTail();
   loadTickerNews();
   marketPanels();             // the rest wait on the price bars
   // Profile / headcount arrive with extras; redraw panels that use them.
@@ -1635,53 +1712,6 @@ const seasonStyle = v => swatch(SEASON_RAMP[v >= 0 ? "up" : "down"], Math.abs(v)
 const positiveStyle = pct => swatch(SEASON_RAMP.pos, (pct - 20) / 60);
 
 
-/* ---- the walled panels ----------------------------------------------------
-   Correlation, drawdown and seasonality are the three panels a serious reader
-   comes back for and a first visit does not miss, so they are where the wall
-   goes. Everything above them -- the price chart, the headline figures, the
-   flow diagram, the revenue breakdown, the income statement -- stays open,
-   because that is what a visitor needs in order to know what this is, and it
-   is what the search engines index.
-
-   The heading and its one-line description stay readable in every case. The
-   wall goes over the body only: the offer has to be legible as an offer, not
-   an unexplained blank. */
-function gatePanel(anchorId, opts){
-  const el = document.getElementById(anchorId);
-  const panel = el && el.closest("section.card");
-  if (!panel || !window.TAGate) return;
-  window.TAGate.gate(panel, Object.assign({
-    items: ":scope > :not(.phead)",
-    keep: 0,
-    peek: 240,
-    cta: "Continue with Google",
-  }, opts));
-}
-
-/** Every deep-tail panel on whichever of the two page shapes is rendered. */
-function gateDeepTail(){
-  gatePanel("corr-chart", {
-    reason: "correlation",
-    title: "See how this moves with anything else",
-    note: "Plot this company's daily returns against any other ticker.",
-  });
-  gatePanel("co-dd-chart", {
-    reason: "drawdown",
-    title: "See the full drawdown history",
-    note: "Every fall from an all-time high, and how often each depth happens.",
-  });
-  gatePanel("idx-dd-chart", {
-    reason: "drawdown",
-    title: "See the full drawdown history",
-    note: "Every fall from an all-time high, and how often each depth happens.",
-  });
-  gatePanel("season-grid", {
-    reason: "seasonality",
-    title: "See ten years of monthly returns",
-    note: "Which months this has historically risen in, year by year.",
-  });
-}
-
 function drawSeasonality(){
   const host = document.getElementById("season-grid");
   const m = EXTRA.data.monthly || [];
@@ -1765,8 +1795,12 @@ const signedIn = () => !!(window.TA && window.TA.signedIn());
 async function toggleWatch(symbol, source){
   const sym = String(symbol || "").toUpperCase();
   if (!sym) return false;
-  const report = watching => GA.track(
-    watching ? "add_to_watchlist" : "remove_from_watchlist", { ticker: sym, source });
+  const report = watching => {
+    GA.track(watching ? "add_to_watchlist" : "remove_from_watchlist", { ticker: sym, source });
+    if (window.posthog) window.posthog.capture(
+      watching ? "watchlist_ticker_added" : "watchlist_ticker_removed",
+      { ticker: sym, source });
+  };
   // Following a company is a gate: the ask comes before the save, not after
   // it. See the note on the same branch in landing.html.
   if (!signedIn()) {
@@ -2111,7 +2145,8 @@ function consensusSummary(spot){
   return `
     <div class="wst">
       <div class="wst-h">Wall Street consensus${call
-        ? `<span>${call.total} analyst${call.total === 1 ? "" : "s"}</span>` : ""}</div>
+        ? `<button type="button" class="wst-n" data-analysts>${call.total} analyst${
+            call.total === 1 ? "" : "s"}</button>` : ""}</div>
       ${mid == null ? "" : `<div class="wst-t"><b>$${mid.toFixed(2)}</b>${to === null ? ""
         : `<span class="${to >= 0 ? "up" : "down"}">${to >= 0 ? "+" : ""}${to.toFixed(1)}%</span>`}
       </div>`}
@@ -2128,17 +2163,49 @@ function consensusSummary(spot){
     The card is moved rather than drawn twice, so there is only ever one of
     it, and moved rather than restyled, because the two homes are different
     tabs and no rule can put an element in another panel. */
-function placeAnalyst(){
-  const card = document.getElementById("analyst");
-  const home = document.getElementById("analyst-home");
-  const chart = document.getElementById("mtab-chart");
-  if (!card || !home || !chart) return;      // market-only: it has its own tab
-  const wanted = MOBILE_MQ.matches ? chart : home;
-  if (card.parentElement === wanted) return;
-  if (wanted === home) home.prepend(card); else chart.append(card);
-}
+/* The ratings card used to migrate between the news tab and the chart tab by
+   breakpoint. It now lives in its dialog at every width, so there is nothing
+   to place -- kept as a no-op because the market-only layout still calls it. */
+function placeAnalyst(){}
 
 MOBILE_MQ.addEventListener("change", placeAnalyst);
+
+/* ---- the analyst ratings dialog -----------------------------------------
+   Opened from the "N analysts" count beside the Wall Street consensus. The
+   count is rebuilt every time the price panel redraws, so the click is bound
+   once on the document rather than to a button that keeps being replaced. */
+function openAnalystModal(){
+  const el = document.getElementById("amodal");
+  if (!el) return;
+  el.hidden = false;
+  document.body.style.overflow = "hidden";
+  // The ratings may never have been fetched: the tab that used to trigger the
+  // load is gone, so the dialog asks for them itself.
+  try { loadAnalyst(); } catch {}
+  const x = document.getElementById("amodal-x");
+  if (x) x.focus();
+}
+
+function closeAnalystModal(){
+  const el = document.getElementById("amodal");
+  if (!el || el.hidden) return;
+  el.hidden = true;
+  document.body.style.overflow = "";
+}
+
+addEventListener("click", e => {
+  const t = e.target;
+  if (!t || !t.closest) return;
+  if (t.closest("[data-analysts]")) { e.preventDefault(); openAnalystModal(); return; }
+  if (t.closest("#amodal-x")) { closeAnalystModal(); return; }
+  // Clicking the backdrop, but not the card sitting on it.
+  const back = t.closest("#amodal");
+  if (back && !t.closest(".amodal-card")) closeAnalystModal();
+});
+
+addEventListener("keydown", e => {
+  if (e.key === "Escape") closeAnalystModal();
+});
 
 /** Where each house covering the company stands now: one row per firm, its
     latest grade, and what it did to arrive at it. */
@@ -2271,8 +2338,22 @@ async function marketSymbolMeta(ticker){
   return null;
 }
 
+/* The eleven sector SPDRs, and the S&P sector each one tracks. These open as
+   index pages -- holdings, industry mix, drawdown, seasonality -- rather than
+   as a bare ETF chart. Holdings come from the S&P 500 book filtered to the
+   sector: FMP's own ETF-holdings feed is a higher-tier endpoint, and the
+   S&P members of a sector are the same book these funds hold, reweighted. */
+const SECTOR_ETF_PAGE = {
+  XLK: "Technology", XLF: "Financial Services", XLV: "Healthcare",
+  XLY: "Consumer Cyclical", XLP: "Consumer Defensive", XLI: "Industrials",
+  XLE: "Energy", XLU: "Utilities", XLRE: "Real Estate",
+  XLB: "Basic Materials", XLC: "Communication Services",
+};
+
 function openMarketSymbol(ticker, meta){
   if (meta.kind === "index") return openIndexSymbol(ticker, meta);
+  const sector = SECTOR_ETF_PAGE[String(ticker).toUpperCase()];
+  if (meta.kind === "etf" && sector) return openIndexSymbol(ticker, meta, { sector });
   const kind = meta.kind === "crypto" ? "cryptocurrency" : "ETF/fund";
   return marketOnly(ticker, {
     ticker: meta.symbol || ticker,
@@ -2335,12 +2416,33 @@ function indexIntervalKey(d, interval){
   return String(d).slice(0, 10);
 }
 
-function indexAxisLabel(d, interval){
+/* Granularity follows the window, not the interval alone.
+
+   A daily series over five years was labelled "31 Aug", "20 Oct", "5 Jan" --
+   six ticks with no year, which read as one twelve-month stretch when they
+   actually spanned half a decade. opts.year adds it; opts.noDay drops the day
+   once the window is long enough that an exact date is noise rather than
+   information. Both default off, so callers that pass nothing are unchanged. */
+function indexAxisLabel(d, interval, opts){
   if (!d) return "";
   if (interval === "annual") return String(d).slice(0, 4);
   const [y, m, day] = String(d).split("-").map(Number);
-  if (interval === "monthly") return `${MONTHS[m - 1].slice(0, 3)} ${y}`;
-  return `${day} ${MONTHS[m - 1].slice(0, 3)}`;
+  const mon = MONTHS[m - 1].slice(0, 3);
+  if (interval === "monthly") return `${mon} ${y}`;
+  const yr = opts && opts.year ? ` ’${String(y).slice(2)}` : "";
+  return opts && opts.noDay ? `${mon}${yr}` : `${day} ${mon}${yr}`;
+}
+
+/** Which of those a window needs, from the dates actually plotted. */
+function axisDateOpts(dates){
+  if (!dates || dates.length < 2) return {};
+  const first = String(dates[0]), last = String(dates[dates.length - 1]);
+  return {
+    // Any window straddling New Year is ambiguous without a year, however short.
+    year: first.slice(0, 4) !== last.slice(0, 4),
+    // Past a couple of years the day is precision nobody reads off an axis.
+    noDay: (Date.parse(last) - Date.parse(first)) / 864e5 > 730,
+  };
 }
 
 /** Keep the last date in each interval bucket (sorted ascending). */
@@ -2379,8 +2481,13 @@ function unlockReportBtn(ticker){
   </button>`;
 }
 
-/** Major index page: price chart, holdings+industry, PE vs peers, seasonality. */
-function openIndexSymbol(ticker, meta){
+/** Major index page: price chart, holdings+industry, PE vs peers, seasonality.
+ *  With opts.sector it is a sector-ETF page: same layout, holdings drawn from
+ *  the S&P 500 book filtered to the sector, no index-PE panel (that history
+ *  exists only for the four majors), and seasonality computed from the fund's
+ *  own price history. */
+function openIndexSymbol(ticker, meta, opts){
+  const sector = (opts && opts.sector) || null;
   const c = {
     ticker: meta.symbol || ticker,
     name: meta.name || ticker,
@@ -2397,7 +2504,8 @@ function openIndexSymbol(ticker, meta){
   INDEX_DD.range = "5Y";
   INDEX_DD.interval = "daily";
 
-  const holdTitle = c.ticker === "IXIC" ? "Holdings & industry (Nasdaq-100)" : "Holdings & industry";
+  const holdTitle = sector ? `Holdings & industry (S&P 500 · ${sector})`
+    : c.ticker === "IXIC" ? "Holdings & industry (Nasdaq-100)" : "Holdings & industry";
 
   main.innerHTML = `
     <div class="ident">
@@ -2411,7 +2519,8 @@ function openIndexSymbol(ticker, meta){
         </button>
         <div class="sub">
           <span class="chip key">${esc(c.ticker)}</span>
-          <span class="chip">Index</span>
+          <span class="chip">${sector ? "Sector ETF" : "Index"}</span>
+          ${sector ? `<span class="chip">${esc(sector)}</span>` : ""}
           ${c.exchange ? `<span class="chip">${esc(c.exchange)}</span>` : ""}
         </div>
         </div>
@@ -2422,7 +2531,10 @@ function openIndexSymbol(ticker, meta){
 
     <h3 class="grouphead" id="idx-hold-title">${esc(holdTitle)}</h3>
     <p class="note" id="idx-hold-note" style="text-align:left;padding:0 0 10px;margin:0">
-      ${c.ticker === "IXIC"
+      ${sector
+        ? `S&P 500 members of the ${esc(sector)} sector, weights renormalised within
+           the sector — the same book this fund tracks, stated from data already cached.`
+        : c.ticker === "IXIC"
         ? "Price is the NASDAQ Composite; holdings below are the Nasdaq-100 (the investable large-cap book)."
         : c.ticker === "DJI"
           ? "Dow weights are price-weighted (not market-cap)."
@@ -2437,8 +2549,8 @@ function openIndexSymbol(ticker, meta){
       </div>
     </div>
 
-    <div class="pairrow idx-valrow">
-      <section class="card panel">
+    <div class="pairrow idx-valrow${sector ? " idx-solo" : ""}">
+      ${sector ? "" : `<section class="card panel">
         <div class="phead">
           <div><h2>Forward PE Ratio</h2>
             <p>vs other market indexes</p></div>
@@ -2456,7 +2568,7 @@ function openIndexSymbol(ticker, meta){
         <p class="note" style="text-align:left;padding:4px 14px 14px;margin:0" id="idx-pe-note">
           Forward P/E from History of Market (S&P 500 / Nasdaq-100); Dow approximated from constituent TTM P/Es when needed.
         </p>
-      </section>
+      </section>`}
       <section class="card panel">
         <div class="phead">
           <div><h2>Drawdown ${helpIcon("drawdown")}</h2>
@@ -2493,9 +2605,9 @@ function openIndexSymbol(ticker, meta){
   wireStar();
   wireHelp();
   loadPrices();
-  loadIndexHoldings(c.ticker);
-  loadIndexSeasonality(c.ticker);
-  loadIndexPE(c.ticker);
+  loadIndexHoldings(c.ticker, sector);
+  if (sector) loadEtfSeasonality(c.ticker);
+  else { loadIndexSeasonality(c.ticker); loadIndexPE(c.ticker); }
   hydratePageLogos();
   addEventListener("resize", () => {
     clearTimeout(fitHoldingsRows._t);
@@ -2518,15 +2630,29 @@ function fitHoldingsRows(){
   scroll.style.maxHeight = Math.ceil(headH + bodyH + 1) + "px";
 }
 
-async function loadIndexHoldings(symbol){
+async function loadIndexHoldings(symbol, sector){
   const holdHost = document.getElementById("idx-holdings");
   const indHost = document.getElementById("idx-industry");
   if (!holdHost || !indHost) return;
   let rows = [];
-  try { rows = await rpc("get_index_holdings", { p_symbol: symbol }) || []; } catch {}
+  // A sector page reads the S&P book and keeps its own slice of it.
+  const src = sector ? "SPX" : symbol;
+  try { rows = await rpc("get_index_holdings", { p_symbol: src }) || []; } catch {}
+  if (sector) {
+    rows = rows.filter(r => String(r.sector || "").trim() === sector);
+    const tot = rows.reduce((a, r) => a + (+(r.weightPct ?? r.weight_pct) || 0), 0);
+    if (tot > 0) {
+      rows = rows
+        .map(r => ({ ...r, weightPct: (+(r.weightPct ?? r.weight_pct) || 0) * 100 / tot }))
+        .sort((a, b) => b.weightPct - a.weightPct);
+    }
+  }
   if (!rows.length) {
-    holdHost.innerHTML = `<div class="note">Holdings for ${esc(symbol)} are not cached yet.
-      They appear after the next worker refresh (apply migration 0048/0049 if needed).</div>`;
+    holdHost.innerHTML = `<div class="note">${sector
+      ? `No cached S&P 500 members carry the ${esc(sector)} label yet; they appear
+         after the next index holdings refresh.`
+      : `Holdings for ${esc(symbol)} are not cached yet.
+      They appear after the next worker refresh (apply migration 0048/0049 if needed).`}</div>`;
     indHost.innerHTML = `<div class="note">No industry weights yet.</div>`;
     return;
   }
@@ -2557,7 +2683,8 @@ async function loadIndexHoldings(symbol){
       const ytd = r.ytdPct ?? r.ytd_pct;
       return `<tr>
       <td><a href="company.html?t=${encodeURIComponent(r.symbol)}">${esc(r.symbol)}</a></td>
-      <td class="name" title="${esc(r.name || "")}">${esc(r.name || "—")}</td>
+      <td class="name" title="${esc(r.name || "")}"><span class="hname">${
+        window.TickerLogos ? window.TickerLogos.chip(r.symbol) : ""}<span>${esc(r.name || "—")}</span></span></td>
       <td class="ind" title="${esc(r.industry || r.sector || "")}">${esc(r.industry || r.sector || "—")}</td>
       <td class="w">${r.weightPct != null ? esc((+r.weightPct).toFixed(2) + "%") : "—"}</td>
       <td class="ret ${retClass(day)}">${esc(signedPct(day))}</td>
@@ -2566,15 +2693,19 @@ async function loadIndexHoldings(symbol){
     }).join("")}</tbody></table></div>
     <p class="note" style="text-align:left;padding:10px 2px 0;flex-shrink:0">Today from the latest quote close.
       YTD from cached daily bars when available. Scroll for full holdings.</p>`;
+  if (window.TickerLogos) window.TickerLogos.hydrate(rows.map(r => r.symbol), holdHost);
   requestAnimationFrame(() => fitHoldingsRows());
 
   // Prefer GICS-style sector for the donut (fewer, clearer slices). Fall back
-  // to industry when sector is missing so older caches still chart.
+  // to industry when sector is missing so older caches still chart. On a
+  // sector page every row shares one sector, so the donut slices by industry
+  // -- the level at which that page still has a mix to show.
   const byBucket = new Map();
   rows.forEach(r => {
     const w = r.weightPct != null ? +r.weightPct : +(r.weight_pct || 0);
     if (!w) return;
-    const key = (r.sector || r.industry || "").trim() || "Other / unlisted";
+    const key = (sector ? (r.industry || "") : (r.sector || r.industry || "")).trim()
+      || "Other / unlisted";
     byBucket.set(key, (byBucket.get(key) || 0) + w);
   });
   const slices = [...byBucket.entries()]
@@ -2591,7 +2722,7 @@ async function loadIndexHoldings(symbol){
   // Keep the donut and labels inside one card border.
   indHost.innerHTML = `
     <section class="card panel idx-pie-card">
-      <div class="idx-pie-title">Sector breakdown</div>
+      <div class="idx-pie-title">${sector ? "Industry breakdown" : "Sector breakdown"}</div>
       <div class="idx-pie-wrap" id="idx-pie"></div>
       <div class="idx-pie-legend">${top.map((s, i) => {
         const colour = `var(${INDEX_PIE[i % INDEX_PIE.length]})`;
@@ -2686,6 +2817,42 @@ function drawIndexPie(host, slices, total){
   });
 }
 
+/** Seasonality for a sector ETF, from its own price history. The index pages
+ *  read worker-cached monthly closes; nothing caches them for the SPDRs, but
+ *  the chart's stitched decade of closes is already on the page, and month-end
+ *  closes are one pass over it. Waits for the bars (and the long-close stitch,
+ *  which is what turns one year of months into ten) before computing. */
+async function loadEtfSeasonality(symbol){
+  const host = document.getElementById("season-grid");
+  if (!host) return;
+  for (let i = 0; i < 60 && (PRICE.symbol !== symbol || !PRICE.bars.length); i++) {
+    await new Promise(r => setTimeout(r, 250));
+  }
+  for (let i = 0; i < 24 && PRICE.longFor !== symbol; i++) {
+    await new Promise(r => setTimeout(r, 250));
+  }
+  if (PRICE.symbol !== symbol) return;          // moved on to another page
+  const bars = PRICE.bars;
+  if (!bars.length) {
+    host.innerHTML = `<div class="note">Seasonality appears once price history has loaded.</div>`;
+    return;
+  }
+  const monthly = [];
+  let cur = null;
+  for (const b of bars) {
+    const k = String(b.d).slice(0, 7);
+    if (!cur || cur.k !== k) { if (cur) monthly.push({ d: cur.d, c: cur.c }); cur = { k, d: b.d, c: b.c }; }
+    else { cur.d = b.d; cur.c = b.c; }
+  }
+  if (cur) monthly.push({ d: cur.d, c: cur.c });
+  EXTRA.symbol = symbol;
+  EXTRA.data = { ...(EXTRA.data || {}), monthly };
+  drawSeasonality();
+  // The drawdown chart merges these monthly closes under the daily bars, the
+  // same way the index pages do -- redraw now that the history exists.
+  if (document.getElementById("idx-dd-chart")) drawIndexDrawdown();
+}
+
 async function loadIndexSeasonality(symbol){
   const host = document.getElementById("season-grid");
   if (!host || !HOSTED) return;
@@ -2705,10 +2872,6 @@ async function loadIndexSeasonality(symbol){
     return;
   }
   drawSeasonality();
-  // The index shape of the page carries the same drawdown and seasonality
-  // panels, and is the same URL. Leaving them open here would mean the wall
-  // appears on AAPL but not on SPY, which reads as a bug rather than an offer.
-  gateDeepTail();
 }
 
 function wireIndexRange(hostId, getRange, setRange, onChange){
@@ -2881,6 +3044,9 @@ function drawIndexPE(){
   const step = dates.length > 180 ? Math.ceil(dates.length / 140) : 1;
   const axis = dates.filter((_, i) => i % step === 0 || i === dates.length - 1);
 
+  // Same ambiguity as the drawdown axis: this one is daily up to 1Y, and a
+  // twelve-month window always straddles a New Year.
+  const peAxisOpts = axisDateOpts(axis);
   const series = active.map(s => {
     let j = 0, last = null;
     while (j < s.points.length && s.points[j].d < axis[0]) {
@@ -2894,7 +3060,7 @@ function drawIndexPE(){
       }
       return {
         v: last,
-        label: indexAxisLabel(d, interval),
+        label: indexAxisLabel(d, interval, peAxisOpts),
         full: longDate(d),
       };
     });
@@ -3015,9 +3181,23 @@ function drawIndexDrawdown(hostId, state, idPrefix){
   }
   // Average over the filtered window (before display thinning).
   const avgDd = pts.reduce((a, p) => a + p.dd, 0) / pts.length;
+  /* Thin by time, not by index. Dropping every Nth point thinned the sparse
+     older years exactly as hard as the dense recent ones -- and those are the
+     years the time axis now gives real width to, so halving twelve monthly
+     points for 2022 was throwing away the part of the line that had least to
+     spare. A point survives if it is the first, the last, or far enough from
+     the one kept before it to earn its own pixel, which leaves sparse
+     stretches untouched and thins only the crowded end. */
   if (pts.length > 220) {
-    const step = Math.ceil(pts.length / 180);
-    pts = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
+    const gapMin = (Date.parse(pts[pts.length - 1].d) - Date.parse(pts[0].d)) / 400;
+    const keep = [pts[0]];
+    for (let i = 1; i < pts.length - 1; i++) {
+      if (Date.parse(pts[i].d) - Date.parse(keep[keep.length - 1].d) >= gapMin) {
+        keep.push(pts[i]);
+      }
+    }
+    keep.push(pts[pts.length - 1]);
+    pts = keep;
   }
 
   const low = Math.min(...pts.map(p => p.dd));
@@ -3031,7 +3211,21 @@ function drawIndexDrawdown(hostId, state, idPrefix){
   const y0 = floor * 1.08 - 0.5;
   const y1 = 0;
   const y = v => mt + ph - (v - y0) / (y1 - y0) * ph;
-  const x = i => ml + (pts.length < 2 ? pw / 2 : (i / (pts.length - 1)) * pw);
+  /* Position by date, not by index.
+
+     The cached series is not evenly spaced: older history is monthly and
+     recent history is daily. On NVDA's 5Y window that is 12 points for 2022
+     and 152 for 2026, so spacing points evenly by index put the halfway mark
+     at February 2026 -- half the width spent on the last six months while
+     four and a half years crowded into the other half. The line was a real
+     drawdown series drawn on a lying axis, and a five-year window looked like
+     a one-year one. Mapping the date onto the width fixes the geometry; the
+     sparse years simply carry fewer vertices. */
+  const t0 = Date.parse(pts[0].d);
+  const t1 = Date.parse(pts[pts.length - 1].d);
+  const tSpan = Math.max(1, t1 - t0);
+  const x = i => ml + (pts.length < 2 ? pw / 2
+    : (Date.parse(pts[i].d) - t0) / tSpan * pw);
   const clampY = v => Math.max(y0, Math.min(y1, v));
 
   // Right-axis labels only — no solid horizontal grid lines across the plot.
@@ -3082,12 +3276,26 @@ function drawIndexDrawdown(hostId, state, idPrefix){
       (avgY < mt + 16 ? avgY + 14 : avgY - 6).toFixed(1)}"
       class="ax" text-anchor="middle" fill="var(--dd)">${esc(avgLabel)}</text>` : "";
 
-  const labelEvery = Math.max(1, Math.ceil((pts.length - 1) / 5));
-  const dates = pts.map((p, i) => {
-    if (!(i === 0 || i === pts.length - 1 || i % labelEvery === 0)) return "";
+  const axisOpts = axisDateOpts(pts.map(p => p.d));
+  /* Ticks are placed at even points in time and then snapped to the nearest
+     real observation. Stepping by index instead would crowd every label into
+     the dense recent end, which is the same mistake the axis itself used to
+     make. */
+  const TICKS = 6;
+  const tickIdx = [];
+  for (let k = 0; k < TICKS; k++) {
+    const want = t0 + tSpan * (k / (TICKS - 1));
+    let best = 0, bestGap = Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const gap = Math.abs(Date.parse(pts[i].d) - want);
+      if (gap < bestGap) { bestGap = gap; best = i; }
+    }
+    if (!tickIdx.includes(best)) tickIdx.push(best);
+  }
+  const dates = tickIdx.map(i => {
     const anchor = i === 0 ? "start" : i === pts.length - 1 ? "end" : "middle";
     return `<text x="${x(i).toFixed(1)}" y="${H - 10}" class="ax" text-anchor="${anchor}">${
-      esc(indexAxisLabel(p.d, interval))}</text>`;
+      esc(indexAxisLabel(pts[i].d, interval, axisOpts))}</text>`;
   }).join("");
 
   const name = (S.company && (INDEX_PE_META[S.company.ticker]?.label || S.company.ticker)) || "Index";
@@ -3095,7 +3303,19 @@ function drawIndexDrawdown(hostId, state, idPrefix){
     ? Math.max(1, Math.round((Date.parse(full[full.length - 1].d) - Date.parse(full[0].d)) / (365.25 * 864e5)))
     : 0;
 
-  host.innerHTML = `
+  /* The finding, in words: where the price stands against its high today,
+     and how rare that is in the cached history -- the exact question the
+     green bands answer, for readers who do not read bands. */
+  const ddNow = pts[pts.length - 1].dd;
+  const rarest = probs.filter(l => ddNow <= l.dd).map(l => l.p).sort((a, b) => a - b)[0];
+  const takeaway = `<div class="chart-take">${esc(name)} sits <b>${Math.abs(ddNow).toFixed(1)}%
+      below</b> its all-time high${
+      rarest ? ` — it has closed at least this far down on only ~<b>${rarest}%</b> of days${
+                  yearsUsed ? ` in ${yearsUsed} years` : ""}` :
+      Number.isFinite(avgDd) ? ` — shallower than the ${Math.abs(avgDd).toFixed(1)}% a typical
+        day in this window has sat below its high` : ""}.</div>`;
+
+  host.innerHTML = `${takeaway}
     <svg viewBox="0 0 ${W} ${H}" class="lchart" role="img"
       aria-label="${esc(name)} percent off all-time high">
       ${bandsSvg}${probLabels}${yLabels}
@@ -3129,8 +3349,15 @@ function drawIndexDrawdown(hostId, state, idPrefix){
   const showAt = (clientX) => {
     const r = svg.getBoundingClientRect();
     const px = (clientX - r.left) / r.width * W;
-    const i = Math.max(0, Math.min(pts.length - 1,
-      Math.round((px - ml) / Math.max(1e-6, pw) * (pts.length - 1))));
+    // Pixel back to a date, then the nearest observation to it -- the inverse
+    // of the axis, so the crosshair lands where the pointer actually is even
+    // where the series is sparse.
+    const want = t0 + Math.max(0, Math.min(1, (px - ml) / Math.max(1e-6, pw))) * tSpan;
+    let i = 0, bestGap = Infinity;
+    for (let k = 0; k < pts.length; k++) {
+      const gap = Math.abs(Date.parse(pts[k].d) - want);
+      if (gap < bestGap) { bestGap = gap; i = k; }
+    }
     const p = pts[i];
     cross.style.display = "";
     xh.setAttribute("x1", x(i)); xh.setAttribute("x2", x(i));
@@ -3460,6 +3687,7 @@ function wireCorrelation(){
 async function load(ticker, source){
   S.ticker = ticker;
   GA.track("view_ticker", { ticker, source });
+  if (window.posthog) window.posthog.capture("ticker_viewed", { ticker, source });
   openReport(ticker);
   busy(`Loading ${ticker}…`);
   fyEl.disabled = fqEl.disabled = true;
@@ -3555,12 +3783,26 @@ fqEl.addEventListener("change", () => {
   render(); loadSegments();
 });
 
+/** The same fiscal quarter one year earlier, when the company has filed it. */
+function prevYearQuarter(){
+  if (!S.company || !S.quarter) return null;
+  return S.company.quarters.find(q =>
+    q.fy === S.quarter.fy - 1 && q.fq === S.quarter.fq) || null;
+}
+
 async function loadSegments(){
-  S.breakdowns = null; S.cut = 0;
+  S.breakdowns = null; S.breakdownsPrior = null; S.cut = 0;
   renderMix();
-  try{
-    S.breakdowns = (await API.segments(S.ticker, S.quarter.end)) || [];
-  } catch { S.breakdowns = []; }
+  // The prior year's segments ride along for the Sankey's Y/Y figures. In
+  // parallel: the second call must not delay the diagram, and a company
+  // without last year's filing simply shows no deltas.
+  const prev = prevYearQuarter();
+  const [cur, old] = await Promise.all([
+    API.segments(S.ticker, S.quarter.end).catch(() => []),
+    prev ? API.segments(S.ticker, prev.end).catch(() => null) : Promise.resolve(null),
+  ]);
+  S.breakdowns = cur || [];
+  S.breakdownsPrior = old;
   renderMix();
   renderSankey();
 }
@@ -3746,7 +3988,6 @@ function render(){
       <button type="button" role="tab" data-mtab="chart" aria-selected="true">Chart</button>
       <button type="button" role="tab" data-mtab="filing" aria-selected="false">Filing</button>
       <button type="button" role="tab" data-mtab="market" aria-selected="false">Market</button>
-      <button type="button" role="tab" data-mtab="news" aria-selected="false">News</button>
       <button type="button" role="tab" data-mtab="custom" aria-selected="false">Custom</button>
     </nav>
 
@@ -3797,11 +4038,15 @@ function render(){
       </section>
 
       <div class="grid2">
-        <section class="card panel" id="mix-panel">
-          <div class="phead">
-            <div><h2>Where the revenue came from ${helpIcon("mix")}</h2></div>
-          </div>
-          <div class="scroll" id="mix"></div>
+        <!-- The news feed was a tab of its own, below everything. It reads
+             better beside the quarter it is reporting on, in the slot the
+             revenue-mix donut used to hold. -->
+        <section class="card panel" id="conews-panel">
+          <div class="phead"><div>
+            <h2>News ${helpIcon("news")}</h2>
+            <p id="news-scope">Recent stories.</p>
+          </div></div>
+          <div class="newswrap" id="co-news"><div class="note">Loading news…</div></div>
         </section>
 
         <section class="card panel">
@@ -3907,19 +4152,18 @@ function render(){
       </div>
     </div>
 
-    <div class="mtab-panel" data-mtab="news" id="mtab-news" role="tabpanel">
-      <h3 class="grouphead">News</h3>
-      <div class="pairrow" id="analyst-home">
+    <!-- Analyst coverage is no longer a section of its own. It keeps the same
+         #analyst host -- so loadAnalyst and drawAnalyst are untouched -- but
+         that host now lives in a dialog opened from the "N analysts" count in
+         the Wall Street consensus block, which is where a reader asking who
+         the analysts are actually is. -->
+    <div class="amodal" id="amodal" role="dialog" aria-modal="true"
+         aria-label="Analyst ratings" hidden>
+      <div class="amodal-card">
+        <button type="button" class="amodal-x" id="amodal-x"
+                aria-label="Close">&times;</button>
         <div class="acol" id="analyst"><section class="card panel"><div class="note">
           <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>
-
-        <section class="card panel" id="conews-panel">
-          <div class="phead"><div>
-            <h2>News ${helpIcon("news")}</h2>
-            <p id="news-scope">Recent stories.</p>
-          </div></div>
-          <div class="newswrap" id="co-news"><div class="note">Loading news…</div></div>
-        </section>
       </div>
     </div>
 
@@ -4062,6 +4306,31 @@ function renderSankey(){
   const nci = (pretaxRaw !== null && tax !== null && net !== null)
     ? pretaxRaw - tax - net : 0;
 
+  /* ---- last year's same quarter, for the Y/Y figures --------------------
+     The statement lines are already in memory (every quarter arrives with
+     the company); segments were fetched alongside this quarter's. A node
+     whose prior value is unknown simply shows no delta. */
+  const prevQ = prevYearQuarter();
+  const P = prevQ ? prevQ.lines : null;
+  const priorOf = {
+    rev: P && P.revenue, gp: P && P.grossProfit, cogs: P && P.cogs,
+    opex: P && P.opex, opinc: P && P.operatingIncome, net: P && P.netIncome,
+    tax: P && P.tax, pretax: P && P.pretaxIncome,
+    xrd: P && P.rd, xsm: P && P.sm, xga: P && P.ga, xsga: P && P.sga,
+    xopexOther: P && P.opexOther, prov: P && P.provisions,
+  };
+  const yoy = (cur, prior) => (prior !== null && prior !== undefined && prior > 0
+    && cur !== null && cur !== undefined)
+    ? `${cur >= prior ? "+" : "−"}${Math.abs((cur - prior) / prior * 100).toFixed(0)}% Y/Y`
+    : null;
+  // Margin nodes speak in points of margin, the way the note itself does:
+  // profit can fall while its margin holds, and the pair tells you which.
+  const ppYoy = (cur, prior) => (prior !== null && prior !== undefined && prior > 0
+    && priorOf.rev > 0 && rev > 0 && cur !== null)
+    ? (() => { const d = cur/rev*100 - prior/priorOf.rev*100;
+               return `${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(0)}pp Y/Y`; })()
+    : null;
+
   const N = [], K = [], made = new Set();
   const node = (id,col,val,label,kind,note) => {
     if (val === null || val === undefined || val <= 0) return null;
@@ -4080,6 +4349,23 @@ function renderSankey(){
   // Where the filing nests its members, the revenue side gets two columns:
   // the lines the company reports, then the groupings it puts them in.
   const cut = S.breakdowns && S.breakdowns.length ? S.breakdowns[S.cut] : null;
+  // Last year's rows for the same breakdown, matched by label -- segment ids
+  // are positional and a company can add or drop a segment between years, so
+  // the name is the only join that survives.
+  // Matched on the cut's name -- "label" was the wrong field (always null),
+  // and null-matches-null paired this quarter's segment cut with last year's
+  // geography cut. Wrong deltas are worse than none, so an unnamed cut on
+  // either side simply pairs with nothing.
+  const prevCut = cut && cut.name && S.breakdownsPrior
+    ? S.breakdownsPrior.find(b => b.name === cut.name) || null
+    : null;
+  const priorSeg = {}, priorGrp = {};
+  if (prevCut) prevCut.rows.forEach(r => {
+    if (r.value > 0) {
+      priorSeg[r.label] = (priorSeg[r.label] || 0) + r.value;
+      if (r.parent) priorGrp[r.parent] = (priorGrp[r.parent] || 0) + r.value;
+    }
+  });
   const segColour = {};
   let segGross = 0, segElim = 0;
   const feeds = [];               // what flows into Revenue: [id, value]
@@ -4264,6 +4550,18 @@ function renderSankey(){
     });
   }
 
+  // Attach each node's year-ago value and the delta its label will carry.
+  // Profit nodes speak in points of margin (their note already names the
+  // margin); everything else in percent growth of the value itself.
+  N.forEach(n => {
+    const prior = n.kind === "seg" ? priorSeg[n.label]
+      : n.kind === "group" ? priorGrp[n.label]
+      : priorOf[n.id];
+    n.prior = (prior !== null && prior !== undefined && prior > 0) ? prior : null;
+    n.delta = (n.id === "gp" || n.id === "opinc" || n.id === "net" || n.id === "pretax")
+      ? ppYoy(n.val, prior) : yoy(n.val, prior);
+  });
+
   if (N.length < 2) { host.innerHTML = `<div class="note">Not enough detail filed to draw the flow.</div>`; return; }
 
   // ---- layout ----
@@ -4271,8 +4569,11 @@ function renderSankey(){
   const hasSeg = cols.includes(0);
   const twoLevelSrc = cols.includes(-1);
   const W = twoLevelSrc ? 1560 : hasSeg ? 1300 : 1000;
-  const H = twoLevelSrc ? 420 : 380;
-  const padT = 34, padB = 18;
+  // A band above the plot for the chart's own heading, so a screenshot or the
+  // full-screen view says what it is without the panel around it.
+  const titleH = 46;
+  const H = (twoLevelSrc ? 420 : 380) + titleH;
+  const padT = 34 + titleH, padB = 18;
   const leftPad  = twoLevelSrc ? 230 : hasSeg ? 250 : 84;
   const rightPad = 210;
   const nodeW = 13;
@@ -4312,6 +4613,22 @@ function renderSankey(){
     : n.kind === "cost" ? "var(--cost)" : n.kind === "profit" ? "var(--profit)" : "var(--revenue)";
 
   const parts = [];
+
+  /* The heading: company logo where the cache has one, then name, quarter and
+     year. Values in the diagram are as filed, in dollars, so no currency line. */
+  const logoUrl = window.TickerLogos && window.TickerLogos.dataUrl
+    ? window.TickerLogos.dataUrl(S.ticker) : null;
+  const titleX = logoUrl ? 52 : 16;
+  if (logoUrl) parts.push(
+    `<image href="${esc(logoUrl)}" x="16" y="7" width="28" height="28"
+       preserveAspectRatio="xMidYMid meet" clip-path="inset(0 round 6px)"/>`);
+  parts.push(
+    `<text x="${titleX}" y="22" font-size="17" font-weight="700"
+       fill="var(--ink)">${esc(clip(S.company.name || S.ticker, 60))}</text>
+     <text x="${titleX}" y="39" font-size="12" class="tnum"
+       fill="var(--ink-2)">Q${q.fq} FY${q.fy} · quarter ended ${esc(longDate(q.end) || "")}${
+         prevQ ? "" : " · no year-ago quarter filed, so no Y/Y figures"}</text>`);
+
   K.forEach(k => {
     const a = byId[k.a], b = byId[k.b];
     const x1 = colX[a.col] + nodeW, x2 = colX[b.col];
@@ -4325,10 +4642,13 @@ function renderSankey(){
   N.forEach(n => {
     const x = colX[n.col];
     parts.push(`<rect x="${x}" y="${n.y0}" width="${nodeW}" height="${n.h}" rx="2.5"
-        fill="${paint(n)}" data-n="${esc(n.label)}" data-v="${n.val}"></rect>`);
+        fill="${paint(n)}" data-n="${esc(n.label)}" data-v="${n.val}"${
+        n.prior ? ` data-p="${n.prior}"` : ""}></rect>`);
 
     // Labels sit outside the plot on the two edge columns, otherwise above
-    // the node, so nothing overlaps a ribbon.
+    // the node, so nothing overlaps a ribbon. The second line reads
+    // value · note · Y/Y, each part present only when it exists.
+    const sub = [money(n.val,1), n.note, n.delta].filter(Boolean).join(" · ");
     const isFirst = n.col === cols[0], isLast = n.col === cols[cols.length-1];
     const fill = n.kind === "cost" ? "var(--cost)" : n.kind === "profit" ? "var(--profit)"
                : n.kind === "seg" || n.kind === "group" ? "var(--ink)" : "var(--revenue)";
@@ -4340,11 +4660,11 @@ function renderSankey(){
         <text x="${tx}" y="${cy - 7}" text-anchor="${anchor}" font-size="12" font-weight="600"
               fill="${fill}">${esc(clip(n.label, 26))}</text>
         <text x="${tx}" y="${cy + 11}" text-anchor="${anchor}" font-size="11.5"
-              class="tnum" fill="var(--ink-2)">${esc(money(n.val,1))}${n.note ? " · " + esc(n.note) : ""}</text>`);
+              class="tnum" fill="var(--ink-2)">${esc(sub)}</text>`);
     } else {
       parts.push(`
         <text x="${x}" y="${n.y0 - 21}" font-size="12" font-weight="600" fill="${fill}">${esc(clip(n.label, 26))}</text>
-        <text x="${x}" y="${n.y0 - 5}" font-size="11.5" class="tnum" fill="var(--ink-2)">${esc(money(n.val,1))}${n.note ? " · " + esc(n.note) : ""}</text>`);
+        <text x="${x}" y="${n.y0 - 5}" font-size="11.5" class="tnum" fill="var(--ink-2)">${esc(sub)}</text>`);
     }
   });
 
@@ -4360,7 +4680,9 @@ function renderSankey(){
       aria-label="Flow of revenue into costs and profit for Q${q.fq} FY${q.fy}">${parts.join("")}</svg>`;
 
   host.querySelectorAll("[data-n]").forEach(el => hoverable(el, el.dataset.n,
-    [["Amount", money(+el.dataset.v)], ["Share of revenue", pct(+el.dataset.v/rev*100)]]));
+    [["Amount", money(+el.dataset.v)],
+     ["Share of revenue", pct(+el.dataset.v/rev*100)],
+     ...(el.dataset.p ? [["Year ago", money(+el.dataset.p)]] : [])]));
   host.querySelectorAll("[data-k]").forEach(el => hoverable(el, el.dataset.k.replace("→"," → "),
     [["Amount", money(+el.dataset.v)], ["Share of revenue", pct(+el.dataset.v/rev*100)]]));
   wireSankeyFullscreen();
@@ -4370,27 +4692,35 @@ function renderSankey(){
 function renderMix(){
   const host = document.getElementById("mix");
   const cuts = document.getElementById("mix-cuts");
-  if (!host) return;
+
+  /* The breakdown selector belongs to the Sankey panel, not to the donut this
+     function draws -- so it has to be built even though the donut is gone.
+     Returning early on a missing #mix, as this used to, left the Sankey with
+     no way to switch cut. */
+  const note = html => { if (host) host.innerHTML = html; };
 
   if (S.breakdowns === null){
-    cuts.innerHTML = "";
-    host.innerHTML = `<div class="note"><span class="load"></span> &nbsp;Reading the segment note from the filing…</div>`;
+    if (cuts) cuts.innerHTML = "";
+    note(`<div class="note"><span class="load"></span> &nbsp;Reading the segment note from the filing…</div>`);
     return;
   }
   if (!S.breakdowns.length){
-    cuts.innerHTML = "";
-    host.innerHTML = `<div class="note">This filing's revenue note could not be reconciled to
-      total revenue, so no breakdown is shown rather than an approximate one.</div>`;
+    if (cuts) cuts.innerHTML = "";
+    note(`<div class="note">This filing's revenue note could not be reconciled to
+      total revenue, so no breakdown is shown rather than an approximate one.</div>`);
     return;
   }
 
   const cut = S.breakdowns[S.cut];
   const rev = S.quarter.lines.revenue;
-  cuts.innerHTML = S.breakdowns.map((b,i) =>
-    `<button aria-pressed="${i===S.cut}" data-i="${i}">${esc(b.name)}</button>`).join("");
-  cuts.querySelectorAll("button").forEach(b => b.onclick = () => {
-    S.cut = +b.dataset.i; renderMix(); renderSankey();
-  });
+  if (cuts) {
+    cuts.innerHTML = S.breakdowns.map((b,i) =>
+      `<button aria-pressed="${i===S.cut}" data-i="${i}">${esc(b.name)}</button>`).join("");
+    cuts.querySelectorAll("button").forEach(b => b.onclick = () => {
+      S.cut = +b.dataset.i; renderMix(); renderSankey();
+    });
+  }
+  if (!host) return;                 // selector kept current; no donut to draw
 
   // A donut carries the part-to-whole reading; the ranked rows beside it
   // carry the comparison, and every slice is labelled so colour is never the
@@ -4928,8 +5258,13 @@ addEventListener("themechange", () => {
    apart for that reason.
 =========================================================================== */
 const PRICE = { symbol: null, bars: [], quote: null, range: 126, view: null, poll: null,
-  flipped: false, descOpen: false };
-const RANGES = [["1M", 21], ["3M", 63], ["6M", 126], ["1Y", 252], ["Max", 0]];
+  flipped: false, descOpen: false, asOf: null, stale: false };
+const RANGES = [["1M", 21], ["3M", 63], ["6M", 126], ["1Y", 252], ["5Y", 1260], ["Max", 0]];
+/* Reading five years of daily candles is 1,260 hairlines; each long range
+   opens at the interval a reader can actually see, and the interval buttons
+   still override it. */
+const RANGE_INTERVAL = { 21: "daily", 63: "daily", 126: "daily", 252: "daily",
+                         1260: "weekly", 0: "monthly" };
 
 /** Sticky tab offset under the shared nav (and tape, when present). */
 function syncMtabOffset(){
@@ -5157,15 +5492,109 @@ async function loadPrices(){
   PRICE.symbol = sym;
   PRICE.bars = d.bars || [];
   PRICE.quote = d.quote || null;
+  PRICE.asOf = d.asOf || null;
+  PRICE.stale = !!d.stale;
+  // Fresh symbol, fresh history: the stitched decade belongs to the previous
+  // one, and a stale approxBefore would caption the new chart wrongly.
+  PRICE.longFor = null;
+  PRICE.approxBefore = null;
   applyQuoteName();
   PRICE.view = null;
 
   if (!PRICE.bars.length || d.stale) {
-    // Nobody has opened this company before, or the bars are yesterday's.
+    // Nobody has opened this company before, or the bars are behind.
     try { await API.requestPrices(sym); } catch {}
     if (!PRICE.bars.length) return pollPrices(sym);
+    // Bars exist but are behind. The request above used to be fired and its
+    // answer never collected, so a chart that opened stale stayed stale for
+    // the whole visit however fast the worker refilled it -- which is how a
+    // company last refreshed on the 7th still read "7 Aug" on the 12th.
+    refreshStale(sym, PRICE.asOf);
   }
   paintPrices();
+  extendWithLongCloses(sym);
+}
+
+/** Stretch the chart's history: price_daily keeps ~300 days, price_close_long
+ *  a decade of closes. The old closes are stitched under the daily bars as
+ *  degenerate candles (open = high = low = close, no volume) -- every range,
+ *  resample and zoom then works on the full span unchanged, and the weekly or
+ *  monthly views the long ranges open in rebuild honest-looking candles from
+ *  the daily closes inside each bucket. A symbol with no long history stored
+ *  yet is requested once, so the worker backfills it for the next visit. */
+async function extendWithLongCloses(sym){
+  if (PRICE.longFor === sym) return;
+  PRICE.longFor = sym;
+  let got = null;
+  try { got = await rpc("get_long_closes", { p_symbols: [sym] }); } catch {}
+  const closes = ((got && got[sym]) || {}).closes || [];
+  if (!closes.length) {
+    rpc("request_long_closes", { p_symbols: [sym] }).catch(() => {});
+    return;
+  }
+  // The user may have moved on while the closes were in flight.
+  if (PRICE.symbol !== sym || !PRICE.bars.length) return;
+  const dailyStart = PRICE.bars[0].d;
+  const old = closes
+    .map(b => ({ d: String(b.d).slice(0, 10), c: Number(b.c) }))
+    .filter(b => b.d && b.d < dailyStart && Number.isFinite(b.c) && b.c > 0)
+    .sort((a, b) => a.d < b.d ? -1 : 1)
+    // a: this bar is a close, not a session. drawCandles draws these as a
+    // line rather than a candle with no body.
+    .map(b => ({ d: b.d, o: b.c, h: b.c, l: b.c, c: b.c, v: 0, a: 1 }));
+  if (!old.length) return;
+  // The two series must meet: the last stored close against the first daily
+  // bar. A stored history that lands a multiple away is a different
+  // instrument under the same name -- SPX's long closes were a penny-priced
+  // stray fetched without the index alias -- and stitching it in scales the
+  // whole chart to nonsense. Refuse it; the fixed worker replaces the row on
+  // its next backfill pass.
+  const joinOld = old[old.length - 1].c;
+  const joinNew = Number(PRICE.bars[0].c);
+  if (!(joinOld > 0) || !(joinNew > 0)
+      || joinOld / joinNew > 3 || joinNew / joinOld > 3) {
+    console.warn(`[chart] discarding stored long closes for ${sym}: `
+      + `${joinOld} vs ${joinNew} at the join reads as a different instrument`);
+    return;
+  }
+  PRICE.bars = [...old, ...PRICE.bars];
+  PRICE.approxBefore = dailyStart;
+  // Repaint only what the longer base changes: the drawn window (via its
+  // buttons' pressed state) is unchanged, but Max now means the full span.
+  drawCandles();
+}
+
+/** Watch for the refresh requested above and swap it in when it lands.
+    Quiet on purpose: the chart keeps showing what it has rather than being
+    replaced by a spinner, because stale prices still beat no prices. Gives up
+    after about a minute rather than polling the rest of the visit. */
+function refreshStale(sym, wasAsOf){
+  clearTimeout(PRICE.poll);
+  let tries = 0;
+  const tick = async () => {
+    if (!S.company || S.company.ticker !== sym) return;
+    // Two minutes, the same budget pollPrices allows. A refresh measured in
+    // tens of seconds was the optimistic case; NTRA's took minutes, and a
+    // window that gives up first is the same bug in a shorter coat.
+    if (tries++ > 40) return;
+    let d = null;
+    try { d = await API.prices(sym); } catch {}
+    if (d && (d.bars || []).length && (d.asOf || "") > (wasAsOf || "")) {
+      PRICE.bars = d.bars;
+      PRICE.quote = d.quote || PRICE.quote;
+      PRICE.asOf = d.asOf;
+      PRICE.stale = !!d.stale;
+      applyQuoteName();
+      PRICE.view = null;          // so the new bar is inside the window
+      paintPrices();                        // redraws the stats panel too
+      // The fresh daily bars replaced the stitched array; stitch again.
+      PRICE.longFor = null;
+      extendWithLongCloses(sym);
+      return;
+    }
+    PRICE.poll = setTimeout(tick, 3500);
+  };
+  PRICE.poll = setTimeout(tick, 2500);
 }
 
 /** A company nobody has opened has no prices yet. Say that it is being
@@ -5201,7 +5630,10 @@ function pollPrices(sym){
       PRICE.bars = d.bars; PRICE.quote = d.quote;
       applyQuoteName();
       restorePriceRow();
-      return paintPrices();
+      paintPrices();
+      PRICE.longFor = null;
+      extendWithLongCloses(sym);
+      return;
     }
     PRICE.poll = setTimeout(tick, 3000);
   };
@@ -5287,6 +5719,10 @@ function paintPrices(){
     b.onclick = () => {
       PRICE.range = +b.dataset.n;
       PRICE.view = null;
+      // Each range opens at a readable interval (5Y as weekly candles, Max as
+      // monthly); the interval menu still overrides afterwards.
+      const iv = RANGE_INTERVAL[PRICE.range];
+      if (iv) PRICE.interval = iv;
       GA.track("change_chart_range",
         { ticker: PRICE.symbol || S.ticker, range: b.dataset.r, source: "ticker_page" });
       paintPrices();
@@ -5321,10 +5757,6 @@ function marketPanels(){
   if (!CORR.wired) { CORR.wired = true; wireCorrelation(); }
   else drawCorrelation();
   wireHelp();
-  // After the draws, not before: the wall covers what was rendered, and the
-  // panels are redrawn on every price refresh. gate() is a no-op once a panel
-  // is already walled, so calling it again here costs nothing.
-  gateDeepTail();
 }
 
 /** Index window over PRICE.bars for the active range button. */
@@ -5362,13 +5794,17 @@ function resample(bars, interval){
     if (bk !== k) {
       if (cur) out.push(cur);
       k = bk;
-      cur = { d: b.d, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v || 0 };
+      cur = { d: b.d, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v || 0, a: b.a };
     } else {
       cur.h = Math.max(cur.h ?? b.h, b.h ?? cur.h);
       cur.l = Math.min(cur.l ?? b.l, b.l ?? cur.l);
       cur.c = b.c;
       cur.d = b.d;                        // label the period by its last day
       cur.v = (cur.v || 0) + (b.v || 0);
+      // A bucket is close-only when every member is. Dropping the flag here
+      // turned resampled close-only months back into "candles" -- degenerate
+      // marks with no body, which is the dot-row bug in a new interval.
+      cur.a = cur.a && b.a;
     }
   }
   if (cur) out.push(cur);
@@ -5531,9 +5967,9 @@ const INTERVALS = [["Daily", "daily"], ["Weekly", "weekly"], ["Monthly", "monthl
 
 /** The two dropdown groups above the chart. */
 function chartToolbar(){
-  const menu = (id, label, body) => `
+  const menu = (id, label, body, active) => `
     <div class="tmenu" data-menu="${id}">
-      <button type="button" class="tbtn" aria-expanded="false">${esc(label)}
+      <button type="button" class="tbtn${active ? " tbtn-on" : ""}" aria-expanded="false">${esc(label)}
         <svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none"
           stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
       <div class="tpop">${body}</div>
@@ -5543,14 +5979,28 @@ function chartToolbar(){
     `<button type="button" data-interval="${v}"
        class="${PRICE.interval === v ? "on" : ""}">${lab}</button>`).join("");
 
+  /* A closed menu says what is chosen inside it, not what it is called. The
+     buttons read "Time", "Trend", "Volatility" whatever was picked, so the
+     chart's state was legible only by opening all four. One choice takes its
+     name; several take a count, because three indicator names do not fit. */
+  const chosen = (g) => {
+    const on = Object.entries(g.items).filter(([id]) => PRICE.active.has(id));
+    return !on.length ? g.label
+      : on.length === 1 ? on[0][1].name
+      : `${g.label} · ${on.length}`;
+  };
+  const intervalLabel = (INTERVALS.find(([, v]) => v === PRICE.interval) || [])[0];
+
   const groups = Object.entries(TA).map(([gid, g]) =>
-    menu(gid, g.label, `<div class="tpop-h">${esc(g.label)}</div>` +
+    menu(gid, chosen(g), `<div class="tpop-h">${esc(g.label)}</div>` +
       Object.entries(g.items).map(([id, it]) =>
         `<button type="button" data-ta="${id}"
-           class="${PRICE.active.has(id) ? "on" : ""}">${esc(it.name)}</button>`).join(""))).join("");
+           class="${PRICE.active.has(id) ? "on" : ""}">${esc(it.name)}</button>`).join(""),
+      Object.keys(g.items).some(id => PRICE.active.has(id)))).join("");
 
   const anyOn = PRICE.active.size > 0;
-  return menu("time", "Time", `<div class="tpop-h">Interval</div>${timeBody}`) + groups +
+  return menu("time", intervalLabel || "Time",
+              `<div class="tpop-h">Interval</div>${timeBody}`, !!intervalLabel) + groups +
     `<button type="button" class="tbtn ${anyOn ? "" : "off"}" data-ta-clear
        ${anyOn ? "" : "disabled"}>Clear</button>`;
 }
@@ -5598,14 +6048,45 @@ function activeOverlays(bars){
   return out;
 }
 
-function visibleBars(){
+/** [from, to) of PRICE.bars the chart is showing. */
+function visibleRange(){
   if (PRICE.view) {
     const a = Math.max(0, Math.min(PRICE.view.a, PRICE.bars.length - 2));
     const b = Math.max(a + 5, Math.min(PRICE.view.b, PRICE.bars.length));
-    return PRICE.bars.slice(a, b);
+    return [a, b];
   }
   const n = PRICE.range;
-  return n > 0 ? PRICE.bars.slice(-n) : PRICE.bars;
+  return n > 0 ? [Math.max(0, PRICE.bars.length - n), PRICE.bars.length]
+               : [0, PRICE.bars.length];
+}
+
+function visibleBars(){
+  const [a, b] = visibleRange();
+  return PRICE.bars.slice(a, b);
+}
+
+/* Indicators are computed over history, then cropped to the window.
+   Feeding them only the visible bars meant a 200-day average had 200 of its
+   252 visible days spent warming up, and drew as a stub in the last quarter
+   of the chart -- an average of the window rather than of the stock. The
+   lead-in is generous enough for the longest period on offer; where the
+   stored history is shorter, the indicator still starts late, which is then
+   a fact about the data rather than about the zoom. */
+const TA_LEAD_BARS = 320;
+
+/** Crop every full-length series in an indicator's output by `off`. Written
+    structurally rather than per-indicator so a new shape needs no change
+    here: any array as long as the computed input is a series. */
+function cropSeries(v, off, len){
+  if (Array.isArray(v)) {
+    return v.length === len ? v.slice(off) : v.map(x => cropSeries(x, off, len));
+  }
+  if (v && typeof v === "object") {
+    const out = {};
+    for (const k of Object.keys(v)) out[k] = cropSeries(v[k], off, len);
+    return out;
+  }
+  return v;
 }
 
 /** Pinch/pan state lives outside drawCandles so a redraw mid-gesture does not
@@ -5740,7 +6221,16 @@ function drawCandles(){
   const x = i => ml + step * (i + 0.5);
   const col = b => (b.c ?? 0) >= (b.o ?? b.c ?? 0) ? "var(--up)" : "var(--down)";
 
+  /* Close-only history cannot be a candle. The stitched decade carries one
+     close per day, so at daily interval those bars have no body and no wick
+     and drew as a row of coloured dots -- which reads as a broken chart, not
+     as "this part is closes only". They are drawn as a line instead, in a
+     neutral colour, joined to the first real candle so the series is
+     continuous. Resampled to weekly or monthly they regain a real high and
+     low from the closes in each bucket, and draw as candles again. */
+  const isFlat = b => !!b.a && (b.h ?? b.c) === (b.l ?? b.c);
   const candles = bars.map((b, i) => {
+    if (isFlat(b)) return "";
     const top = y(Math.max(b.o ?? b.c, b.c)), bot = y(Math.min(b.o ?? b.c, b.c));
     return `<line x1="${x(i).toFixed(1)}" x2="${x(i).toFixed(1)}"
               y1="${y(b.h ?? b.c).toFixed(1)}" y2="${y(b.l ?? b.c).toFixed(1)}"
@@ -5750,14 +6240,37 @@ function drawCandles(){
               fill="${col(b)}"/>`;
   }).join("");
 
+  const flatPts = [];
+  for (let i = 0; i < bars.length; i++) {
+    if (isFlat(bars[i])) {
+      flatPts.push(`${x(i).toFixed(1)},${y(bars[i].c).toFixed(1)}`);
+    } else if (flatPts.length) {
+      // Meet the first real candle at its open, so there is no gap.
+      flatPts.push(`${x(i).toFixed(1)},${y(bars[i].o ?? bars[i].c).toFixed(1)}`);
+      break;
+    }
+  }
+  const flatLine = flatPts.length > 1
+    ? `<polyline points="${flatPts.join(" ")}" fill="none" stroke="var(--ink-3)"
+         stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>`
+    : "";
+
   const vols = bars.map((b, i) =>
     `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${vy(b.v || 0).toFixed(1)}"
        width="${bw.toFixed(1)}" height="${(H - mb - vy(b.v || 0)).toFixed(1)}"
        fill="${col(b)}" opacity=".26"/>`).join("");
 
   // Overlays replace the old fixed 50-day line: the same information is now
-  // one option among many rather than the only one on offer.
-  const overlays = activeOverlays(bars);
+  // one option among many rather than the only one on offer. They are fed
+  // the window plus a lead-in of earlier history and cropped back, so a long
+  // average is drawn from the stock's past rather than from the zoom.
+  const [va, vb] = visibleRange();
+  const ctx = resample(PRICE.bars.slice(Math.max(0, va - TA_LEAD_BARS), vb), PRICE.interval);
+  const firstVisible = bars.length ? bars[0].d : null;
+  // Matched on date: resampling can merge the window's opening bucket with
+  // days before it, so counting backwards from the end would be off by one.
+  const off = Math.max(0, ctx.findIndex(b => b.d === firstVisible));
+  const overlays = activeOverlays(ctx).map(o => cropSeries(o, off, ctx.length));
   const path = pts => pts.map((v, i) => v === null || v === undefined ? null
       : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).join(" ");
 
@@ -5810,12 +6323,14 @@ function drawCandles(){
   }).join("");
 
   const ticks = bandTicks(y0, y1, 5);
-  // Price labels sit inside the plot (right edge) so they stay within the
-  // white chart card rather than hanging outside the border.
+  // Price labels sit in the right margin, not inside the plot. Drawn inside
+  // and right-aligned, they landed on top of the newest candles -- the most
+  // recent prices, which are the ones a reader is looking at. The margin is
+  // reserved for exactly this and is wide enough for the numbers.
   const grid = ticks.map(t => `
     <line x1="${ml}" x2="${W - mr}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"
       stroke="var(--rule-2)" stroke-width="1"/>
-    <text x="${W - mr - 4}" y="${(y(t) + 3.5).toFixed(1)}" class="ax" text-anchor="end">${
+    <text x="${W - mr + 5}" y="${(y(t) + 3.5).toFixed(1)}" class="ax" text-anchor="start">${
       t < 10 ? t.toFixed(2) : Math.round(t)}</text>`).join("");
 
   // Dates at a readable density, whatever the range. Always include ends.
@@ -5829,11 +6344,35 @@ function drawCandles(){
   }).join("");
 
   const keptTip = document.getElementById("ptip");
-  host.innerHTML = `
+  // When the window reaches into the stitched decade of closes, say what
+  // that region is -- candles there are rebuilt from daily closes, with no
+  // intraday range and no volume, and pretending otherwise would be lying
+  // with a chart. And when the chosen range wants more history than is
+  // stored at all, say that too: a 5Y button over 300 days of bars showed
+  // ten months and let the reader believe that was five years.
+  const wantMore = !PRICE.view && PRICE.range > PRICE.bars.length
+    && !PRICE.approxBefore && PRICE.bars.length;
+  const approxNote = PRICE.approxBefore && bars[0] && bars[0].d < PRICE.approxBefore
+    ? `<div class="note" style="text-align:left;padding:2px 8px 0;font-size:11px">
+         Before ${esc(longDate(PRICE.approxBefore))}: shape from daily closes —
+         no intraday range or volume.</div>`
+    : wantMore
+    ? `<div class="note" style="text-align:left;padding:2px 8px 0;font-size:11px">
+         Stored history starts ${esc(longDate(PRICE.bars[0].d))}. The deeper
+         backfill is queued and fills in on a later visit.</div>`
+    : "";
+  host.innerHTML = `${approxNote}
     <svg viewBox="0 0 ${W} ${H}" class="pchart" role="img"
          aria-label="Daily prices for ${esc(PRICE.symbol)}"
          preserveAspectRatio="${mobile ? "none" : "xMidYMid meet"}">
-      ${grid}${taSvg}${vols}${candles}
+      ${/* Overlays are computed with a lead-in of history, so their values
+            can sit outside the visible price range -- a 200-day average far
+            from a one-month window's prices drew straight through the volume
+            band and the date labels. The plot clips them; candles never need
+            it, since the y-domain is built from them. */""}
+      <defs><clipPath id="pclip"><rect x="${ml}" y="${mt}" width="${pw}"
+        height="${ph}"/></clipPath></defs>
+      ${grid}<g clip-path="url(#pclip)">${taSvg}</g>${vols}${flatLine}${candles}
       ${dates}
       <g id="pcross" style="display:none">
         <line id="pcx" y1="${mt}" y2="${H - mb}" stroke="var(--ink-3)"
@@ -5920,6 +6459,87 @@ function drawCandles(){
   wirePriceGestures(host);
 }
 
+/** What the displayed price IS, said first, with the session as context.
+ *
+ *  The first version led with the session -- "Pre-market · showing close 12
+ *  Aug" -- and was read as "this is the pre-market price", which is the one
+ *  thing it is not. The number is always a regular-session close until
+ *  extended-hours quotes are wired, so the label now opens with that close
+ *  and its date, and mentions the session afterwards.
+ *
+ *  It also checks the close against the session the market has actually
+ *  completed. A close older than that is not a quiet fact -- it is why the
+ *  prev-close in the table disagrees with what a reader saw elsewhere -- so
+ *  it says how far behind it is and that a refresh is under way. */
+function marketSessionNow(){
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York",
+    hour12: false, weekday: "short", year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date());
+  const g = t => (parts.find(p => p.type === t) || {}).value;
+  const today = `${g("year")}-${g("month")}-${g("day")}`;
+  const mins = (+g("hour")) * 60 + (+g("minute"));
+  const dow = g("weekday");
+  const weekend = dow === "Sat" || dow === "Sun";
+  const phase = weekend ? "closed"
+    : mins < 240 ? "closed"
+    : mins < 570 ? "pre"
+    : mins < 960 ? "open"
+    : mins < 1200 ? "after"
+    : "closed";
+  // The most recent regular session that has finished. Weekday arithmetic
+  // only: a market holiday makes this one session optimistic, which shows a
+  // "1 session behind" note that clears itself on the next refresh -- better
+  // than silently vouching for a stale price.
+  const d = new Date(`${today}T12:00:00Z`);
+  if (phase === "open" || phase === "pre" || (weekend === false && mins < 240)) {
+    d.setUTCDate(d.getUTCDate() - 1);                 // today has not closed yet
+  }
+  while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() - 1);
+  return { today, phase, lastClose: d.toISOString().slice(0, 10) };
+}
+
+function priceStateChip(){
+  const sym = String(PRICE.symbol || "");
+  const asOf = PRICE.asOf ? String(PRICE.asOf).slice(0, 10) : null;
+  if (/^[A-Z]{2,6}USD$/.test(sym)) {
+    return { cls: "st-live", lead: "Latest quote", rest: "24/7 market",
+      title: "Crypto trades around the clock. This is the most recent stored quote." };
+  }
+  const { phase, lastClose } = marketSessionNow();
+  const sessionWord = phase === "pre" ? "pre-market now"
+    : phase === "open" ? "market open now"
+    : phase === "after" ? "after hours now"
+    : "market closed now";
+  if (!asOf) {
+    return { cls: "st-closed", lead: "Last close", rest: sessionWord,
+      title: "The price is the most recent regular-session close available." };
+  }
+  const behind = asOf < lastClose;
+  const lead = `${shortDate(asOf)} close`;
+  if (behind) {
+    // Sessions between, counted in weekdays -- the same approximation as above.
+    let n = 0;
+    for (const d = new Date(`${asOf}T12:00:00Z`);
+         d.toISOString().slice(0, 10) < lastClose && n < 30;) {
+      d.setUTCDate(d.getUTCDate() + 1);
+      if (![0, 6].includes(d.getUTCDay())) n++;
+    }
+    return { cls: "st-behind", lead,
+      rest: `${n} session${n === 1 ? "" : "s"} behind · refreshing`,
+      title: `This is the close from ${longDate(asOf)}, not the latest session (${longDate(lastClose)}). A refresh has been requested and the page updates when it arrives.` };
+  }
+  return { cls: phase === "open" ? "st-open" : phase === "pre" ? "st-pre"
+              : phase === "after" ? "st-after" : "st-closed",
+    lead, rest: sessionWord,
+    title: phase === "pre"
+      ? `The number is the ${longDate(asOf)} close. US pre-market is trading now (4:00–9:30 ET); pre-market prices are not shown.`
+      : phase === "open"
+      ? `The number is the ${longDate(asOf)} close, refreshed while the session runs.`
+      : phase === "after"
+      ? `The number is the ${longDate(asOf)} close. After-hours trading is under way; after-hours prices are not shown.`
+      : `The number is the ${longDate(asOf)} close. US markets are closed.` };
+}
+
 function drawPriceStats(){
   const q = PRICE.quote;
   const host = document.getElementById("price-stats");
@@ -5965,8 +6585,7 @@ function drawPriceStats(){
       <div class="pqhead">
         <div class="pq">
           <div class="pq-price ${dirClass}">${n(price)}</div>
-          ${chg === null || chg === undefined ? "" : `
-            <span class="pq-pill ${dirClass}">${chg >= 0 ? "+" : ""}${n(chg)}</span>
+          ${chgPct === null || chgPct === undefined ? "" : `
             <span class="pq-pill ${dirClass}">${chgPct >= 0 ? "+" : ""}${n(chgPct)}%</span>`}
         </div>
         ${!call ? "" : `<div class="pq-call ${call.tone}"
@@ -5974,10 +6593,16 @@ function drawPriceStats(){
           <b>${call.word}</b><span>${call.n}/${call.total} ratings</span>
         </div>`}
       </div>
+      ${(() => { const st = priceStateChip();
+        return `<div class="pq-state ${st.cls}" title="${esc(st.title)}"><i></i>` +
+               `<b>${esc(st.lead)}</b><span>· ${esc(st.rest)}</span></div>`; })()}
       <dl class="pstats">
         ${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
       </dl>
-      <p class="pnote">Last trading day${q && q.exchange ? ` · ${esc(q.exchange)}` : ""}</p>
+      ${/* The date used to live here as "As of …", repeating what the state
+            pill above now says. The exchange is the only part left that the
+            pill does not carry. */""}
+      ${q && q.exchange ? `<p class="pnote">${esc(q.exchange)}</p>` : ""}
       ${consensusSummary(price)}
       <p class="pflip-hint">Flip for company profile</p>
     </div>`;
@@ -6133,7 +6758,6 @@ addEventListener("popstate", () => {
   if (start) load(start, q.get("src") || undefined); else showHero();
 })();
 </script>
-<script src="nav.js"></script>
-<script src="gate.js"></script>
+<script src="assets/nav.385c7da8.js"></script>
 </body>
 </html>

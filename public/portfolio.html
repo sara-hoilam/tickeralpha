@@ -4,13 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ticker Alpha — Portfolio</title>
+<meta name="description" content="Track your holdings and watchlist against the market — P/L, volatility and diversification, with earnings dates, news and insider filings for your tickers.">
+<link rel="canonical" href="https://tickeralpha.ai/portfolio.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ticker Alpha — Portfolio">
+<meta property="og:description" content="Track your holdings and watchlist against the market — with earnings dates, news and insider filings for your tickers.">
+<meta property="og:url" content="https://tickeralpha.ai/portfolio.html">
+<meta property="og:site_name" content="Ticker Alpha">
 <script src="config.js"></script>
-<script src="logo.js"></script>
-<script src="analytics.js"></script>
+<script src="assets/logo.fecf2b22.js"></script>
+<script src="assets/analytics.620c6959.js"></script>
+<script src="assets/posthog-init.ca04ed3b.js"></script>
 <script type="module" src="clarity-init.js"></script>
-<link rel="stylesheet" href="nav.css">
+<link rel="stylesheet" href="assets/nav.359aeec5.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Every page's first act is an RPC to Supabase; warming the connection here
+     saves the DNS + TCP + TLS setup that otherwise sits in front of the first
+     byte of data. The origin is already public in config.js. -->
+<link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -198,10 +210,12 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 .seg button:last-child{border-right:0}
 .seg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:500}
 .rows{border-right:1px solid var(--rule);overflow-y:auto;overflow-x:auto;max-height:520px}
-table{width:100%;border-collapse:collapse;font-size:13.5px}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
+thead{position:relative;z-index:2}
 th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--ink-3);font-weight:600;padding:8px 14px;border-bottom:1px solid var(--rule);
-  position:sticky;top:0;background:var(--card);z-index:1}
+  color:var(--ink-3);font-weight:600;padding:8px 14px;
+  position:sticky;top:0;background:var(--card);z-index:2;
+  background-clip:padding-box;box-shadow:0 1px 0 var(--rule)}
 td{padding:10px 14px;border-bottom:1px solid var(--rule-2);vertical-align:middle}
 tr{cursor:pointer} tr:hover td{background:var(--sunk)}
 tr.on td{background:var(--accent-soft)}
@@ -255,10 +269,17 @@ tr.on td{background:var(--accent-soft)}
 .stack-cell .bot.down{color:var(--down)}
 .stack-cell .top.up{color:var(--up)}
 .stack-cell .top.down{color:var(--down)}
-.rows table{font-size:12.5px;width:100%;border-collapse:collapse}
+/* separate, not collapse: this table's header is sticky, and a collapsed
+   border lets the scrolled rows paint through it. */
+.rows table{font-size:12.5px;width:100%;border-collapse:separate;border-spacing:0}
 .rows th,.rows td{padding:9px 10px;white-space:nowrap}
 .rows th:first-child,.rows td:first-child{padding-left:10px}
-.rows .idcol{white-space:normal;width:1%;max-width:152px;padding-right:8px;text-align:left}
+.rows .idcol{white-space:normal;width:1%;max-width:124px;padding-right:8px;text-align:left}
+/* Narrower symbol column, so the numeric columns get the width back. The
+   company name truncates rather than wrapping the row onto a second line. */
+.rows .idcol .tsym-n{
+  display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%
+}
 /* Numeric columns: right-align headers and values (Symbol stays left). */
 .rows th.col-num,.rows td.col-num,
 .rows th.col-px,.rows td.col-px,
@@ -327,6 +348,10 @@ tr.on td{background:var(--accent-soft)}
   padding:4px 9px;font:inherit;font-size:11.5px;cursor:pointer;color:var(--ink-2)
 }
 .range button[aria-pressed=true]{border-color:var(--ink);color:var(--ink);font-weight:600}
+/* A range the portfolio's history cannot fill. Still clickable — it clamps to
+   the first transaction — but dimmed so four identical charts read as "your
+   history is short", not "the buttons are broken". */
+.range button.range-clamped{opacity:.55}
 
 /* ---- modal --------------------------------------------------------------- */
 .modal{
@@ -552,9 +577,12 @@ tr.on td{background:var(--accent-soft)}
   scrollbar-gutter:stable; overscroll-behavior:contain;
 }
 #insiders .mini thead th, #congress .mini thead th{
-  position:sticky; top:0; z-index:1; background:var(--card);
-  box-shadow:0 1px 0 var(--rule);
+  position:sticky; top:0; z-index:2; background:var(--card);
+  background-clip:padding-box; box-shadow:0 1px 0 var(--rule);
 }
+#insiders.scroll, #congress.scroll{ padding-top:0 }
+#insiders .mini, #congress .mini{ border-collapse:separate; border-spacing:0 }
+#insiders .mini thead, #congress .mini thead{ position:relative; z-index:2 }
 #insiders .trade-more, #congress .trade-more{
   text-align:center; font-size:11.5px; color:var(--ink-3); padding:10px 0 2px;
 }
@@ -614,9 +642,12 @@ tr.on td{background:var(--accent-soft)}
   padding:12px;flex:1;min-height:0;height:100%;align-items:stretch;
 }
 @media (max-width:720px){
-  .cal-week{gap:6px;padding:10px}
+  .cal-week{gap:6px;padding:8px}
   .cal-daycard .dom{font-size:15px}
-  .cal-week-wrap{height:152px}
+  /* The wrap's fixed height is what sets the day boxes, not their own padding:
+     the cards are height:100% of a grid row sized from it. Content measures
+     55px, so 88px covers it plus both paddings. */
+  .cal-week-wrap{height:88px}
   .cal-day{height:180px}
 }
 .cal-daycard{
@@ -743,14 +774,81 @@ tr.on td{background:var(--accent-soft)}
 
   /* Four rows then scroll, so neither table buries what follows it. Sized in
      rows rather than vh: a row is what a reader counts. */
+  /* Six rows then scroll. Measured, not guessed: 10px top pad + 22px sticky
+     header + 6 x 34px row = 236, which leaves the seventh row clipped so it is
+     visible that there is more to scroll to. */
   #insiders.scroll,#congress.scroll,
-  .panel #insiders,.panel #congress{max-height:190px;overflow-y:auto}
+  .panel #insiders,.panel #congress{max-height:236px;overflow-y:auto}
+
+  /* --- Discover: swipe, no arrows ---
+     The mobile discover rules up at ~448 are all dead: every one of them sits
+     above the unprefixed `.disc-rail` / `.disc-viewport` / `.disc-card` block,
+     same specificity, so the base won. The rail kept its 48px arrow gutters,
+     the viewport kept `overflow:hidden` -- which is why swiping did nothing at
+     all -- and the cards kept sizing for five across. Re-declared here. */
+  .disc-rail{padding:0}
+  .disc-nav{display:none}
+  .disc-viewport{
+    overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none
+  }
+  .disc-viewport::-webkit-scrollbar{display:none}
+  .disc-track{gap:10px}
+  .disc-card{flex-basis:min(42vw,168px);scroll-snap-align:start}
+
+  /* --- Congress & Insiders: one table at a time ---
+     Two full-width tables stacked meant a lot of scrolling past the first to
+     reach the second. Arrows either side of the heading swap between them. */
+  .grid2.tswap > .panel{display:none}
+  .grid2.tswap > .panel.tshow{display:block}
+  .grid2.tswap .hmhead{display:flex;align-items:center;gap:8px}
+  .grid2.tswap .htitle{min-width:0}
+  .grid2.tswap .htitle h3{
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+  }
+  /* Scoped to .grid2.tswap so it out-specifies the base `display:none`, which
+     sits further down the sheet -- at equal specificity that one would win. */
+  .grid2.tswap .tswap-nav{
+    display:grid;place-items:center;flex:0 0 auto;
+    width:28px;height:28px;padding:0;
+    border:1px solid var(--rule);border-radius:50%;
+    background:var(--card);color:var(--ink);cursor:pointer;
+    font:inherit;font-size:15px;line-height:1
+  }
+  .grid2.tswap .tswap-nav.next{margin-left:auto}
+
+  /* --- My Calendar: shorter day boxes, bare counts ---
+     Prefixed with #cal-week so both rules out-specify their base declarations
+     wherever those sit in the sheet. */
+  #cal-week .cal-daycard{padding:6px 5px 5px;gap:1px}
+  #cal-week .cal-daycard .dow{font-size:9px;letter-spacing:.05em}
+  #cal-week .cal-daycard .dom{font-size:15px;margin:0 0 3px}
+  #cal-week .cal-daycard .avatars{min-height:14px}
+  #cal-week .cal-daycard .n-long{display:none}
+  #cal-week .cal-daycard .n-short{display:inline}
 
   /* The holdings table has eight columns and cannot fit 366px, so it scrolls
      sideways instead of being clipped -- which is what it was doing: MV, price,
      %portfolio and the rest were simply unreachable. */
   #rows{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
-  #rows table{min-width:620px}
+  #rows table{min-width:560px}
+  /* ...and it was not scrolling. `1fr` is minmax(auto,1fr), whose floor is
+     min-content, so the table's own min-width became the column's floor: the
+     grid track grew to 560px and the *page* overflowed instead of the table.
+     minmax(0,...) lets the track shrink, which is what makes overflow-x work.
+     The wrapper needs min-width:0 for the same reason. */
+  .split{grid-template-columns:minmax(0,1fr)}
+  .split > div:first-child{min-width:0}
+
+  /* Narrower symbol column, so price and % change clear the fold before any
+     scrolling is needed. The company name truncates rather than wrapping the
+     row to two lines. */
+  #rows .idcol{max-width:108px}
+  #rows .tsym-n{
+    display:block;max-width:96px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap
+  }
+  #rows th.idcol,#rows td.idcol{padding-left:10px;padding-right:8px}
 
   /* Parity with the market page's news rail (it had these two lines). */
   .disc-card .body{padding:8px 9px 9px;gap:6px}
@@ -764,25 +862,38 @@ tr.on td{background:var(--accent-soft)}
 
    So the page becomes two views over the same DOM, no duplicated markup:
      default        the total-assets banner, then holdings, news, trades
-     body.pf-assets the arc, the index comparison and the P/L calendar
+     body.pf-assets the arc, the index comparison and the earnings calendar
    Tapping the banner opens the second; a back bar returns. */
 @media (max-width:720px){
-  /* --- the banner --- */
-  .pulse .cell:first-child{position:relative;cursor:pointer}
-  .pulse .cell:first-child::after{
-    content:"›";position:absolute;top:8px;right:8px;
-    font-size:15px;line-height:1;color:var(--ink-3)
+  /* --- the banner: total assets is the headline, not one cell of five ---
+     It spans the row and the other four metrics sit beneath it, so the number
+     you open the page for is the first thing on the screen at a readable size
+     rather than squeezed into a 70px column. */
+  body:not(.pf-assets) .pulse{grid-template-columns:repeat(4,minmax(0,1fr))}
+  body:not(.pf-assets) .pulse .cell:first-child{
+    grid-column:1/-1;position:relative;cursor:pointer;
+    border-right:0;border-bottom:1px solid var(--rule);padding:12px 14px 11px
+  }
+  body:not(.pf-assets) .pulse .cell:first-child .k{font-size:10.5px}
+  body:not(.pf-assets) .pulse .cell:first-child .v{
+    font-size:27px;line-height:1.1;margin-top:2px
+  }
+  body:not(.pf-assets) .pulse .cell:first-child .chg{font-size:12px;margin-top:4px}
+  body:not(.pf-assets) .pulse .cell:first-child::after{
+    content:"›";position:absolute;top:50%;right:12px;transform:translateY(-50%);
+    font-size:22px;line-height:1;color:var(--ink-3)
   }
   .pf-assets-hint{
-    display:block;font-size:9px;color:var(--accent);font-weight:600;
-    letter-spacing:.02em;margin-top:3px
+    display:block;font-size:10.5px;color:var(--accent);font-weight:600;
+    letter-spacing:.02em;margin-top:5px
   }
 
   /* --- screen A: chart and calendar are on the other view --- */
-  .chartwrap,.cal-section{display:none}
+  /* The calendar stays on the landing screen, directly above Congress &
+     Insiders where it already sits in the DOM; only the chart moves. */
+  .chartwrap{display:none}
 
   /* --- screen B --- */
-  .pf-back{display:none}
   body.pf-assets .pf-back{
     display:flex;align-items:center;gap:8px;width:100%;
     background:none;border:0;padding:2px 0 10px;
@@ -797,15 +908,38 @@ tr.on td{background:var(--accent-soft)}
   body.pf-assets .trades-head,
   body.pf-assets .grid2,
   body.pf-assets .split > div:first-child{display:none}
-  body.pf-assets .chartwrap,
-  body.pf-assets .cal-section{display:block}
+  body.pf-assets .chartwrap{display:block}
+  /* The chart's heading repeats the panel above it; the value carries it. */
+  body.pf-assets #c-sym,
+  body.pf-assets #c-logo{display:none}
+  /* ...and the calendar is not part of the analysis view any more. */
+  body.pf-assets .cal-section{display:none}
   body.pf-assets .split{display:block}
   /* The arc is inside the first pulse cell; show it here and only here. */
   body.pf-assets .pulse{grid-template-columns:minmax(0,1fr);border-radius:var(--r)}
   body.pf-assets .pulse .cell{border-right:0;border-top:1px solid var(--rule)}
-  body.pf-assets .pulse .cell:first-child{border-top:0}
+  /* The analysis view is the breakdown. The day's return and the other metric
+     cards are already on screen A, and repeating them here pushed the arc --
+     the thing this view exists for -- below the fold. */
+  body.pf-assets .pulse .cell:not(:first-child){display:none}
+  body.pf-assets .pulse .cell:first-child{border-top:0;padding:14px 16px 16px}
   body.pf-assets .pulse .cell:first-child::after{content:none}
   body.pf-assets .pulse .donut-wrap{display:flex}
+  /* Full chart width: the arc carries a 0 0 120 70 viewBox, so it scales. */
+  body.pf-assets .pulse .donut{
+    width:100%;max-width:none;height:auto;aspect-ratio:120 / 70;align-self:stretch
+  }
+  /* The total moves inside the arc, so the cell's own copy of it goes. */
+  body.pf-assets .pulse .cell:first-child > .v{display:none}
+  body.pf-assets .donut .donut-centre{
+    display:block;fill:var(--ink);font-size:11px;font-weight:600;
+    font-family:"IBM Plex Mono",monospace;letter-spacing:-.02em
+  }
+  /* Legend centred under the arc rather than stretched across the panel. */
+  body.pf-assets .pulse .donut-legend{
+    grid-template-columns:auto auto;gap:5px 18px;font-size:12px;margin-top:2px;
+    width:max-content;max-width:100%;margin-left:auto;margin-right:auto
+  }
   body.pf-assets .pulse .divgauge svg{display:block}
   body.pf-assets .pulse .divgauge{width:104px;height:104px;margin-top:6px}
   body.pf-assets .pulse .divinner{position:absolute;inset:0;align-items:center;
@@ -813,6 +947,61 @@ tr.on td{background:var(--accent-soft)}
   body.pf-assets .pulse .k{font-size:9.5px}
   body.pf-assets .pulse .v{font-size:19px;white-space:normal}
   body.pf-assets .pf-assets-hint{display:none}
+}
+/* Asset-type tabs above the holdings table. The label is "Securities" with
+   room for it and "Stocks" when there is not -- same tab, shorter word. */
+.asset-tabs{
+  display:flex; gap:4px; align-items:center; flex-wrap:nowrap;
+  overflow-x:auto; scrollbar-width:none; -ms-overflow-style:none;
+  margin:0 0 10px; padding-bottom:2px;
+}
+.asset-tabs::-webkit-scrollbar{display:none}
+/* Desktop already names the scope in the Portfolio/Watchlist control. */
+.pf-scope{display:none}
+
+/* The "My Assets" back button belongs to the mobile analysis view only. This
+   hide has to be global: it lived inside the max-width:720px block, which left
+   no rule at all on desktop, so the button rendered over the page heading.
+   body.pf-assets .pf-back is more specific and still reveals it on mobile --
+   and that class is only ever set when the mobile query matches. */
+.pf-back{display:none}
+
+/* The trades swap arrows are injected once and hidden outside the phone. */
+.tswap-nav{display:none}
+
+/* The bare event count is the phone's form of the label; desktop spells it. */
+.cal-daycard .n-short{display:none}
+
+/* The arc's centre label is for the mobile analysis view only. */
+.donut .donut-centre{display:none}
+.asset-tabs button{
+  flex:0 0 auto; display:inline-flex; align-items:center; gap:5px;
+  padding:6px 11px; border:1px solid var(--rule); border-radius:999px;
+  background:transparent; color:var(--ink-2); cursor:pointer;
+  font:inherit; font-size:12.5px; font-weight:500; line-height:1;
+  white-space:nowrap; transition:background .12s, color .12s, border-color .12s;
+}
+.asset-tabs button:hover{color:var(--ink); background:var(--sunk)}
+.asset-tabs button[aria-selected="true"]{
+  background:var(--accent); border-color:var(--accent); color:#fff;
+}
+.asset-tabs .at-n{
+  font-size:11px; font-weight:600; opacity:.62;
+  font-variant-numeric:tabular-nums;
+}
+.asset-tabs .at-short{display:none}
+@media (max-width:720px){
+  .asset-tabs{margin-bottom:8px}
+  .asset-tabs button{padding:5px 10px; font-size:12px}
+  .asset-tabs .at-long{display:none}
+  .asset-tabs .at-short{display:inline}
+  /* "All Account" -- the scope the tabs below it filter within. This has to
+     sit after the base `display:none` above: same specificity, source order
+     decides. */
+  .pf-scope{
+    display:block; margin:14px 0 8px;
+    font-size:13px; font-weight:600; color:var(--ink);
+  }
 }
 </style>
 </head>
@@ -832,8 +1021,10 @@ tr.on td{background:var(--accent-soft)}
         <input id="f-symbol" name="symbol" autocomplete="off" required maxlength="10" placeholder="e.g. AAPL">
       </div>
       <div class="field">
-        <label for="f-date">Today's date</label>
+        <label for="f-date">Purchase date</label>
         <input id="f-date" name="date" type="date" required>
+        <div class="hint">Today is fine — the real date makes the chart's
+          return history accurate.</div>
       </div>
       <div class="field">
         <label for="f-qty">Quantity</label>
@@ -1026,10 +1217,15 @@ const S = {
   transactions: [],
   positions: [],
   view: "portfolio",
+  assetTab: "all",
   selected: "PORTFOLIO",
   indexes: Object.fromEntries(INDEXES.map(i => [i.sym, i.sym === "SPY" || i.sym === "QQQ"])),
   range: "YTD",
   priceCache: {},
+  /** symbol → [{d,c}] from price_close_long, for chart windows that reach
+      further back than the ~300 days price_daily keeps. */
+  longCache: {},
+  longRequested: false,
   /** symbol → 'etf' | 'crypto' from ledger.market_symbol (or search). */
   assetKindBySym: {},
   busy: false,
@@ -1183,13 +1379,18 @@ function withRealizedPl(txns){
 }
 
 /** Realized gains/losses whose sell date falls in [fromISO, toISO] (inclusive). */
-function realizedPlInRange(fromISO, toISO){
+/* `keep` optionally restricts which symbols count, so an asset tab can scope
+   realized gains. It filters on the transaction's own symbol rather than the
+   open positions: a holding sold out entirely has no position left, but its
+   realized gain still belongs to whichever sleeve it traded in. */
+function realizedPlInRange(fromISO, toISO, keep = null){
   const today = todayISO();
   const to = toISO || today;
   let realized = 0;
   let soldCost = 0;
   for (const t of withRealizedPl(S.transactions)) {
     if (t.kind !== "sell") continue;
+    if (keep && !keep(String(t.symbol || "").toUpperCase())) continue;
     const d = t.tradeDate || "";
     if (fromISO && d < fromISO) continue;
     if (to && d > to) continue;
@@ -1210,13 +1411,18 @@ function openAvgCost(symbol){
     ? pos.avgCost : null;
 }
 
-/** Spendable cash from deposits and withdrawals (buys/sells write these). */
+/** Spendable cash from deposits, withdrawals and dividends. Sale proceeds
+ *  arrive as deposits already; dividends were credited as transactions but
+ *  never reached this balance, so money the page said you received was
+ *  nowhere to be found in Cash. A dividend row's price field holds the cash
+ *  amount. */
 function cashBalance(txns = S.transactions){
   let c = 0;
   for (const t of txns || []) {
     const px = Number(t.price) || 0;
     if (t.kind === "deposit") c += px;
     else if (t.kind === "withdrawal") c -= Math.abs(px);
+    else if (t.kind === "dividend") c += px;
   }
   // Avoid noisy −0 in the UI.
   if (Math.abs(c) < 1e-9) return 0;
@@ -1463,6 +1669,9 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee, n
       : row.kind === "dividend" ? "portfolio_dividend" : "portfolio_buy", {
       ticker: row.symbol,
     });
+    if (window.posthog && (row.kind === "buy" || row.kind === "sell")) {
+      window.posthog.capture("portfolio_trade_added", { ticker: row.symbol, kind: row.kind });
+    }
   }
   if (reload) await loadPortfolio();
 }
@@ -1507,6 +1716,23 @@ async function syncDividends(positions){
       .filter(t => t.kind === "dividend" && t.note)
       .map(t => `${t.symbol}|${t.note}`));
 
+  /* Shares actually held on a given day, replayed from the ledger. The credit
+     used to be today's quantity times the dividend -- so a position built up
+     over time was paid its full current size for every past ex-date, and a
+     backdated purchase retroactively minted quarters of dividends at today's
+     count. The transaction dates can answer the real question, so they do. */
+  const heldOn = (symbol, iso) => {
+    let q = 0;
+    for (const t of sortTxnsChrono(S.transactions)) {
+      if (String(t.symbol || "").toUpperCase() !== symbol) continue;
+      if (String(t.tradeDate || "").slice(0, 10) > iso) break;
+      const n = Number(t.quantity) || 0;
+      if (t.kind === "buy") q += n;
+      else if (t.kind === "sell") q -= n;
+    }
+    return q;
+  };
+
   let added = 0;
   for (const p of positions) {
     if (!(p.quantity > 0)) continue;
@@ -1517,14 +1743,16 @@ async function syncDividends(positions){
       const note = `ex:${ev.exDate}`;
       const key = `${p.symbol}|${note}`;
       if (existing.has(key)) continue;
-      const cash = Number((p.quantity * ev.amount).toFixed(4));
+      const qtyAtEx = heldOn(p.symbol, ev.exDate);
+      if (!(qtyAtEx > 0)) continue;
+      const cash = Number((qtyAtEx * ev.amount).toFixed(4));
       if (!(cash > 0)) continue;
       try {
         await addTransaction({
           symbol: p.symbol,
           kind: "dividend",
           tradeDate: ev.exDate,
-          quantity: p.quantity,
+          quantity: qtyAtEx,
           price: cash,
           note,
           quiet: true,
@@ -1534,7 +1762,7 @@ async function syncDividends(positions){
         // Keep the in-memory ledger in step, or the next run re-credits this.
         (S.transactions || (S.transactions = [])).push({
           symbol: p.symbol, kind: "dividend", tradeDate: ev.exDate,
-          quantity: p.quantity, price: cash, fee: 0, note,
+          quantity: qtyAtEx, price: cash, fee: 0, note,
         });
         added += 1;
       } catch (err) {
@@ -1637,6 +1865,39 @@ function isMoneyMarket(p){
 }
 
 /** Resolve Stocks / ETFs / Crypto / Funds for the Total Assets donut. */
+/* The portfolio table's asset-type tabs, in display order. `classes` are the
+   assetClass() buckets each tab collects; "all" ignores them. Bonds has no
+   bucket yet -- market_symbol.kind knows stock/etf/crypto/fund/money_market --
+   so the tab is present but empty until a bond kind exists. */
+const ASSET_TABS = [
+  { id: "all",    label: "All",        classes: null },
+  { id: "sec",    label: "Securities", short: "Stocks", classes: ["Stocks", "ETFs"] },
+  { id: "funds",  label: "Funds",      classes: ["Funds", "Cash"] },
+  { id: "bonds",  label: "Bonds",      classes: ["Bonds"] },
+  { id: "crypto", label: "Crypto",     classes: ["Crypto"] },
+];
+
+/* The positions the active asset tab covers. One definition for the holdings
+   table and the portfolio series both, so the chart can never disagree with
+   the rows it sits beside. */
+function assetTabRows(list){
+  const tab = ASSET_TABS.find(t => t.id === S.assetTab) || ASSET_TABS[0];
+  return tab.classes ? list.filter(p => tab.classes.includes(assetClass(p))) : list;
+}
+
+/* A symbol predicate for the active tab, or null for All. Takes a symbol
+   string, so it also classifies holdings that are fully sold and therefore
+   have no position row left. */
+function assetTabKeep(){
+  const tab = ASSET_TABS.find(t => t.id === S.assetTab) || ASSET_TABS[0];
+  return tab.classes ? sym => tab.classes.includes(assetClass(sym)) : null;
+}
+
+function assetTabLabel(){
+  const tab = ASSET_TABS.find(t => t.id === S.assetTab) || ASSET_TABS[0];
+  return tab.id === "all" ? "Portfolio" : tab.label;
+}
+
 function assetClass(p){
   const symbol = typeof p === "string" ? p : (p && p.symbol) || "";
   const name = typeof p === "object" && p ? (p.name || "") : "";
@@ -1780,7 +2041,7 @@ function wireInfoTips(root){
   });
 }
 
-function allocation(positions){
+function allocation(positions, { includeCash = true } = {}){
   const totals = { Cash: 0, Stocks: 0, Funds: 0, ETFs: 0, Crypto: 0 };
   let sum = 0;
   for (const p of positions) {
@@ -1791,7 +2052,9 @@ function allocation(positions){
     totals[cls] += v;
     sum += v;
   }
-  const cash = Math.max(0, cashBalance());
+  // Cash belongs to the whole account, not to a sleeve: the Crypto tab's
+  // headline was crypto plus all cash, which read as a much bigger position.
+  const cash = includeCash ? Math.max(0, cashBalance()) : 0;
   totals.Cash = cash;
   sum += cash;
   const parts = Object.entries(totals).map(([name, value]) => ({
@@ -1822,7 +2085,7 @@ function dailyReturn(positions){
 }
 
 /** Book return: unrealized on open holdings + dividends + all realized sells. */
-function bookReturn(positions, { fromISO = null, toISO = null } = {}){
+function bookReturn(positions, { fromISO = null, toISO = null, keep = null } = {}){
   let cost = 0, current = 0, div = 0;
   for (const p of positions) {
     const px = markPrice(p);
@@ -1833,7 +2096,7 @@ function bookReturn(positions, { fromISO = null, toISO = null } = {}){
   }
   // Period filter applies to realized gains by sell date (e.g. YTD vs 1M).
   // Unrealized + dividends stay as of now for the open book.
-  const { realized, soldCost } = realizedPlInRange(fromISO, toISO);
+  const { realized, soldCost } = realizedPlInRange(fromISO, toISO, keep);
   const unrealized = current - cost;
   const amount = unrealized + div + realized;
   const basis = cost + soldCost;
@@ -1878,7 +2141,7 @@ function volatilityScore(positions){
 }
 
 /* ---- half-donut ---------------------------------------------------------- */
-function halfDonutSvg(parts){
+function halfDonutSvg(parts, centre){
   const live = parts.filter(p => p.value > 0);
   const R = 50, CX = 60, CY = 60, SW = 12;
   if (!live.length) {
@@ -1899,7 +2162,13 @@ function halfDonutSvg(parts){
     offset += len;
     return el;
   }).join("");
-  return `<svg class="donut" viewBox="0 0 120 70" aria-hidden="true">${arcs}</svg>`;
+  // `centre` sits inside the arc. Only the mobile analysis view shows it; on
+  // desktop the same figure is already the cell's own headline, so CSS hides
+  // it rather than stating the number twice.
+  const label = centre
+    ? `<text class="donut-centre" x="60" y="56" text-anchor="middle">${esc(centre)}</text>`
+    : "";
+  return `<svg class="donut" viewBox="0 0 120 70">${arcs}${label}</svg>`;
 }
 
 /* ---- render: empty helpers ---------------------------------------------- */
@@ -1955,7 +2224,7 @@ function pulseLiveHtml(alloc, day, book, vol, div){
         <div class="k">Total Assets · USD</div>
         <div class="v num">${esc(money(alloc.sum).replace("$",""))}</div>
         <div class="donut-wrap">
-          ${halfDonutSvg(alloc.parts)}
+          ${halfDonutSvg(alloc.parts, money(alloc.sum).replace("$",""))}
           <div class="donut-legend">${alloc.parts.map(p => `
             <span><i style="background:${p.colour}"></i>${esc(p.name)}
               <b>${p.value > 0 ? p.pct.toFixed(1) + "%" : "—"}</b></span>`).join("")}</div>
@@ -2014,6 +2283,51 @@ function pfAssetsView(on){
   scrollTo({ top: 0, behavior: "instant" });
   // The chart measures its host, which was display:none a moment ago.
   if (on) requestAnimationFrame(() => { try { drawRightChart(); } catch {} });
+}
+
+/* Congress & Insiders as one swappable pane on a phone. The arrows go into the
+   panels' own headers rather than a new bar of their own, so each table keeps
+   its info tooltip and nothing is stated twice. */
+function wireTradesSwap(){
+  const first = document.getElementById("insiders");
+  const grid = first && first.closest(".grid2");
+  if (!grid || grid.dataset.tswap) return;
+  const panels = [...grid.children].filter(el => el.classList.contains("panel"));
+  if (panels.length < 2) return;
+  grid.dataset.tswap = "1";
+
+  const show = i => {
+    panels.forEach((p, n) => p.classList.toggle("tshow", n === i));
+    grid.dataset.tswapAt = String(i);
+  };
+  const step = d => {
+    const at = Number(grid.dataset.tswapAt || 0);
+    show((at + d + panels.length) % panels.length);
+  };
+
+  panels.forEach(panel => {
+    const head = panel.querySelector(".hmhead");
+    if (!head || head.querySelector(".tswap-nav")) return;
+    const other = panels.find(p => p !== panel);
+    const name = (other.querySelector(".htitle h3") || {}).textContent || "the other table";
+    for (const dir of ["prev", "next"]) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = `tswap-nav ${dir}`;
+      b.setAttribute("aria-label", `Show ${name.trim()}`);
+      b.textContent = dir === "prev" ? "‹" : "›";
+      b.addEventListener("click", () => step(dir === "prev" ? -1 : 1));
+      if (dir === "prev") head.prepend(b); else head.append(b);
+    }
+  });
+
+  const apply = on => {
+    grid.classList.toggle("tswap", on);
+    if (on) show(Number(grid.dataset.tswapAt || 0));
+    else panels.forEach(p => p.classList.remove("tshow"));
+  };
+  apply(PF_MOBILE.matches);
+  PF_MOBILE.addEventListener("change", e => apply(e.matches));
 }
 
 function wirePfAssets(){
@@ -2221,6 +2535,7 @@ function renderDashboard(){
   // renderDashboard rebuilds #pulse, so the banner's handler is attached here
   // rather than once at boot.
   wirePfAssets();
+  wireTradesSwap();
 }
 
 async function renderList(){
@@ -2309,8 +2624,14 @@ async function renderList(){
       return;
     }
 
-    const rows = S.positions.slice().sort((a, b) =>
+    const allRows = S.positions.slice().sort((a, b) =>
       ((markPrice(b) || 0) * b.quantity) - ((markPrice(a) || 0) * a.quantity));
+    // Asset-type tabs. "Securities" is stocks plus ETFs -- a holder thinks of
+    // both as shares they own, and splitting them would leave two thin tabs.
+    // Every tab that has nothing in it is still shown, so the row of tabs does
+    // not reflow as positions come and go.
+    const tabRows = ASSET_TABS.find(t => t.id === S.assetTab) || ASSET_TABS[0];
+    const rows = assetTabRows(allRows);
     const penSvg = `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none"
       stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12.5 3.5 16.5 7.5M4 16l.8-3.5L13.5 4a1.4 1.4 0 0 1 2 2L6.8 14.7 4 16Z"/></svg>`;
@@ -2319,17 +2640,22 @@ async function renderList(){
       <path d="M3.5 10a6.5 6.5 0 0 1 11.2-4.5M16.5 10a6.5 6.5 0 0 1-11.2 4.5"/>
       <path d="M14.2 2.8v4.2h-4.2M5.8 17.2v-4.2h4.2"/></svg>`;
     const plTip = "Open holdings vs avg buy, plus dividends and realized gains from sells (by sell date).";
-    const divTip = "Dividend received (credited on the ex-dividend date if the stock was logged by then), in USD before tax.";
+    const divTip = "Dividend received for the shares held on each ex-dividend date, in USD before tax. Credited to Cash.";
     const holdingsMv = rows.reduce((s, r) => {
       const px = markPrice(r);
       return s + ((px != null && r.quantity) ? px * r.quantity : 0);
     }, 0);
     const cash = cashBalance();
-    const totalMv = holdingsMv + Math.max(0, cash);
-    let totalQty = 0, totalDay = 0, dayN = 0, totalPl = 0, plN = 0;
+    // Cash is the account's, not a sleeve's: it shows on All and Funds, and
+    // stays out of the other tabs' totals and weights entirely.
+    const showCash = S.assetTab === "all" || S.assetTab === "funds";
+    const totalMv = holdingsMv + (showCash ? Math.max(0, cash) : 0);
+    // No summed quantity: 70 shares of KO plus 0.0965 BTC plus 100 fund units
+    // added up to a number that meant nothing, displayed as if it did. The
+    // Total row shows a position count instead.
+    let totalDay = 0, dayN = 0, totalPl = 0, plN = 0;
     let totalCost = 0, totalDiv = 0;
     for (const r of rows) {
-      totalQty += Number(r.quantity) || 0;
       const day = todayPl(r);
       if (day != null && Number.isFinite(day)) { totalDay += day; dayN++; }
       const pl = holdingPl(r);
@@ -2337,24 +2663,74 @@ async function renderList(){
       if (r.avgCost != null && r.quantity) totalCost += r.avgCost * r.quantity;
       totalDiv += holdingDiv(r);
     }
-    const { realized: realizedAll, soldCost } = realizedPlInRange(null, todayISO());
-    const { realized: realizedToday } = realizedPlInRange(todayISO(), todayISO());
+    // Same tab scope as `rows`, or the totals line would fold in realized
+    // gains from sleeves the table is not showing.
+    const keepTab = assetTabKeep();
+    const { realized: realizedAll, soldCost } =
+      realizedPlInRange(null, todayISO(), keepTab);
+    const { realized: realizedToday } =
+      realizedPlInRange(todayISO(), todayISO(), keepTab);
     if (Math.abs(realizedAll) > 1e-9) { totalPl += realizedAll; plN++; }
     if (Math.abs(realizedToday) > 1e-9) { totalDay += realizedToday; dayN++; }
     const totalBasis = totalCost + soldCost;
     const totalRet = totalBasis > 0 && plN ? (totalPl / totalBasis) * 100 : null;
     const totalDivRet = holdingsMv > 0 && totalDiv > 0 ? (totalDiv / holdingsMv) * 100 : null;
-    const cashWeight = totalMv > 0 ? (Math.max(0, cash) / totalMv) * 100 : null;
+    const cashWeight = showCash && totalMv > 0 ? (Math.max(0, cash) / totalMv) * 100 : null;
     const dash = `<div class="stack-cell"><span class="top">—</span><span class="bot">—</span></div>`;
+    const counts = {};
+    for (const t of ASSET_TABS) {
+      counts[t.id] = t.classes
+        ? allRows.filter(p => t.classes.includes(assetClass(p))).length
+        : allRows.length;
+    }
+
+    // The strip goes in the bar *above* #rows, not inside it: #rows scrolls,
+    // and tabs that scroll out from over their own table are unreachable.
+    if (searchHost) {
+      searchHost.innerHTML = `<span class="pf-scope">All Account</span>
+        <div class="asset-tabs" id="asset-tabs" role="tablist">${
+        ASSET_TABS.map(t => `<button type="button" role="tab" data-at="${t.id}"
+          aria-selected="${S.assetTab === t.id}"><span class="at-long">${esc(t.label)}</span
+          ><span class="at-short">${esc(t.short || t.label)}</span
+          ><span class="at-n">${counts[t.id]}</span></button>`).join("")
+      }</div>`;
+    }
+    const wireAssetTabs = () => {
+      document.querySelectorAll("#asset-tabs [data-at]").forEach(btn => {
+        btn.onclick = () => {
+          const id = btn.dataset.at;
+          if (id === S.assetTab) return;
+          S.assetTab = id;
+          // A row selected under the old tab may not exist under the new one;
+          // fall back to the portfolio series rather than charting a symbol
+          // that is no longer listed. Cash counts too: its row only exists on
+          // the All and Funds tabs.
+          const cashVisible = id === "all" || id === "funds";
+          if (S.selected === "CASH" ? !cashVisible
+              : S.selected !== "PORTFOLIO"
+                && !assetTabRows(S.positions).some(p => p.symbol === S.selected)) {
+            S.selected = "PORTFOLIO";
+          }
+          renderList();
+          drawRightChart().catch(() => {});
+        };
+      });
+    };
+    if (!rows.length && allRows.length) {
+      host.innerHTML = `<div class="note pf-notab">No ${
+        esc(tabRows.label.toLowerCase())} in this portfolio yet.</div>`;
+      wireAssetTabs();
+      return;
+    }
     host.innerHTML = `<table>
       <thead><tr>
         <th class="idcol">Symbol</th>
         <th class="col-num">MV/Qty</th>
         <th class="col-px">Price/Cost</th>
-        <th class="col-num">%Portfolio</th>
         <th class="col-num">Today's P/L</th>
         <th class="col-num"><span class="th-with-tip">P/L ${infoTip(plTip)}</span></th>
         <th class="col-num"><span class="th-with-tip">Dividend ${infoTip(divTip)}</span></th>
+        <th class="col-num">%Portfolio</th>
         <th class="col-act">
           <button type="button" class="icon-btn" id="pf-reset" title="Reset portfolio"
                   aria-label="Reset portfolio">${resetSvg}</button>
@@ -2366,10 +2742,9 @@ async function renderList(){
             <span class="tsym-n">vs indexes on the chart</span></span></td>
           <td class="col-num"><div class="stack-cell">
             <span class="top">${esc(money(totalMv || null))}</span>
-            <span class="bot">${esc(String(Number(totalQty.toFixed(4))))}</span>
+            <span class="bot">${rows.length} position${rows.length === 1 ? "" : "s"}</span>
           </div></td>
           <td class="col-px">${dash}</td>
-          <td class="col-num num">${totalMv > 0 ? "100.0%" : "—"}</td>
           <td class="col-num num ${dayN ? dir(totalDay) : ""}">${dayN ? esc(moneySigned(totalDay)) : "—"}</td>
           <td class="col-num"><div class="stack-cell">
             <span class="top ${plN ? dir(totalPl) : ""}">${plN ? esc(moneySigned(totalPl)) : "—"}</span>
@@ -2379,9 +2754,10 @@ async function renderList(){
             <span class="top ${totalDiv > 0 ? "up" : ""}">${totalDiv > 0 ? esc(moneySigned(totalDiv)) : "—"}</span>
             <span class="bot ${dir(totalDivRet)}">${totalDiv > 0 ? esc(retPct(totalDivRet)) : ""}</span>
           </div></td>
+          <td class="col-num num">${totalMv > 0 ? "100.0%" : "—"}</td>
           <td class="col-act"></td>
         </tr>
-        <tr data-sym="CASH" class="cash-row ${S.selected === "CASH" ? "on" : ""}">
+        ${showCash ? `<tr data-sym="CASH" class="cash-row ${S.selected === "CASH" ? "on" : ""}">
           <td class="idcol"><span class="tsym"><span class="tsym-t">Cash</span>
             <span class="tsym-n">Available balance</span></span></td>
           <td class="col-num"><div class="stack-cell">
@@ -2389,15 +2765,15 @@ async function renderList(){
             <span class="bot">—</span>
           </div></td>
           <td class="col-px">${dash}</td>
-          <td class="col-num num">${cashWeight != null ? esc(cashWeight.toFixed(1) + "%") : "—"}</td>
           <td class="col-num num">—</td>
           <td class="col-num">${dash}</td>
           <td class="col-num">${dash}</td>
+          <td class="col-num num">${cashWeight != null ? esc(cashWeight.toFixed(1) + "%") : "—"}</td>
           <td class="col-act"><div class="row-actions">
             <button type="button" class="icon-btn" data-act="edit-cash"
                     title="Edit cash" aria-label="Edit cash">${penSvg}</button>
           </div></td>
-        </tr>
+        </tr>` : ""}
         ${rows.map(r => {
           const livePx = r.price != null ? r.price : null;
           const avg = r.avgCost != null ? r.avgCost : null;
@@ -2424,7 +2800,6 @@ async function renderList(){
               <span class="top">${esc(priceFmt(livePx != null ? livePx : markPrice(r)))}</span>
               <span class="bot">${avg != null ? esc(priceFmt(avg)) : "—"}</span>
             </div></td>
-            <td class="col-num num">${weight != null ? esc(weight.toFixed(1) + "%") : "—"}</td>
             <td class="col-num num ${dir(day)}">${esc(moneySigned(day))}</td>
             <td class="col-num"><div class="stack-cell">
               <span class="top ${dir(pl)}">${esc(moneySigned(pl))}</span>
@@ -2434,6 +2809,7 @@ async function renderList(){
               <span class="top ${div > 0 ? "up" : ""}">${div > 0 ? esc(moneySigned(div)) : "—"}</span>
               <span class="bot ${dir(divRet)}">${div > 0 ? esc(retPct(divRet)) : ""}</span>
             </div></td>
+            <td class="col-num num">${weight != null ? esc(weight.toFixed(1) + "%") : "—"}</td>
             <td class="col-act"><div class="row-actions">
               <button type="button" data-act="buy" data-s="${esc(r.symbol)}">Buy</button>
               <button type="button" data-act="sell" data-s="${esc(r.symbol)}">Sell</button>
@@ -2444,6 +2820,7 @@ async function renderList(){
         }).join("")}
       </tbody></table>`;
 
+    wireAssetTabs();
     host.querySelectorAll("[data-act]").forEach(btn => {
       btn.onclick = e => {
         e.stopPropagation();
@@ -2541,28 +2918,147 @@ async function seriesForSymbol(sym, fromISO){
   return bars;
 }
 
-/** Portfolio NAV path for the chart: today's share counts × historical closes.
- *  This is a simulated “current mix” path — not the user’s personal return
- *  before they logged the portfolio. Book P/L in the table uses avg buy cost. */
+/** A decade of closes for symbols whose window reaches past the ~300 days
+ *  price_daily keeps. One batched call; misses are cached as empty so a
+ *  symbol without long history is not re-asked every redraw. The backfill
+ *  request is fired once per session, so a portfolio's symbols become
+ *  available on a later visit even when they are missing on this one. */
+async function ensureLongCloses(symbols){
+  const want = symbols.filter(s => !(s in S.longCache));
+  if (!want.length) return;
+  if (!S.longRequested) {
+    S.longRequested = true;
+    rpc("request_long_closes", { p_symbols: symbols }).catch(() => {});
+  }
+  let got = {};
+  try { got = await rpc("get_long_closes", { p_symbols: want }) || {}; } catch {}
+  want.forEach(sym => {
+    const closes = ((got[sym] || {}).closes || [])
+      .map(b => ({ d: String(b.d).slice(0, 10), c: Number(b.c) }))
+      .filter(b => b.d && Number.isFinite(b.c) && b.c > 0);
+    S.longCache[sym] = closes;
+  });
+}
+
+/** All closes for one symbol from `fromISO`, long history stitched under the
+ *  daily bars. Daily wins on overlap: it is fresher and includes today. */
+function stitchedBars(sym, fromISO){
+  const daily = ((S.priceCache[sym] || {}).bars || [])
+    .map(b => ({ d: b.d || b.date, c: Number(b.c) }))
+    .filter(b => b.d && Number.isFinite(b.c) && b.c > 0);
+  const dailyStart = daily.length ? daily[0].d : null;
+  const by = new Map();
+  (S.longCache[sym] || []).forEach(b => {
+    if (b.d >= fromISO && (!dailyStart || b.d < dailyStart)) by.set(b.d, b.c);
+  });
+  daily.forEach(b => { if (b.d >= fromISO) by.set(b.d, b.c); });
+  return [...by.entries()].map(([d, c]) => ({ d, c })).sort((a, b) => a.d < b.d ? -1 : 1);
+}
+
+/** Portfolio value path for the chart, from the transactions as filed:
+ *  shares held on day D are the transactions dated on or before D, valued at
+ *  that day's close. This replaces a simulated "current mix" path -- today's
+ *  share counts drawn backwards over history -- which charted what the
+ *  current portfolio would have done, not what the visitor's did.
+ *
+ *  Each point carries the day's net external flow (buys minus sells, at
+ *  transaction prices), so the percent series can chain daily returns with
+ *  flows taken out -- otherwise a $5,000 purchase reads as a +10% day on a
+ *  $50,000 book. The path cannot start before the first transaction, so a
+ *  window reaching further back is clamped and says so via `since`. */
 async function portfolioSeries(fromISO){
-  const positions = S.positions.filter(p => p.quantity > 0);
-  if (!positions.length) return [];
-  const series = await Promise.all(positions.map(async p => ({
-    qty: p.quantity,
-    bars: await seriesForSymbol(p.symbol, fromISO),
-  })));
-  const dates = new Set();
-  series.forEach(s => s.bars.forEach(b => dates.add(b.d)));
-  const sorted = [...dates].sort();
-  return sorted.map(d => {
-    let v = 0, ok = true;
-    for (const s of series) {
-      const bar = [...s.bars].reverse().find(b => b.d <= d);
-      if (!bar) { ok = false; break; }
-      v += bar.c * s.qty;
+  // Scoped to the active asset tab, so switching to Crypto charts the crypto
+  // sleeve rather than the whole book against the indexes.
+  const scoped = assetTabRows(S.positions).filter(p => p.quantity > 0);
+  if (!scoped.length) return { bars: [], since: null, clamped: false };
+  const symSet = new Set(scoped.map(p => String(p.symbol).toUpperCase()));
+
+  // Splits are ignored here because positionsFromTxns ignores them too; the
+  // path and the table must disagree with each other never, and with reality
+  // only in ways they share.
+  const txns = sortTxnsChrono(S.transactions).filter(t => {
+    const sym = String(t.symbol || "").toUpperCase();
+    return symSet.has(sym) && (t.kind === "buy" || t.kind === "sell");
+  });
+  if (!txns.length) return { bars: [], since: null, clamped: false };
+
+  const firstTrade = String(txns[0].tradeDate || "").slice(0, 10);
+  const clamped = firstTrade > fromISO;
+  const start = clamped ? firstTrade : fromISO;
+  const syms = [...symSet];
+
+  // Price history first: daily bars via the existing per-symbol cache, long
+  // closes only when the window actually reaches past them.
+  await Promise.all(syms.map(s => seriesForSymbol(s, start)));
+  const needLong = syms.some(s => {
+    const bars = (S.priceCache[s] || {}).bars || [];
+    const first = bars.length ? (bars[0].d || bars[0].date) : null;
+    return !first || first > start;
+  });
+  if (needLong) await ensureLongCloses(syms);
+
+  const barsBySym = {}, ptr = {}, shares = {}, lastClose = {};
+  syms.forEach(s => { barsBySym[s] = stitchedBars(s, start); ptr[s] = 0; shares[s] = 0; });
+
+  // Opening position: everything traded before the window (empty when the
+  // window is clamped to the first trade).
+  let ti = 0, pendingFlow = 0;
+  const apply = (t, countFlow) => {
+    const sym = String(t.symbol).toUpperCase();
+    const q = Number(t.quantity) || 0;
+    shares[sym] += t.kind === "buy" ? q : -q;
+    if (countFlow) {
+      // Net external flow at transaction prices, fees included on the way in
+      // and out: they are money that crossed the boundary too. Accrued as the
+      // transaction is applied rather than looked up by date, because a trade
+      // can be dated on a weekend and the axis only has trading days.
+      const px = Number(t.price) || 0, fee = Number(t.fee) || 0;
+      pendingFlow += t.kind === "buy" ? q * px + fee : -(q * px - fee);
     }
-    return ok ? { d, c: v } : null;
-  }).filter(Boolean);
+  };
+  while (ti < txns.length && String(txns[ti].tradeDate).slice(0, 10) < start) apply(txns[ti++], false);
+
+  const dates = [...new Set(Object.values(barsBySym).flat().map(b => b.d))].sort();
+  const out = [];
+  for (const d of dates) {
+    while (ti < txns.length && String(txns[ti].tradeDate).slice(0, 10) <= d) apply(txns[ti++], true);
+    let v = 0, ok = true;
+    for (const s of syms) {
+      const bars = barsBySym[s];
+      while (ptr[s] < bars.length && bars[ptr[s]].d <= d) lastClose[s] = bars[ptr[s]++].c;
+      if (shares[s] > 1e-9) {
+        if (lastClose[s] == null) { ok = false; break; }
+        v += shares[s] * lastClose[s];
+      }
+    }
+    // A held symbol with no close yet (bought before its stored history
+    // starts) skips the day rather than pricing it wrong; its flow rolls into
+    // the first day that can be valued honestly.
+    if (!ok) continue;
+    if (v <= 0 && !out.length) { pendingFlow = 0; continue; }  // nothing held yet
+    out.push({ d, c: v, f: pendingFlow });
+    pendingFlow = 0;
+  }
+  return { bars: out, since: out.length ? out[0].d : null, clamped };
+}
+
+/** Percent series for the portfolio: daily returns chained with each day's
+ *  external flow removed, so buying more is not "gaining" and selling is not
+ *  "losing". The first valued day is the base at 0%. */
+function toPortfolioPctSeries(bars){
+  const out = [];
+  let cum = 0, prevV = null;
+  for (const b of bars) {
+    if (prevV == null) {
+      if (b.c > 0) { out.push({ d: b.d, c: 0 }); prevV = b.c; }
+      continue;
+    }
+    const base = prevV + (b.f || 0);
+    if (base > 0) cum = (1 + cum) * (b.c / base) - 1;
+    out.push({ d: b.d, c: cum * 100 });
+    prevV = b.c;
+  }
+  return out;
 }
 
 function toPctSeries(bars){
@@ -2772,23 +3268,37 @@ async function drawRightChart(){
   });
 
   const live = signedIn() && hasHoldings();
-  const alloc = allocation(S.positions);
+  // Scoped like the series above: the headline value must describe the
+  // sleeve being charted, not the whole book — including its cash, which
+  // only the All and Funds views carry.
+  const tabHasCash = S.assetTab === "all" || S.assetTab === "funds";
+  const alloc = allocation(assetTabRows(S.positions), { includeCash: tabHasCash });
   const lines = [];
+  let metaRange = null;
 
   if (live && S.selected === "CASH") {
     setSym("Cash", { logo: false });
-    priceEl.textContent = money(alloc.cash).replace("$", "");
+    // Straight from the ledger, not from alloc -- alloc's cash is zero on
+    // tabs that scope it out, and the cash view must never show $0 for money
+    // that exists.
+    priceEl.textContent = money(cashBalance()).replace("$", "");
     metaEl.innerHTML = `${alloc.sum > 0 ? ((alloc.cash / alloc.sum) * 100).toFixed(1) : "0.0"}% of total assets`;
   } else if (live) {
-    setSym("Portfolio", { logo: false });
+    setSym(assetTabLabel(), { logo: false });
     priceEl.textContent = money(alloc.sum).replace("$", "");
-    const book = bookReturn(S.positions);
-    const rangeBook = bookReturn(S.positions, { fromISO: from });
+    // Scoped to the active tab, like the series and the headline value above.
+    const scoped = assetTabRows(S.positions);
+    const keep = assetTabKeep();
+    const book = bookReturn(scoped, { keep });
+    const rangeBook = bookReturn(scoped, { fromISO: from, keep });
     const rangeLabel = S.range === "YTD" ? "YTD" : S.range;
+    metaRange = rangeLabel;
+    // The percentage is filled in from the drawn series below, so it describes
+    // the selected range. Book return stands in until that resolves.
     metaEl.innerHTML =
-      `Total <span class="${dir(book.pct)}">${esc(pct(book.pct))}</span>` +
+      `<span id="c-ret">Total <span class="${dir(book.pct)}">${esc(pct(book.pct))}</span></span>` +
       ` · ${esc(rangeLabel)} realized <span class="${dir(rangeBook.realized)}">${esc(moneySigned(rangeBook.realized))}</span>` +
-      ` · chart = current mix (simulated) vs indexes`;
+      `<span id="c-chartnote" style="cursor:help" title="The chart chains daily price moves with buys and sells taken out — money you add is not a gain. P/L in the table compares price to your average cost. The two answer different questions and can differ."> · chart = your holdings vs indexes</span>`;
   } else {
     setSym("Market", { logo: false });
     priceEl.textContent = "";
@@ -2797,17 +3307,49 @@ async function drawRightChart(){
       : "Market indexes · log in to track your portfolio here";
   }
 
+  // The window the index lines cover must be the portfolio path's own, or the
+  // comparison flatters whichever line got the longer run-up.
+  let idxFrom = from;
+  let port = null;
   if (live) {
-    const portBars = toPctSeries(await portfolioSeries(from));
+    port = await portfolioSeries(from);
+    const portBars = toPortfolioPctSeries(port.bars);
     if (portBars.length) {
+      idxFrom = portBars[0].d;
       lines.push({ id: "Portfolio", colour: "#38b37d", points: portBars });
+      // Restate the return over the drawn window. Taken from the series that
+      // is actually on screen, so the number and the line cannot disagree --
+      // and when the window is clamped to the first transaction, the label
+      // says "since <date>" rather than claiming a range the data cannot
+      // cover. Flows are chained out, so this is the return on what was
+      // invested, not the growth of the balance.
+      const retEl = document.getElementById("c-ret");
+      const last = portBars[portBars.length - 1];
+      const rangePct = last && Number.isFinite(last.c) ? last.c : null;
+      const label = port.clamped ? `Since ${formatChartDate(port.since)}` : metaRange;
+      if (retEl && label && rangePct != null) {
+        retEl.innerHTML = `${esc(label)} <span class="${dir(rangePct)}">${
+          esc(pct(rangePct))}</span>`;
+      }
     }
   }
   for (const ix of INDEXES) {
     if (!S.indexes[ix.sym]) continue;
-    const bars = toPctSeries(await seriesForSymbol(ix.sym, from));
+    const bars = toPctSeries(await seriesForSymbol(ix.sym, idxFrom));
     lines.push({ id: ix.sym, colour: ix.colour, points: bars });
   }
+  // Ranges the history cannot fill are dimmed, not disabled: every clamped
+  // range draws the same since-first-trade chart, and without the cue that
+  // sameness reads as the buttons being broken.
+  const rangeHost = document.getElementById("range");
+  if (rangeHost) rangeHost.querySelectorAll("[data-r]").forEach(b => {
+    const clamped = !!(port && port.clamped && port.since
+      && rangeStartISO(b.dataset.r) < port.since);
+    b.classList.toggle("range-clamped", clamped);
+    b.title = clamped
+      ? `Your portfolio's history starts ${port.since}; this range clamps to it.`
+      : "";
+  });
   drawLineChart(host, lines, { unit: "pct" });
 }
 
@@ -3037,7 +3579,7 @@ function setModalMode(kind, symbol, prefill){
 
   if (kind === "edit") {
     title.textContent = "Edit holding";
-    sub.textContent = "Update this ticker’s quantity and average buy price. P/L updates from the live quote. Delete removes it from your portfolio.";
+    sub.textContent = "Fixing the quantity keeps this ticker’s history and adds a dated correction. Changing the average price rewrites it as a single lot (you’ll be asked first). Delete removes it entirely.";
     save.textContent = "Save changes";
     del.hidden = false;
     symEl.readOnly = true;
@@ -3057,6 +3599,8 @@ function setModalMode(kind, symbol, prefill){
 
   document.querySelector('label[for="f-price"]').textContent =
     kind === "sell" ? "Sale price per share" : "Average buy price per share";
+  document.querySelector('label[for="f-date"]').textContent =
+    kind === "sell" ? "Sale date" : "Purchase date";
   priceHint.textContent = kind === "sell"
     ? "Price you sold at. Sale proceeds go to Cash."
     : "Your cost basis per share from your brokerage.";
@@ -3235,7 +3779,10 @@ async function deleteSymbolHoldings(symbol, { keepDividends = false } = {}){
       }
     }
   }
-  if (!keepDividends) GA.track("portfolio_delete", { ticker: sym });
+  if (!keepDividends) {
+    GA.track("portfolio_delete", { ticker: sym });
+    if (window.posthog) window.posthog.capture("portfolio_trade_removed", { ticker: sym });
+  }
   await loadPortfolio();
 }
 
@@ -3353,10 +3900,66 @@ function wireModal(){
     save.disabled = true;
     try {
       if (addKind === "edit") {
-        await replaceHolding({ symbol, tradeDate, quantity, price });
-        closeAddModal();
-        toast(`Updated ${symbol}`);
+        /* Editing used to delete the symbol's whole transaction history and
+           re-add one buy dated today -- so fixing a typo in quantity silently
+           erased purchase dates, the chart's backdated path, and the realized
+           P/L trail. Now:
+
+           A quantity fix with the average price left alone appends a delta
+           transaction and touches nothing else. The sell side carries
+           realizedPl 0 explicitly: a correction is not a gain.
+
+           Changing the average price genuinely cannot be expressed as an
+           append under average-cost accounting, so that path still rewrites --
+           but it says so first, and the replacement lot keeps the position's
+           original first-trade date instead of today, so the chart's history
+           survives even a rewrite. */
+        const pos = S.positions.find(p => p.symbol === symbol);
+        const held = pos ? pos.quantity : 0;
+        const avg = pos && pos.avgCost != null && Number.isFinite(pos.avgCost)
+          ? pos.avgCost : null;
+        const avgSame = avg != null
+          && Math.abs(price - avg) <= Math.max(0.005, Math.abs(avg) * 1e-4);
+        if (pos && avgSame && Math.abs(quantity - held) <= 1e-9) {
+          closeAddModal();
+          toast(`${symbol} unchanged`);
+        } else if (pos && avgSame) {
+          const dq = quantity - held;
+          if (dq > 0) {
+            await addTransaction({ symbol, kind: "buy", tradeDate,
+              quantity: dq, price: avg, note: "adjust:edit" });
+          } else {
+            await addTransaction({ symbol, kind: "sell", tradeDate,
+              quantity: -dq, price: avg, realizedPl: 0, note: "adjust:edit" });
+          }
+          closeAddModal();
+          toast(`Updated ${symbol} to ${quantity}`);
+        } else {
+          const keepDate = (pos && pos.firstTrade) || tradeDate;
+          if (!confirm(
+            `Changing the average price rewrites ${symbol} as a single lot `
+            + `dated ${keepDate}. Its buy/sell history and realized gains `
+            + `records are replaced. Dividends are kept. Continue?`)) {
+            save.disabled = false;
+            return;
+          }
+          await replaceHolding({ symbol, tradeDate: keepDate, quantity, price });
+          closeAddModal();
+          toast(`Rewrote ${symbol} as one lot`);
+        }
       } else if (addKind === "sell") {
+        // The modal has always promised "quantity cannot exceed what you
+        // currently hold"; nothing enforced it. An over-sell went through,
+        // toasted a realized gain on shares never owned, and left a negative
+        // position with a zero cost basis in the table.
+        const heldNow = (S.positions.find(p => p.symbol === symbol) || {}).quantity || 0;
+        if (quantity > heldNow + 1e-9) {
+          err.textContent = heldNow > 1e-9
+            ? `You hold ${Number(heldNow.toFixed(4))} ${symbol} — cannot sell ${quantity}.`
+            : `No open ${symbol} position to sell.`;
+          save.disabled = false;
+          return;
+        }
         const proceeds = quantity * price;
         const avg = openAvgCost(symbol);
         const realized = avg != null ? (price - avg) * quantity : null;
@@ -3899,7 +4502,10 @@ function renderCalWeek(){
   host.innerHTML = days.map(day => {
     const { chips, total } = weekAvatars(day.iso);
     const on = day.iso === CAL.selected;
-    const countLabel = total === 1 ? "1 event" : `${total} events`;
+    // Both forms are rendered and CSS picks one: a phone has room for the
+    // count but not the word.
+    const countLabel = `<span class="n-long">${
+      total === 1 ? "1 event" : `${total} events`}</span><span class="n-short">${total}</span>`;
     return `<button type="button" class="cal-daycard${on ? " on" : ""}" data-iso="${day.iso}"
         role="tab" aria-selected="${on}" aria-pressed="${on}">
       <div class="dow">${day.dow}</div>
@@ -3910,7 +4516,7 @@ function renderCalWeek(){
           const logo = c.symbol ? ` data-logo="${esc(c.symbol)}"` : "";
           return `<span class="av"${logo} style="background:${c.colour}">${esc(c.letter)}</span>`;
         }).join("")}</div>
-        ${total ? `<span class="n">${esc(countLabel)}</span>` : ""}
+        ${total ? `<span class="n">${countLabel}</span>` : ""}
       </div>
     </button>`;
   }).join("");
@@ -4566,7 +5172,7 @@ wireModal();
 <!-- nav.js must load before boot so window.TA / session exist. Previously boot
      ran first, skipped onAuthChange registration, and signed-in holdings never
      reloaded — the empty state came back on every visit. -->
-<script src="nav.js"></script>
+<script src="assets/nav.385c7da8.js"></script>
 <script>
 (async function start(){
   if (window.TA && window.TA.onAuthChange) {

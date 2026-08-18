@@ -1,0 +1,401 @@
+/* ===========================================================================
+   Ticker Alpha — shared navigation.
+
+   Uses the pages' own design tokens, so it inherits whichever theme the page
+   is in rather than carrying its own palette.
+=========================================================================== */
+
+/* ---- ticker tape --------------------------------------------------------
+   Two identical runs side by side; the pair slides left by exactly one run's
+   width and snaps back, so the join is invisible. Hovering pauses it, because
+   a price you are trying to read should not walk away from you. */
+.nav-strip {
+  background: var(--sunk);
+  border-bottom: 1px solid var(--rule-2);
+  font-size: 12px;
+  overflow: hidden;
+}
+.nav-tape {
+  display: flex; width: max-content;
+  animation: tape-roll var(--tape-t, 60s) linear infinite;
+}
+.nav-tape:hover, .nav-tape:focus-within { animation-play-state: paused; }
+@keyframes tape-roll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(calc(-1 * var(--tape-w, 0px))); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-tape { animation: none; }
+  .nav-strip { overflow-x: auto; scrollbar-width: none; }
+  .nav-strip::-webkit-scrollbar { display: none; }
+}
+.tape-run { display: flex; }
+.tape-i {
+  display: flex; align-items: baseline; gap: 7px;
+  padding: 7px 14px; white-space: nowrap;
+  text-decoration: none; color: var(--ink-2);
+  border-right: 1px solid var(--rule-2);
+}
+.tape-i:hover { background: var(--card); color: var(--ink); }
+.tape-s { font-weight: 600; letter-spacing: -.01em; }
+.tape-p, .tape-i .up, .tape-i .down {
+  font-family: "IBM Plex Mono", monospace; font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.tape-p { color: var(--ink-3); }
+.tape-i .up { color: var(--up); }
+.tape-i .down { color: var(--down); }
+
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--rule);
+}
+.nav-in {
+  max-width: var(--page, 1680px); margin: 0 auto;
+  display: flex; align-items: center; gap: 18px; padding: 11px 24px;
+}
+
+.nav-brand {
+  display: flex; align-items: center; gap: 9px;
+  text-decoration: none; color: var(--ink); flex-shrink: 0;
+}
+.nav-brand b {
+  font-family: "IBM Plex Serif", Georgia, serif;
+  font-size: 17px; font-weight: 600; letter-spacing: -.015em;
+}
+.nav-mark {
+  /* Sized a touch above the old 26px chip so the padded full mark
+     still reads at a similar visual weight without side cropping. */
+  width: 30px; height: 30px; flex-shrink: 0;
+  display: block; object-fit: contain;
+}
+
+.nav-links { display: flex; gap: 4px; flex-shrink: 0; }
+.nav-links a {
+  text-decoration: none; color: var(--ink-2); font-size: 13.5px; font-weight: 500;
+  padding: 7px 11px; border-radius: 7px;
+}
+.nav-links a:hover { background: var(--sunk); color: var(--ink); }
+.nav-links a.on { color: var(--accent); background: var(--accent-soft); }
+
+.nav-search { position: relative; flex: 1; min-width: 0; max-width: 460px; margin: 0 auto;
+  display: flex; align-items: stretch; }
+/* The asset-type filter, drawn as the left segment of the search pill. */
+.nav .nav-search select {
+  flex: 0 0 auto; min-height: 0; background: var(--sunk); color: var(--ink-2);
+  border: 1px solid var(--rule); border-right: 0; border-radius: 9px 0 0 9px;
+  padding: 0 4px 0 10px; font: inherit; font-size: 12.5px; cursor: pointer;
+}
+.nav .nav-search select:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: -1px;
+}
+/* The input and its icons keep their own positioning context, so the
+   magnifier and the "/" hint sit against the field rather than the pill. */
+.nav-qwrap { position: relative; flex: 1; min-width: 0; }
+.nav-search svg {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  width: 15px; height: 15px; color: var(--ink-3); pointer-events: none;
+}
+/* Qualified with .nav on purpose. A page that styles `input[type=text]`
+   matches this field at equal specificity and, being later in the head, wins
+   -- which is how the field ended up 230px wide with the icon sitting on top
+   of its own placeholder. */
+.nav .nav-search input {
+  width: 100%; min-width: 0; background: var(--sunk); border: 1px solid var(--rule);
+  border-radius: 0 9px 9px 0; padding: 9px 34px 9px 34px; min-height: 0;
+  font: inherit; font-family: inherit; font-size: 13px; color: var(--ink);
+}
+.nav .nav-search input::placeholder { color: var(--ink-3); }
+.nav .nav-search input:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px; background: var(--card);
+}
+.nav-search kbd {
+  position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+  font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--ink-3);
+  border: 1px solid var(--rule); border-radius: 5px; padding: 1px 6px;
+  background: var(--card); pointer-events: none;
+}
+.nav-ac {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 120;
+  background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
+  box-shadow: var(--shadow); overflow: hidden; display: none;
+}
+.nav-ac.open { display: block; }
+.nav-ac div {
+  padding: 9px 12px; cursor: pointer; display: flex; gap: 11px;
+  align-items: baseline; border-bottom: 1px solid var(--rule-2);
+}
+.nav-ac div:last-child { border-bottom: 0; }
+.nav-ac div:hover, .nav-ac div[aria-selected="true"] { background: var(--accent-soft); }
+.nav-ac b {
+  font-family: "IBM Plex Mono", monospace; font-size: 12.5px;
+  min-width: 58px; color: var(--accent);
+}
+.nav-ac span {
+  font-size: 12.5px; color: var(--ink-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.nav-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.nav .nav-theme {
+  background: transparent; border: 1px solid var(--rule); border-radius: 8px;
+  width: 34px; height: 34px; cursor: pointer; color: var(--ink-2);
+  font-size: 14px; line-height: 1;
+}
+.nav .nav-theme:hover { border-color: var(--accent); color: var(--accent); }
+.nav .nav-login {
+  background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+  padding: 9px 16px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.nav .nav-login:hover { filter: brightness(1.08); }
+.nav-note {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 9px 20px; font-size: 12.5px;
+  background: var(--down-soft); color: var(--down);
+  border-bottom: 1px solid var(--rule);
+}
+.nav-note button {
+  background: none; border: 0; cursor: pointer; color: inherit;
+  font: inherit; font-size: 16px; line-height: 1; padding: 0 4px;
+}
+
+.nav-acct { position: relative; }
+.nav .nav-user {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  background: transparent; border: 1px solid var(--rule); border-radius: 8px;
+  padding: 5px 9px 5px 5px; color: var(--ink-2); font: inherit; font-size: 13px;
+}
+.nav .nav-user:hover { border-color: var(--accent); }
+.nav-user img, .nav-avatar {
+  width: 24px; height: 24px; border-radius: 50%; object-fit: cover;
+  background: var(--accent); color: #fff;
+  display: grid; place-items: center; font-size: 11px; font-weight: 600;
+}
+.nav-caret { width: 9px; height: 6px; color: var(--ink-3); flex-shrink: 0; }
+.nav-user[aria-expanded="true"] .nav-caret { transform: rotate(180deg); }
+
+.nav-menu {
+  position: absolute; top: calc(100% + 7px); right: 0; z-index: 130; min-width: 214px;
+  background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
+  box-shadow: var(--shadow); overflow: hidden;
+}
+.nav-who {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 11px 14px; border-bottom: 1px solid var(--rule-2);
+}
+.nav-who b { font-size: 13px; font-weight: 600; color: var(--ink); }
+.nav-who span {
+  font-size: 12px; color: var(--ink-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nav .nav-menu button {
+  display: block; width: 100%; text-align: left;
+  background: transparent; border: 0; padding: 10px 14px;
+  font: inherit; font-size: 13px; color: var(--ink-2); cursor: pointer;
+}
+.nav .nav-menu button:hover { background: var(--sunk); color: var(--down); }
+
+/* ---- bottom tab bar ------------------------------------------------------
+   The top links vanish below 1080px, so below 1080px this takes over. Fixed to
+   the bottom because that is where a thumb is, and because it then survives a
+   long scroll -- which a top bar on a 3,700px page does not. */
+.tabbar { display: none; }
+
+@media (max-width: 1080px) {
+  .nav-links { display: none; }
+
+  .tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    background: color-mix(in srgb, var(--card) 96%, transparent);
+    backdrop-filter: blur(14px);
+    border-top: 1px solid var(--rule);
+    /* Clears the iPhone home indicator without padding on other devices. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .tabbar a {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; padding: 7px 2px 6px; text-decoration: none;
+    color: var(--ink-3); font-size: 10px; font-weight: 600; letter-spacing: -.005em;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tabbar a svg { width: 21px; height: 21px; }
+  .tabbar a.on { color: var(--accent); }
+  .tabbar a.on svg { stroke-width: 2.2; }
+  .tabbar a:active { background: var(--sunk); }
+
+  /* Content must not end underneath the bar. 54px is the bar, plus the inset. */
+  body { padding-bottom: calc(54px + env(safe-area-inset-bottom, 0px)); }
+
+  /* The ticker tape is decoration; on a phone it is 33px of the viewport spent
+     on something nobody navigates by, and it pushed real content below the
+     fold on every page. */
+  .nav-strip { display: none; }
+
+  .nav-in { padding: 8px 12px; gap: 10px; }
+  /* Keep the 34px left inset: the magnifier is absolutely positioned at
+     left:11px, so a symmetric padding puts the placeholder underneath it. */
+  .nav .nav-search input { padding: 8px 12px 8px 34px; font-size: 13px; }
+}
+@media (max-width: 720px) {
+  .nav-in { padding: 10px 14px; gap: 10px; }
+  .nav-brand b { display: none; }
+  .nav-search kbd { display: none; }
+  .nav-strip .nav-in { padding: 7px 14px; gap: 14px; }
+}
+
+/* ---- site footer -------------------------------------------------------- */
+.site-foot {
+  max-width: var(--page, 1680px); margin: 36px auto 0; padding: 18px 28px 40px;
+  border-top: 1px solid var(--rule); font-size: 12.5px; color: var(--ink-3);
+  display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: baseline;
+  justify-content: space-between;
+}
+.site-foot a { color: var(--ink-2); text-decoration: none; }
+.site-foot a:hover { color: var(--accent); text-decoration: underline; }
+.site-foot .site-foot-links { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+/* Reads as one of the footer links, but has to be a button: it reopens the
+   consent banner rather than navigating anywhere. */
+.site-foot .foot-link {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; color: var(--ink-2); text-decoration: none;
+}
+.site-foot .foot-link:hover { color: var(--accent); text-decoration: underline; }
+@media (max-width: 720px) {
+  .site-foot { padding: 16px 14px 32px; margin-top: 24px; }
+}
+
+/* ---- signup modal (anonymous watchlist add) ----------------------------- */
+.auth-modal {
+  position: fixed; inset: 0; z-index: 400;
+  display: grid; place-items: center; padding: 20px;
+  background: rgba(17, 24, 32, .48);
+  backdrop-filter: blur(4px);
+  animation: auth-fade .18s ease;
+}
+@keyframes auth-fade { from { opacity: 0; } to { opacity: 1; } }
+.auth-modal-card {
+  position: relative; width: min(420px, 100%);
+  background: var(--card); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 16px;
+  box-shadow: 0 18px 50px -20px rgba(17, 24, 32, .55);
+  padding: 28px 28px 22px; text-align: center;
+  animation: auth-up .22s cubic-bezier(.22, .61, .36, 1);
+}
+@keyframes auth-up {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+.auth-modal-x {
+  position: absolute; top: 12px; right: 12px;
+  width: 32px; height: 32px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--ink-3); cursor: pointer;
+  font-size: 20px; line-height: 1; display: grid; place-items: center;
+}
+.auth-modal-x:hover { background: var(--sunk); color: var(--ink); }
+.auth-modal-card h2 {
+  font-family: "IBM Plex Serif", Georgia, serif;
+  font-size: 24px; font-weight: 600; letter-spacing: -.02em;
+  line-height: 1.25; margin: 8px 8px 12px; color: var(--ink);
+}
+/* What the account buys, in one line, between the headline and the legal
+   note. Only shown for the gates that have something concrete to promise. */
+.auth-modal-card .auth-why {
+  font-size: 14px; color: var(--ink-2); margin: 0 8px 16px; line-height: 1.5;
+}
+.auth-modal-card .auth-legal {
+  font-size: 13px; color: var(--ink-3); margin: 0 8px 22px; line-height: 1.45;
+}
+.auth-modal-card .auth-legal a {
+  color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px;
+}
+.auth-modal-card .auth-legal a:hover { color: var(--accent); }
+/* Reads as part of the sentence, but opens the consent sheet rather than
+   navigating, so a half-typed email survives the detour. */
+.auth-modal-card .auth-inline {
+  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px;
+}
+.auth-modal-card .auth-inline:hover { color: var(--accent); }
+.auth-google {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; border: 0; border-radius: 10px; cursor: pointer;
+  padding: 13px 16px; font: inherit; font-size: 14.5px; font-weight: 600;
+  background: #1a1d23; color: #fff;
+}
+.auth-google:hover { background: #0e1116; }
+.auth-google svg { width: 18px; height: 18px; flex-shrink: 0; }
+.auth-sso {
+  margin: 14px 0 0; font-size: 11.5px; color: var(--ink-3); letter-spacing: .01em;
+}
+/* ---- the email + code route -------------------------------------------
+   Second on purpose. Google is one tap and stays the headline; the email
+   route is for the sizeable share of finance users who will not hand a
+   Google account to a site they met five minutes ago. */
+.auth-or {
+  display: flex; align-items: center; gap: 12px;
+  margin: 18px 2px 14px; color: var(--ink-3); font-size: 11.5px;
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.auth-or::before, .auth-or::after {
+  content: ""; flex: 1; height: 1px; background: var(--rule);
+}
+.auth-email { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+/* `hidden` is display:none in the UA sheet, and any author-level display wins
+   over it -- so the flex rule above silently un-hid the step it was meant to
+   hide, and the code field sat there before a code had been sent, next to a
+   "send a new code" link that invalidates whatever was already in the inbox.
+   Every [hidden] element needs this whenever its display is set by class. */
+.auth-email[hidden] { display: none !important; }
+.auth-lab {
+  font-size: 12.5px; font-weight: 600; color: var(--ink-2); margin-left: 2px;
+}
+.auth-modal-card .auth-email input {
+  width: 100%; background: var(--sunk); border: 1px solid var(--rule);
+  border-radius: 9px; padding: 11px 13px; font: inherit; font-size: 14px;
+  color: var(--ink); min-height: 0;
+}
+.auth-modal-card .auth-email input::placeholder { color: var(--ink-3); }
+.auth-modal-card .auth-email input:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px; background: var(--card);
+}
+/* Six digits read as a code, not a sentence. */
+.auth-modal-card .auth-email input.auth-code {
+  font-family: "IBM Plex Mono", monospace; font-size: 21px; font-weight: 600;
+  letter-spacing: .34em; text-align: center; padding: 12px 13px;
+}
+.auth-alt {
+  width: 100%; border: 1px solid var(--rule); border-radius: 9px; cursor: pointer;
+  padding: 11px 16px; font: inherit; font-size: 14px; font-weight: 600;
+  background: var(--card); color: var(--ink);
+}
+.auth-alt:hover { border-color: var(--accent); color: var(--accent); }
+.auth-alt:disabled { opacity: .55; cursor: default; border-color: var(--rule); color: var(--ink-3); }
+.auth-linkbtn {
+  background: none; border: 0; cursor: pointer; font: inherit; font-size: 12.5px;
+  color: var(--ink-3); padding: 2px; align-self: center; text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.auth-linkbtn:hover { color: var(--accent); }
+.auth-msg {
+  margin: 12px 2px 0; font-size: 12.5px; line-height: 1.45; min-height: 1em;
+  color: var(--ink-2); text-align: left;
+}
+.auth-msg.bad { color: var(--down); }
+.auth-msg.ok  { color: var(--up); }
+
+.auth-modal-close {
+  display: inline-block; margin-top: 10px; border: 0; background: none;
+  font: inherit; font-size: 13.5px; color: var(--ink-3); cursor: pointer;
+  padding: 4px 8px;
+}
+.auth-modal-close:hover { color: var(--ink); text-decoration: underline; }
+@media (max-width: 520px) {
+  .auth-modal-card { padding: 24px 18px 18px; border-radius: 14px; }
+  .auth-modal-card h2 { font-size: 21px; margin-left: 4px; margin-right: 4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-modal, .auth-modal-card { animation: none; }
+}

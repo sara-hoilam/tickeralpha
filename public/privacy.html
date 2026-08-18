@@ -5,10 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy Policy — Ticker Alpha</title>
 <script src="config.js"></script>
+<!-- analytics.js owns the consent state and the banner. This page was the one
+     page that did not load it, which left the policy unable to reach the
+     consent API it documents -- and left a visitor who had declined with no
+     page anywhere that could offer them the choice again. -->
+<script src="assets/analytics.620c6959.js"></script>
+<script src="assets/posthog-init.ca04ed3b.js"></script>
 <script type="module" src="clarity-init.js"></script>
-<link rel="stylesheet" href="nav.css">
+<link rel="stylesheet" href="assets/nav.359aeec5.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Every page's first act is an RPC to Supabase; warming the connection here
+     saves the DNS + TCP + TLS setup that otherwise sits in front of the first
+     byte of data. The origin is already public in config.js. -->
+<link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -131,7 +141,53 @@ a:hover{text-decoration:underline}
       <li>You can sign out from the account menu in the top bar.</li>
       <li>You can use browser controls or Microsoft’s tools to limit Clarity
         where available.</li>
+      <li>You can change your cookie choice at any time:
+        <button type="button" id="consent-reopen" class="consent-reopen">Review
+        cookie choices</button></li>
     </ul>
+    <p class="consent-state" id="consent-state"></p>
+    <style>
+      .consent-reopen{
+        font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+        padding:5px 12px;margin-left:4px;border-radius:8px;
+        border:1px solid var(--rule,#e3e3e3);
+        background:var(--card,#fff);color:var(--ink,#111);
+      }
+      .consent-reopen:hover{border-color:var(--ink-3,#888)}
+      .consent-state{font-size:12.5px;color:var(--ink-3,#888);margin:6px 0 0}
+    </style>
+    <script>
+      /* Withdrawing consent has to be as easy as giving it, and until now
+         nothing on the site called back into the banner: once a choice was
+         stored the banner never showed again (it only appears when the stored
+         value is null), so a visitor who declined had no route back. That is
+         also the likeliest reason a browser sits at gcs=G100 indefinitely. */
+      (function () {
+        const btn = document.getElementById("consent-reopen");
+        const out = document.getElementById("consent-state");
+        const label = {
+          granted: "Analytics cookies are currently allowed.",
+          denied: "Analytics cookies are currently declined.",
+        };
+        const show = () => {
+          const A = window.TAnalytics;
+          const c = A && typeof A.consent === "function" ? A.consent() : null;
+          out.textContent = label[c] || "You have not made a choice yet.";
+        };
+        btn.addEventListener("click", () => {
+          const A = window.TAnalytics;
+          if (!A || typeof A.resetConsent !== "function") return;
+          A.resetConsent();          // clears the stored value and reopens the banner
+          setTimeout(show, 50);      // the banner writes the new choice on click
+        });
+        // Reflect a choice made in the banner while this page is still open.
+        addEventListener("click", e => {
+          if (e.target && e.target.closest && e.target.closest(".ta-consent"))
+            setTimeout(show, 0);
+        }, true);
+        show();
+      })();
+    </script>
 
     <h2>Children</h2>
     <p>Ticker Alpha is not directed at children under 13, and we do not
@@ -147,6 +203,6 @@ a:hover{text-decoration:underline}
        channel you use to reach the product operators for support or feedback.</p>
   </article>
 </main>
-<script src="nav.js"></script>
+<script src="assets/nav.385c7da8.js"></script>
 </body>
 </html>

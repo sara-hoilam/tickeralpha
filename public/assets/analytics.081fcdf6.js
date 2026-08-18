@@ -48,8 +48,11 @@
    there is one undifferentiated "someone saw a wall" number and no way to
    tell which of them earns accounts. Keep it to this list:
 
-     report  watchlist  earnings  correlation  drawdown  seasonality
-     portfolio  generic
+     report  watchlist  earnings  portfolio  generic
+
+   The company page's correlation, drawdown and seasonality panels were walled
+   too and are not any more, so those three values stop appearing rather than
+   going to zero. Historical rows keep them.
 
    `source` says where on the site an action started. Keep it to this list --
    inventing a value per button turns the dimension back into noise:
@@ -74,6 +77,7 @@
   const CONSENT_KEY = "alphaticker-consent";
   const SEEN_KEY    = "alphaticker-ga-accounts";  // ids we have sent sign_up for
   const IDS_KEY     = "alphaticker-ga-ids";       // ids written to profile this session
+  const INTERNAL_KEY = "alphaticker-internal";    // this browser is the owner's
 
   const store = {
     get(k){ try { return localStorage.getItem(k); } catch { return null; } },
@@ -81,26 +85,82 @@
     del(k){ try { localStorage.removeItem(k); } catch {} },
   };
 
+  /* ---- self-traffic guards ----------------------------------------------
+     Two kinds of visit must not shape the numbers.
+
+     A development server. The old note said local runs report nothing because
+     server.py serves an empty config.js -- true of server.py, but the static
+     preview (`python -m http.server -d public`) serves the real config.js
+     with the real measurement id, and weeks of preview sessions were counted
+     as visits. The hostname is the one signal that survives whatever server
+     is used, so the tag simply does not boot on a local one.
+
+     The owner's own browsing in production. Visiting any page once with
+     ?ta_internal=1 marks the browser in localStorage, and every event it
+     sends from then on carries traffic_type=internal -- which GA4's standard
+     Internal Traffic data filter excludes. ?ta_internal=0 unmarks it. This is
+     a per-browser flag rather than an IP rule because a home IP changes and
+     the flag does not. Clarity has no event parameter for this; clarity-init
+     reads the same flag and skips recording entirely. */
+  const LOCAL_HOST = /^(localhost$|127\.|0\.0\.0\.0$|\[::1\]$)/.test(location.hostname);
+  (function readInternalFlag(){
+    let q = null;
+    try { q = new URLSearchParams(location.search).get("ta_internal"); } catch {}
+    if (q === "1") { store.set(INTERNAL_KEY, "1"); console.info("[TA] this browser is now marked internal; its visits will be filtered."); }
+    else if (q === "0") { store.del(INTERNAL_KEY); console.info("[TA] internal mark removed; this browser counts as a visitor again."); }
+  })();
+  const INTERNAL = store.get(INTERNAL_KEY) === "1";
+
   /* ---- gtag ------------------------------------------------------------- */
   window.dataLayer = window.dataLayer || [];
   function gtag(){ dataLayer.push(arguments); }
   window.gtag = gtag;
 
   /* ---- consent ----------------------------------------------------------
-     Consent Mode v2. Defaults are denied and are pushed before the config
-     call, so nothing is stored until a visitor has said yes -- the order
-     matters more than the values, because a default that lands after the tag
-     has already run has not denied anything.
+     Consent Mode v2, decided by region.
+
+     Defaulting the whole world to denied was accurate but produced no
+     measurement at all: every visitor started denied, most never answered
+     the banner, and GA4 saw nothing but cookieless pings. Prior consent for
+     first-party analytics is an EEA and UK requirement, not a global one.
+
+     So Europe is asked, and everywhere else is granted by default and never
+     sees a banner. An explicit choice always wins over the regional default,
+     in both directions -- somebody who declined stays declined wherever they
+     are, and the footer's "Cookies" link lets anyone change their mind.
+
+     Detection is by IANA time zone because the default has to be pushed
+     before the tag configures itself, and there is no point in the sequence
+     where a geo-IP round trip could be awaited. It deliberately errs toward
+     asking: every Europe/* and Atlantic/* zone is treated as consent-first
+     even where it is not, plus the EU's outermost regions, because
+     over-asking is the harmless direction and under-asking is not.
 
      Only analytics storage is ever asked for. The site runs no advertising
      products, so the three ad signals stay denied for everyone. */
   let consent = store.get(CONSENT_KEY);           // "granted" | "denied" | null
 
+  const EU_OUTERMOST =
+    /^(Africa\/Ceuta|Indian\/(Reunion|Mayotte)|America\/(Guadeloupe|Martinique|Cayenne|Miquelon))$/;
+
+  function consentFirstRegion() {
+    let tz = "";
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch {}
+    if (!tz) return true;                         // unknown: ask
+    return /^(Europe|Atlantic)\//.test(tz) || EU_OUTERMOST.test(tz);
+  }
+
+  const askFirst = consentFirstRegion();
+  const analyticsDefault =
+    consent === "granted" ? "granted" :
+    consent === "denied"  ? "denied"  :
+    askFirst ? "denied" : "granted";
+
   gtag("consent", "default", {
     ad_storage: "denied",
     ad_user_data: "denied",
     ad_personalization: "denied",
-    analytics_storage: "denied",
+    analytics_storage: analyticsDefault,
     wait_for_update: 500,
   });
   if (consent === "granted") gtag("consent", "update", { analytics_storage: "granted" });
@@ -110,13 +170,17 @@
      measurement ID has one home and build.sh can inject it per environment.
      Absent locally (server.py serves an empty config.js), where every call
      below becomes a no-op rather than an error. */
-  if (GA_ID) {
+  if (GA_ID && !LOCAL_HOST) {
     const s = document.createElement("script");
     s.async = true;
     s.src = "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(GA_ID);
     document.head.appendChild(s);
 
     gtag("js", new Date());
+    // Before config, so the first page_view carries it too. The events still
+    // send -- GA4's Internal Traffic filter is what drops them, and sending
+    // lets the filter's Testing state show they are being caught.
+    if (INTERNAL) gtag("set", { traffic_type: "internal" });
     // Page views are sent by hand; see pageView below.
     gtag("config", GA_ID, { send_page_view: false });
   }
@@ -157,6 +221,7 @@
     if (file === "earnings.html" || file === "earnings") return "Earnings";
     if (file === "company.html" || file === "company") return "Company";
     if (file === "portfolio.html" || file === "portfolio") return "Portfolio";
+    if (file === "politicians.html" || file === "politicians") return "Congress";
     return "Other";
   }
 
@@ -326,35 +391,84 @@
      they do GA4 sends cookieless pings. The wording here is the minimum that
      is accurate; the copy and the policy it links to belong to whoever owns
      privacy for the business. */
+  /* A centred sheet rather than the strip this used to be.
+
+     The strip lost on non-response, not on rejection: it sat at the bottom of
+     the page looking like a notification, most people never answered it, and
+     an unanswered banner leaves consent at the denied default forever. A sheet
+     that asks the question in the middle of the screen gets answered.
+
+     Accept is the primary action and looks like it -- full width, filled,
+     first. Decline is a real button of the same size directly beneath it, one
+     click, no menu to open and nothing to hunt for. That asymmetry is emphasis
+     and it is allowed; making the refusal harder to reach than the acceptance
+     is not, and is where regulators draw the line. Do not "improve" this by
+     moving Decline behind a preferences screen.
+
+     There is no close button and no dismiss-on-backdrop, so the question does
+     get an answer -- but declining costs one click and the whole site works
+     afterwards, which is what keeps this a consent prompt and not a cookie
+     wall. */
   const CONSENT_CSS = `
+.ta-consent-veil {
+  position: fixed; inset: 0; z-index: 400;
+  display: grid; place-items: center; padding: 20px;
+  background: rgba(17, 24, 32, .5);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  animation: ta-consent-fade .18s ease;
+}
+@keyframes ta-consent-fade { from { opacity: 0 } to { opacity: 1 } }
 .ta-consent {
-  position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 200;
-  max-width: 620px; margin: 0 auto;
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  padding: 14px 18px;
-  background: var(--card, #fff); color: var(--ink, #111);
-  border: 1px solid var(--rule, #e3e3e3); border-radius: 12px;
-  box-shadow: var(--shadow, 0 8px 30px rgba(0,0,0,.12));
-  font-size: 13px; line-height: 1.5;
+  width: min(440px, 100%);
+  background: var(--card, #fff); color: var(--ink, #111820);
+  border: 1px solid var(--rule, #dde2e8); border-radius: 16px;
+  box-shadow: 0 18px 50px -20px rgba(17, 24, 32, .55);
+  padding: 26px 26px 20px; text-align: center;
+  font-size: 14px; line-height: 1.6;
+  animation: ta-consent-up .22s cubic-bezier(.22,.61,.36,1);
 }
-.ta-consent p { margin: 0; flex: 1; min-width: 220px; color: var(--ink-2, #444); }
-.ta-consent-btns { display: flex; gap: 8px; flex-shrink: 0; }
+@keyframes ta-consent-up {
+  from { opacity: 0; transform: translateY(10px) scale(.985) }
+  to   { opacity: 1; transform: none }
+}
+.ta-consent h2 {
+  margin: 0 0 9px; font-size: 20px; line-height: 1.3; font-weight: 600;
+  letter-spacing: -.02em; color: var(--ink, #111820);
+  font-family: "IBM Plex Serif", Georgia, serif;
+}
+.ta-consent p { margin: 0 0 6px; color: var(--ink-2, #4a5866); font-size: 14px; }
+.ta-consent .ta-consent-fine {
+  margin: 0 0 18px; font-size: 12.5px; color: var(--ink-3, #78889a);
+}
+.ta-consent .ta-consent-fine a { color: var(--ink-2, #4a5866); }
+.ta-consent-btns { display: flex; flex-direction: column; gap: 9px; }
 .ta-consent button {
-  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-  border-radius: 8px; padding: 8px 16px;
+  font: inherit; cursor: pointer; border-radius: 10px; width: 100%;
 }
-.ta-consent button[data-decline] {
-  background: transparent; color: var(--ink-2, #444);
-  border: 1px solid var(--rule, #e3e3e3);
-}
-.ta-consent button[data-decline]:hover { border-color: var(--ink-3, #888); }
 .ta-consent button[data-accept] {
-  background: var(--accent, #2a78d6); color: #fff; border: 0;
+  background: var(--accent, #1e4fbf); color: #fff; border: 0;
+  padding: 14px 18px; font-size: 15.5px; font-weight: 650;
+  letter-spacing: -.005em;
+  box-shadow: 0 6px 16px -8px var(--accent, #1e4fbf);
 }
 .ta-consent button[data-accept]:hover { filter: brightness(1.08); }
+.ta-consent button[data-decline] {
+  background: transparent; color: var(--ink-2, #4a5866);
+  border: 1px solid var(--rule, #dde2e8);
+  padding: 11px 18px; font-size: 14px; font-weight: 500;
+}
+.ta-consent button[data-decline]:hover {
+  border-color: var(--ink-3, #78889a); color: var(--ink, #111820);
+}
+.ta-consent button:focus-visible {
+  outline: 2px solid var(--accent, #1e4fbf); outline-offset: 2px;
+}
 @media (max-width: 520px) {
-  .ta-consent { flex-direction: column; align-items: stretch; }
-  .ta-consent-btns button { flex: 1; }
+  .ta-consent { padding: 22px 18px 16px; border-radius: 14px; }
+  .ta-consent h2 { font-size: 18.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ta-consent-veil, .ta-consent { animation: none }
 }`;
 
   function setConsent(choice) {
@@ -381,32 +495,95 @@
   addEventListener("load", applyClarityConsent);
 
   function showBanner() {
-    const style = document.createElement("style");
-    style.textContent = CONSENT_CSS;
-    document.head.appendChild(style);
+    if (document.querySelector(".ta-consent-veil")) return;
+    if (!document.getElementById("ta-consent-css")) {
+      const style = document.createElement("style");
+      style.id = "ta-consent-css";
+      style.textContent = CONSENT_CSS;
+      document.head.appendChild(style);
+    }
+
+    const veil = document.createElement("div");
+    veil.className = "ta-consent-veil";
 
     const el = document.createElement("div");
     el.className = "ta-consent";
     el.setAttribute("role", "dialog");
-    el.setAttribute("aria-label", "Cookie choices");
+    el.setAttribute("aria-modal", "true");
+    el.setAttribute("aria-labelledby", "ta-consent-title");
+    // Accept first in the DOM as well as visually, so it is also what the
+    // keyboard reaches first. Both choices are one press either way.
     el.innerHTML = `
-      <p>We use cookies to measure how this site is used, so we can see which
-         pages are worth building on. Nothing is shared with advertisers.</p>
+      <h2 id="ta-consent-title">Help us build the right things</h2>
+      <p>We use cookies to measure which pages people actually find useful, so
+         we know what to improve next.</p>
+      <p class="ta-consent-fine">Measurement only &mdash; nothing is sold or
+         shared with advertisers. See our
+         <a href="privacy.html" target="_blank" rel="noopener">privacy policy</a>.</p>
       <div class="ta-consent-btns">
-        <button type="button" data-decline>Decline</button>
         <button type="button" data-accept>Accept</button>
+        <button type="button" data-decline>Decline</button>
       </div>`;
-    const answer = choice => { setConsent(choice); el.remove(); };
+
+    veil.appendChild(el);
+    document.body.appendChild(veil);
+    try { el.querySelector("[data-accept]").focus(); } catch {}
+
+    // Deliberately no Escape handler and no click-through on the backdrop:
+    // dismissing without answering would leave consent at the default and put
+    // us straight back where this started, with a question nobody answered.
+    const answer = choice => { setConsent(choice); veil.remove(); };
     el.querySelector("[data-decline]").onclick = () => answer("denied");
     el.querySelector("[data-accept]").onclick = () => answer("granted");
-    document.body.appendChild(el);
   }
 
-  if (consent === null && (GA_ID || CFG.clarityProjectId)) {
+  // Only where consent has to come first. Everywhere else the default is
+  // already granted, so a banner would be asking a question whose answer has
+  // no effect -- the footer's "Cookies" link is how those visitors opt out.
+  if (consent === null && askFirst && (GA_ID || CFG.clarityProjectId)) {
     if (document.readyState === "loading")
       addEventListener("DOMContentLoaded", showBanner);
     else showBanner();
   }
+
+  /* ---- and then check it properly ---------------------------------------
+     The time zone is a guess made synchronously because the consent default
+     has to be pushed before the tag configures itself. It is wrong in the two
+     cases that matter: a VPN changes the exit IP and not the clock, and a
+     traveller's laptop keeps the time zone it came with.
+
+     Cloudflare already knows the answer. /cdn-cgi/trace is served from the
+     edge in front of this site and reports `loc` from the IP, so one cheap
+     request upgrades the guess to a fact. It only ever tightens: a visitor the
+     clock called non-European but the edge calls European is switched to
+     denied and asked. The reverse is left alone -- somebody already looking at
+     the sheet is not better served by it vanishing, and over-asking harms
+     nobody.
+
+     An explicit choice outranks all of this and is never revisited. */
+  const CONSENT_FIRST_COUNTRIES = new Set([
+    "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT",
+    "LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE",   // EU 27
+    "IS","LI","NO",                                                // EEA
+    "GB","GI",                                                     // UK
+  ]);
+
+  function confirmRegionByIp() {
+    if (consent !== null) return;              // already answered; nothing to fix
+    if (askFirst) return;                      // already asking; cannot tighten further
+    fetch("/cdn-cgi/trace", { cache: "no-store" })
+      .then(r => (r.ok ? r.text() : ""))
+      .then(text => {
+        const m = /(?:^|\n)loc=([A-Z]{2})/.exec(text || "");
+        if (!m || !CONSENT_FIRST_COUNTRIES.has(m[1])) return;
+        if (consent !== null) return;          // answered while the request was out
+        gtag("consent", "update", { analytics_storage: "denied" });
+        applyClarityConsent();
+        showBanner();
+      })
+      .catch(() => {});
+  }
+  if (GA_ID || CFG.clarityProjectId) confirmRegionByIp();
 
   /* ---- the public surface ------------------------------------------------ */
   window.TAnalytics = {
@@ -420,6 +597,24 @@
     /** Clears the stored choice and shows the banner again — for testing the
         consent flow without hand-editing localStorage. */
     resetConsent(){ store.del(CONSENT_KEY); consent = null; showBanner(); },
+
+    /** Show the sheet without discarding what was already chosen. This is what
+        a "cookie policy" link should call: the visitor is reviewing a decision,
+        not being reset to having made none. Either button still writes a fresh
+        value, so nothing is left half-changed. */
+    openConsent(){ showBanner(); },
+
+    /** Opening an account counts as agreement — but only where no answer has
+        been given yet. A stored "denied" is a decision the visitor already
+        made and signing in does not overturn it; that is the whole meaning of
+        "unless opted out specifically". Returns whether anything changed. */
+    grantIfUnset(){
+      if (store.get(CONSENT_KEY)) return false;
+      setConsent("granted");
+      const veil = document.querySelector(".ta-consent-veil");
+      if (veil) veil.remove();          // the sheet, if it was open, is answered
+      return true;
+    },
   };
 
   // One page view per load. Identification above ran first, so events that

@@ -53,14 +53,24 @@
     return String((row && (row.ticker || row.symbol)) || "").toUpperCase();
   }
 
-  /** search_companies with nickname boost (SpaceX, Google, Facebook, …). */
-  async function searchCompanies(term, lim){
+  /** search_companies with nickname boost (SpaceX, Google, Facebook, …).
+      `kind` filters to one asset type in the database (0062), where it runs
+      before the row limit; until that migration is applied the call retries
+      without it and the caller's client-side sieve stands in. */
+  async function searchCompanies(term, lim, kind){
     const q = String(term || "").trim();
     if (!q) return [];
     const args = { q };
     if (lim != null) args.lim = lim;
+    if (kind) args.p_kind = kind;
     let items = [];
-    try { items = (await rpc("search_companies", args)) || []; } catch { items = []; }
+    try { items = (await rpc("search_companies", args)) || []; }
+    catch {
+      if (kind) {
+        delete args.p_kind;
+        try { items = (await rpc("search_companies", args)) || []; } catch { items = []; }
+      } else items = [];
+    }
     const alias = COMPANY_SEARCH_ALIASES[q.toLowerCase()];
     if (!alias) return items;
     const rest = items.filter(x => tickerOf(x) !== alias);
@@ -74,8 +84,17 @@
     return items;
   }
 
-  const page = (location.pathname.split("/").pop() || "index.html").toLowerCase();
-  const here = p => page === p || (p === "index.html" && page === "");
+  // Cloudflare Pages serves clean URLs -- /news, not /news.html -- while a
+  // local server keeps the extension. Comparing with the extension stripped
+  // is the only version that is true in both places; comparing exactly meant
+  // no link ever highlighted in production, on any page, and nobody saw it
+  // in a local preview because there the paths still carry .html.
+  const page = (location.pathname.split("/").pop() || "index.html")
+    .toLowerCase().replace(/\.html$/, "");
+  const here = p => {
+    const want = String(p).toLowerCase().replace(/\.html$/, "");
+    return page === want || (want === "index" && page === "");
+  };
 
   document.body.insertAdjacentHTML("afterbegin", `
     <div class="nav-strip" id="nav-strip">
@@ -93,15 +112,25 @@
         <a href="earnings.html" class="${here("earnings.html") ? "on" : ""}">Earnings</a>
         <a href="reports.html" class="${here("reports.html") || here("company.html") ? "on" : ""}">Company Report</a>
         <a href="portfolio.html" class="${here("portfolio.html") ? "on" : ""}">Portfolio</a>
+        <a href="politicians.html" class="${here("politicians.html") ? "on" : ""}">Insider &amp; Congress</a>
       </div>
 
       <div class="nav-search">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"
-          fill="none" stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <input type="text" id="nav-q" placeholder="Search a ticker or company"
-               autocomplete="off" role="combobox" aria-expanded="false" aria-controls="nav-ac">
-        <kbd>/</kbd>
+        <select id="nav-kind" aria-label="Asset type to search">
+          <option value="">All</option>
+          <option value="stock">Stocks</option>
+          <option value="etf">ETFs</option>
+          <option value="fund">Funds</option>
+          <option value="crypto">Crypto</option>
+        </select>
+        <div class="nav-qwrap">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6"
+            fill="none" stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <input type="text" id="nav-q" placeholder="Search a ticker or company"
+                 autocomplete="off" role="combobox" aria-expanded="false" aria-controls="nav-ac">
+          <kbd>/</kbd>
+        </div>
         <div class="nav-ac" id="nav-ac" role="listbox"></div>
       </div>
 
@@ -121,6 +150,7 @@
         <a href="earnings.html" class="${here("earnings.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17"/><path d="M8 3.5v3M16 3.5v3"/></svg><span>Earnings</span></a>
         <a href="reports.html" class="${here("reports.html") || here("company.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8l4 4V20a.5.5 0 0 1-.5.5h-11A.5.5 0 0 1 6 20z"/><path d="M14 3.5V8h4"/><path d="M9 13h6M9 16.5h4"/></svg><span>Reports</span></a>
         <a href="portfolio.html" class="${here("portfolio.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5h17V19a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/><path d="M9 8.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2.5"/><path d="M3.5 13h17"/></svg><span>Portfolio</span></a>
+        <a href="politicians.html" class="${here("politicians.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20.5h16"/><path d="M5.5 17.5h13"/><path d="M6.5 10.5v7M10 10.5v7M14 10.5v7M17.5 10.5v7"/><path d="M4 10.5h16L12 4z"/></svg><span>Congress</span></a>
     </nav>
   `);
 
@@ -217,7 +247,33 @@
 
   /* ---- ticker search ---------------------------------------------------- */
   const q = document.getElementById("nav-q"), ac = document.getElementById("nav-ac");
-  let items = [], idx = -1, timer = null;
+  const kindSel = document.getElementById("nav-kind");
+  let items = [], idx = -1, timer = null, seq = 0;
+
+  /* The asset-type filter. search_companies already returns a kind on every
+     row, so this is a client-side sieve, not a new query. "Funds" folds in
+     money markets -- a visitor picking Funds means both. When a filter is on,
+     the fetch asks for the RPC's maximum rather than the default dozen,
+     because the sieve is applied after ranking and a dozen rows of mostly
+     stocks could starve a crypto search of its actual answers. */
+  const KIND_MATCH = { stock: ["stock"], etf: ["etf"],
+                       fund: ["fund", "money_market"], crypto: ["crypto"] };
+  const kindFilter = rows => {
+    const k = kindSel && kindSel.value;
+    if (!k) return rows;
+    return rows.filter(x => KIND_MATCH[k].includes(String(x.kind || "stock")));
+  };
+  if (kindSel) kindSel.addEventListener("change", () => {
+    const k = kindSel.value;
+    q.placeholder = k === "stock" ? "Search stocks…"
+      : k === "etf" ? "Search ETFs…"
+      : k === "fund" ? "Search funds…"
+      : k === "crypto" ? "Search crypto…"
+      : "Search a ticker or company";
+    // A term already typed should re-answer under the new filter.
+    if (q.value.trim()) q.dispatchEvent(new Event("input"));
+    q.focus();
+  });
 
   const close = () => { ac.classList.remove("open"); q.setAttribute("aria-expanded", "false"); idx = -1; };
   const open = t => {
@@ -233,8 +289,17 @@
     const term = q.value.trim();
     if (!term) return close();
     timer = setTimeout(async () => {
+      // Answers arrive out of order: a broad 25-row query fired before a
+      // narrow one can resolve after it and paint the wrong list. Each request
+      // takes a ticket, and only the newest is allowed to touch the box.
+      const mine = ++seq;
       try {
-        items = await searchCompanies(term);
+        const k = kindSel && kindSel.value;
+        // The sieve stays on after the server filter: it is what answers when
+        // the RPC predates 0062 and falls back to an unfiltered query.
+        const rows = kindFilter(await searchCompanies(term, k ? 25 : null, k || null));
+        if (mine !== seq) return;
+        items = rows;
         idx = -1;
         if (!items.length) return close();
         ac.innerHTML = items.map((x, i) => {
@@ -392,8 +457,12 @@
       addEventListener("keydown", e => { if (e.key === "Escape") shut(); });
       document.getElementById("nav-signout").onclick = signOut;
     } else {
-      auth.innerHTML = `<button class="nav-login" id="nav-login">Log in</button>`;
-      document.getElementById("nav-login").onclick = signIn;
+      // The bar's own button opens the sheet rather than jumping straight to
+      // Google: there are two ways in now, and a button that silently picks
+      // one of them is not offering a choice.
+      auth.innerHTML =
+        `<button class="nav-login" id="nav-login">Sign up / Sign in</button>`;
+      document.getElementById("nav-login").onclick = () => showSignupModal({ reason: "nav" });
     }
   }
 
@@ -433,15 +502,14 @@
       potential" is wallpaper, and was what every gate used to say. Keep the
       keys in step with the `gate` values sent to analytics. */
   const SIGNUP_REASONS = {
+    nav:       "Sign up or sign in",
     watchlist: "Sign up to follow this company",
     report:    "Sign up to read the full report",
     earnings:  "Sign up to see the full earnings calendar",
-    seasonality: "Sign up to see 10 years of monthly returns",
-    correlation: "Sign up to compare this against any other ticker",
-    drawdown:  "Sign up to see the full drawdown history",
     portfolio: "Sign up to save this portfolio",
   };
   const SIGNUP_NOTES = {
+    nav:       "One account for your watchlist, portfolio and the research reports.",
     watchlist: "Your list follows you across devices, with earnings dates.",
     report:    "Eight pages of valuation, peers and what would break the thesis.",
     earnings:  "Every company reporting, not just the first two.",
@@ -452,6 +520,20 @@
       dismiss. */
   function showSignupModal(opts) {
     if (window.TA.signedIn()) return;
+    /* GoTrue mints the code, so its length is a Supabase project setting
+       (Authentication -> Sign In / Providers -> Email -> Email OTP length),
+       not the page's decision. It was 6 here against a project set to 8, and
+       maxlength was the real damage: the field swallowed the last two digits
+       and auto-submitted the truncated six on the sixth keystroke, so GoTrue
+       rejected a code that had never been typed in full while the message
+       blamed single-use codes. One constant now drives the label, the
+       placeholder, maxlength, the confirmation, the length check and the
+       auto-submit threshold -- change this and the dashboard together. */
+    const CODE_LEN = 8;
+    const CODE_WORD = { 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten" };
+    const codeWord = CODE_WORD[CODE_LEN] || String(CODE_LEN);
+    // "an 8-digit code", "a 6-digit code" -- 8, 11 and 18 take "an".
+    const codeArticle = /^(8|11|18)/.test(String(CODE_LEN)) ? "an" : "a";
     if (document.getElementById("auth-modal")) return;
     const reason = (opts && opts.reason) || "generic";
     const title = SIGNUP_REASONS[reason] ||
@@ -471,7 +553,10 @@
         <h2 id="auth-modal-title">${esc(title)}</h2>
         ${note ? `<p class="auth-why">${esc(note)}</p>` : ""}
         <p class="auth-legal">By continuing, you agree to our
-          <a href="privacy.html" target="_blank" rel="noopener">privacy policy</a>.</p>
+          <a href="privacy.html" target="_blank" rel="noopener">privacy policy</a>
+          and to analytics cookies. You can
+          <button type="button" class="auth-inline" id="auth-cookies">change your cookie choice</button>
+          at any time.</p>
         <button type="button" class="auth-google" id="auth-google">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -482,6 +567,31 @@
           Continue with Google
         </button>
         <p class="auth-sso">Single sign-on (SSO)</p>
+
+        <div class="auth-or"><span>or</span></div>
+
+        <form class="auth-email" id="auth-email-form" novalidate>
+          <label class="auth-lab" for="auth-email">Continue with email</label>
+          <input type="email" id="auth-email" name="email" required
+                 autocomplete="email" inputmode="email"
+                 placeholder="you@example.com" aria-describedby="auth-msg">
+          <button type="submit" class="auth-alt" id="auth-send">Email me a code</button>
+        </form>
+
+        <!-- Step two. Hidden until a code has actually been sent, so the modal
+             opens as one decision rather than a form with a mystery field. -->
+        <form class="auth-email" id="auth-code-form" novalidate hidden>
+          <label class="auth-lab" for="auth-code">Enter the ${CODE_LEN}-digit code</label>
+          <input type="text" id="auth-code" name="code" required
+                 inputmode="numeric" autocomplete="one-time-code"
+                 pattern="[0-9]*" maxlength="${CODE_LEN}"
+                 placeholder="${"1234567890".slice(0, CODE_LEN)}"
+                 class="auth-code" aria-describedby="auth-msg">
+          <button type="submit" class="auth-alt" id="auth-verify">Verify and continue</button>
+          <button type="button" class="auth-linkbtn" id="auth-resend">Send a new code</button>
+        </form>
+
+        <p class="auth-msg" id="auth-msg" role="status" aria-live="polite"></p>
         <button type="button" class="auth-modal-close">Close</button>
       </div>`;
     document.body.appendChild(el);
@@ -499,10 +609,164 @@
     el.querySelector("#auth-google").onclick = () => {
       el.remove();
       document.removeEventListener("keydown", onKey);
-      GA.track("signup_modal_accept", { gate: reason });
+      GA.track("signup_modal_accept", { gate: reason, method: "google" });
       signIn();
     };
+
+    // The cookie line is a control, not just prose: it opens the consent sheet
+    // over this one rather than navigating away, so nobody loses a half-typed
+    // email to go and read about cookies.
+    el.querySelector("#auth-cookies").onclick = () => {
+      const A = window.TAnalytics;
+      if (A && typeof A.openConsent === "function") A.openConsent();
+      else window.open("privacy.html", "_blank", "noopener");
+    };
+
+    /* ---- the email route ---------------------------------------------- */
+    const emailForm = el.querySelector("#auth-email-form");
+    const codeForm  = el.querySelector("#auth-code-form");
+    const emailIn   = el.querySelector("#auth-email");
+    const codeIn    = el.querySelector("#auth-code");
+    const sendBtn   = el.querySelector("#auth-send");
+    const verifyBtn = el.querySelector("#auth-verify");
+    const msg       = el.querySelector("#auth-msg");
+
+    const say = (text, kind) => {
+      msg.textContent = text || "";
+      msg.className = "auth-msg" + (kind ? " " + kind : "");
+    };
+
+    // Same single-flight reasoning as verify: the form also submits on Enter,
+    // and each request supersedes the last code issued.
+    let sending = false;
+
+    async function send(resend) {
+      if (sending) return;
+      const email = emailIn.value.trim();
+      // Deliberately loose. The server is the real check, and a clever
+      // pattern here only ever rejects somebody's genuine address.
+      if (!email || email.indexOf("@") < 1) {
+        say("Enter an email address.", "bad");
+        emailIn.focus();
+        return;
+      }
+      sending = true;
+      sendBtn.disabled = true;
+      say(resend ? "Sending a new code…" : "Sending your code…");
+      try {
+        const r = await fetch(`${CFG.supabaseUrl}/auth/v1/otp`, {
+          method: "POST",
+          headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
+          body: JSON.stringify({ email, create_user: true }),
+        });
+        const d = await r.json().catch(() => ({}));
+        sending = false;
+        if (!r.ok) {
+          say(authError(d) || "That did not work. Try again in a moment.", "bad");
+          sendBtn.disabled = false;
+          return;
+        }
+        GA.track("signup_modal_accept", { gate: reason, method: "email" });
+        emailForm.hidden = true;
+        codeForm.hidden = false;
+        say(`We sent ${codeArticle} ${CODE_LEN}-digit code to ${email}. It expires in an hour.`,
+            "ok");
+        try { codeIn.focus(); } catch {}
+      } catch {
+        sending = false;
+        say("Could not reach the server. Check your connection.", "bad");
+        sendBtn.disabled = false;
+      }
+    }
+
+    /* GoTrue keys the code to how it was issued, and the two cases differ:
+       an account that already exists gets a magic-link code, which verifies
+       as type `email`; a brand-new address gets a signup confirmation, which
+       verifies as type `signup`. Sending only `email` therefore worked for
+       returning visitors and failed for every genuinely new one -- the exact
+       people a signup flow exists for -- with the same "expired or invalid"
+       wording, which is why it did not look like a type problem. A rejected
+       code is not consumed, so trying the second costs nothing. */
+    async function verifyAs(type, email, token) {
+      const r = await fetch(`${CFG.supabaseUrl}/auth/v1/verify`, {
+        method: "POST",
+        headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
+        body: JSON.stringify({ email, token, type }),
+      });
+      const d = await r.json().catch(() => ({}));
+      return { ok: r.ok && !!d.access_token, d };
+    }
+
+    // One verify at a time. The field submits itself on the sixth digit and
+    // the button is still there to press, and a code is single-use: whichever
+    // call lands second was reporting "expired or invalid" about a code the
+    // first call had just legitimately spent.
+    let verifying = false;
+
+    async function verify() {
+      if (verifying) return;
+      const email = emailIn.value.trim();
+      const token = codeIn.value.replace(/\D/g, "");
+      if (token.length !== CODE_LEN) {
+        say(`The code is ${codeWord} digits.`, "bad");
+        codeIn.focus();
+        return;
+      }
+      verifying = true;
+      verifyBtn.disabled = true;
+      say("Checking…");
+      try {
+        let res = await verifyAs("email", email, token);
+        if (!res.ok) res = await verifyAs("signup", email, token);
+        const d = res.d;
+        if (!res.ok) {
+          say(authError(d) ||
+              "That code was not right. Codes are single-use — if you asked " +
+              "for more than one, only the newest works.", "bad");
+          verifying = false;
+          verifyBtn.disabled = false;
+          return;
+        }
+        // Same shape the One Tap exchange returns, so the same adopter runs
+        // and every page hears one `ta-auth` however you signed in.
+        adoptSession(d);
+        el.remove();
+        document.removeEventListener("keydown", onKey);
+      } catch {
+        say("Could not reach the server. Check your connection.", "bad");
+        verifying = false;
+        verifyBtn.disabled = false;
+      }
+    }
+
+    emailForm.onsubmit = e => { e.preventDefault(); send(false); };
+    codeForm.onsubmit  = e => { e.preventDefault(); verify(); };
+    el.querySelector("#auth-resend").onclick = () => {
+      // Clear the old code first. Asking for a new one invalidates whatever
+      // was already sent, so leaving the previous digits in the field only
+      // sets up a "that code is invalid" that is entirely our own doing.
+      codeIn.value = "";
+      codeForm.hidden = true;
+      emailForm.hidden = false;
+      sendBtn.disabled = false;
+      send(true);
+    };
+    // Digits only, and verify the moment the full code is in — a code this
+    // short does not need a button press to feel finished.
+    codeIn.addEventListener("input", () => {
+      const v = codeIn.value.replace(/\D/g, "").slice(0, CODE_LEN);
+      if (v !== codeIn.value) codeIn.value = v;
+      if (v.length === CODE_LEN) verify();
+    });
+
     try { el.querySelector("#auth-google").focus(); } catch {}
+  }
+
+  /** GoTrue puts its reason in one of three fields depending on the failure. */
+  function authError(d) {
+    if (!d) return "";
+    const m = d.error_description || d.msg || d.message || d.error || "";
+    return typeof m === "string" ? m : "";
   }
 
   // A one-line explanation under the bar. Sign-in failures used to leave no
@@ -549,7 +813,52 @@
     history.replaceState(null, "", location.pathname + location.search);
     // A page that was rendered signed-out needs to hear about this.
     setTimeout(announce, 0);
+    setTimeout(grantConsentOnAuth, 0);
+    // Came back from Google having started at a report? Return to it.
+    setTimeout(resumeNext, 0);
   })();
+
+  /* ---- arriving here to sign in -----------------------------------------
+     A research report is a standalone document with no nav, so it has no
+     sheet to open and could only ever offer Google. Its wall sends people
+     here instead, with ?auth=1 and the report to come back to. Both halves
+     matter: without the return, somebody signs in and lands on the markets
+     page having lost the document they were reading. */
+  const NEXT_KEY = "alphaticker-auth-next";
+
+  /** Same-origin paths only. This value arrives in a query string, and a
+      `next` allowed to carry a host is an open redirect. */
+  function safeNext(raw) {
+    if (!raw) return "";
+    let p = String(raw);
+    if (/^[a-z][a-z0-9+.-]*:/i.test(p) || p.startsWith("//")) return "";
+    if (!p.startsWith("/")) p = "/" + p;
+    return p;
+  }
+
+  (function authEntry() {
+    const q = new URLSearchParams(location.search);
+    if (!q.get("auth")) return;
+    const next = safeNext(q.get("next"));
+    try {
+      next ? sessionStorage.setItem(NEXT_KEY, next)
+           : sessionStorage.removeItem(NEXT_KEY);
+    } catch {}
+    q.delete("auth"); q.delete("next");
+    const rest = q.toString();
+    history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
+    if (!session()) setTimeout(() => showSignupModal({ reason: "report" }), 0);
+  })();
+
+  /** Go back to whatever sent us here, once there is a session. */
+  function resumeNext() {
+    let next = "";
+    try { next = sessionStorage.getItem(NEXT_KEY) || ""; } catch {}
+    if (!next) return false;
+    try { sessionStorage.removeItem(NEXT_KEY); } catch {}
+    location.href = next;
+    return true;
+  }
 
   /* ---- account-scoped local data ----------------------------------------
      The portfolio and watchlist are mirrored into this browser so a page can
@@ -658,6 +967,27 @@
     });
     renderAuth();
     announce();
+    grantConsentOnAuth();
+    // Google One Tap, or the email code: either way, if a report sent us here
+    // to sign in, that is where the visitor wants to be.
+    resumeNext();
+  }
+
+  /** Opening an account is agreement to the terms the sheet stated, cookies
+      among them -- so a visitor who has not answered the consent question is
+      taken to have said yes by signing in.
+
+      Only where no answer exists. Someone who declined has made a decision and
+      signing in does not quietly reverse it, which is what "unless opted out
+      specifically" has to mean if it means anything. The sheet says this in
+      plain words above the buttons, and the same line links straight to the
+      cookie choice, so it is disclosed at the moment of the click rather than
+      buried in a policy page. */
+  function grantConsentOnAuth() {
+    const A = window.TAnalytics;
+    if (A && typeof A.grantIfUnset === "function") {
+      try { A.grantIfUnset(); } catch {}
+    }
   }
 
   /* One Tap needs a nonce of its own.
@@ -735,11 +1065,26 @@
         <span>© ${new Date().getFullYear()} Ticker Alpha · Logos by <a href="https://logo.dev" target="_blank" rel="noopener">Logo.dev</a></span>
         <span class="site-foot-links">
           <a href="privacy.html">Privacy Policy</a>
+          <button type="button" class="foot-link" id="foot-cookies">Cookies</button>
           <a href="news.html">News</a>
           <a href="earnings.html">Earnings</a>
           <a href="company.html">Company Report</a>
           <a href="portfolio.html">Portfolio</a>
+          <a href="politicians.html">Insider &amp; Congress</a>
         </span>
       </footer>`);
+
+    // Outside the EEA and the UK, analytics is on by default and no banner is
+    // shown -- so this is the opt-out, and it has to be somewhere obvious
+    // rather than only in the policy text. It reopens the same banner, so a
+    // visitor can decline (or re-accept) wherever they are.
+    const cookieBtn = document.getElementById("foot-cookies");
+    if (cookieBtn) cookieBtn.onclick = () => {
+      const A = window.TAnalytics;
+      // openConsent, not resetConsent: reviewing a choice should not begin by
+      // discarding it. Either button writes a fresh value anyway.
+      if (A && typeof A.openConsent === "function") A.openConsent();
+      else location.href = "privacy.html";
+    };
   }
 })();

@@ -4,13 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ticker Alpha — market news</title>
+<meta name="description" content="Market news from across the wire, ranked by what's most covered — filter by topic or ticker and trace every story to its source.">
+<link rel="canonical" href="https://tickeralpha.ai/news.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ticker Alpha — market news">
+<meta property="og:description" content="Market news ranked by what's most covered — filter by topic or ticker and trace every story to its source.">
+<meta property="og:url" content="https://tickeralpha.ai/news.html">
+<meta property="og:site_name" content="Ticker Alpha">
 <script src="config.js"></script>
-<script src="logo.js"></script>
-<script src="analytics.js"></script>
+<script src="assets/logo.fecf2b22.js"></script>
+<script src="assets/analytics.620c6959.js"></script>
+<script src="assets/posthog-init.ca04ed3b.js"></script>
 <script type="module" src="clarity-init.js"></script>
-<link rel="stylesheet" href="nav.css">
+<link rel="stylesheet" href="assets/nav.359aeec5.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Every page's first act is an RPC to Supabase; warming the connection here
+     saves the DNS + TCP + TLS setup that otherwise sits in front of the first
+     byte of data. The origin is already public in config.js. -->
+<link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
 <style>
 /* ---------------------------------------------------------------------------
@@ -61,10 +73,12 @@ h3{font-size:14px;font-weight:600;letter-spacing:-.005em}
 .rows::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
 
 .side-l{display:flex;flex-direction:column;gap:18px;align-items:stretch}
-table{width:100%;border-collapse:collapse;font-size:13px}
-thead th{position:sticky;top:0;background:var(--card);z-index:1;
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+thead{position:relative;z-index:2}
+thead th{position:sticky;top:0;background:var(--card);z-index:2;
+  background-clip:padding-box;box-shadow:0 1px 0 var(--rule);
   font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
-  font-weight:600;text-align:right;padding:7px 15px 7px 0;border-bottom:1px solid var(--rule)}
+  font-weight:600;text-align:right;padding:7px 15px 7px 0}
 thead th:first-child{text-align:left;padding-left:15px}
 tbody td{padding:8px 0;border-bottom:1px solid var(--rule-2);text-align:right;
   font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
@@ -194,6 +208,9 @@ tbody tr:hover td{background:var(--sunk)}
    search and the stories first and turns each card into a headline with a
    small thumbnail beside it, which is how a phone news list reads. */
 @media (max-width:720px){
+  /* "Latest" is what the page obviously is; the story count below it carries
+     the only information in that block. */
+  .newshead h1{display:none}
   .cols{display:flex;flex-direction:column;gap:12px}
   /* Stories second; the search form is moved above them in script, because it
      lives inside the left column and CSS order cannot lift a descendant out of
@@ -327,8 +344,70 @@ const avatarColour = s => {
 };
 
 const S = { view: "market_cap", q: null, label: null, page: 0, total: 0,
-            keywords: [], loading: false };
+            keywords: [], loading: false,
+            // Cross-page memory of headlines already shown, so a wire story
+            // syndicated to four publishers appears once with a count instead
+            // of four times; and the reader's own symbols, for the boost.
+            seenKeys: null, mySyms: null };
 const PAGE = 12;
+
+/* ---- relevance ----------------------------------------------------------
+   The feed pulls plenty and fresh; what made it feel stale was volume without
+   an editor. Two mechanical editors stand in. Near-duplicate headlines are
+   collapsed to one card carrying an "also on N sources" note -- syndication is
+   most of the sameness in a finance feed. And stories naming a symbol the
+   reader holds or watches float to the top of each page, labelled with why.
+   No model anywhere: a token key and a set lookup. */
+
+/** Symbols this browser cares about: the portfolio's local mirror plus the
+    watchlist cache. Both best-effort -- an empty set just means no boost. */
+function mySymbols(){
+  if (S.mySyms) return S.mySyms;
+  const out = new Set();
+  try {
+    (JSON.parse(localStorage.getItem("alphaticker-portfolio") || "[]") || [])
+      .forEach(t => { const s = String(t.symbol || "").toUpperCase();
+                      if (s && s !== "CASH") out.add(s); });
+  } catch {}
+  try {
+    const wl = JSON.parse(localStorage.getItem("alphaticker-watchlist") || "[]");
+    (Array.isArray(wl) ? wl : (wl && wl.items) || []).forEach(x =>
+      { const s = String((x && x.symbol) || x || "").toUpperCase(); if (s) out.add(s); });
+  } catch {}
+  S.mySyms = out;
+  return out;
+}
+
+/** One key per story-as-written: significant title words, sorted, plus the
+    symbol. Publishers reword syndicated copy lightly and suffix themselves
+    ("— Reuters"), so token identity beats string identity. */
+function newsKey(a){
+  const toks = String(a.title || "").toLowerCase()
+    .replace(/[-–—|:]\s*[a-z .]{3,24}$/, "")      // trailing "— publisher"
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .split(/\s+/).filter(w => w.length >= 3);
+  return `${a.symbol || ""}|${[...new Set(toks)].sort().slice(0, 10).join(" ")}`;
+}
+
+/** Dedupe against everything shown so far, then float the reader's symbols
+    to the top of this batch (stable: time order survives within each band). */
+function prepareBatch(arts, reset){
+  if (reset || !S.seenKeys) S.seenKeys = new Map();
+  const mine = mySymbols();
+  const kept = [];
+  for (const a of arts) {
+    const k = newsKey(a);
+    const first = S.seenKeys.get(k);
+    if (first) { first._dupes = (first._dupes || 0) + 1; continue; }
+    a._dupes = 0;
+    if (a.symbol && mine.has(String(a.symbol).toUpperCase())) a._mine = true;
+    S.seenKeys.set(k, a);
+    kept.push(a);
+  }
+  return kept.map((a, i) => ({ a, i }))
+    .sort((x, y) => ((y.a._mine ? 1 : 0) - (x.a._mine ? 1 : 0)) || (x.i - y.i))
+    .map(x => x.a);
+}
 
 /* ---- left column --------------------------------------------------------- */
 async function setView(v){
@@ -368,7 +447,9 @@ function storyCard(a){
     <p>${esc(a.summary || "")}</p>
     <span class="by">
       ${a.symbol ? `<span class="tag">${esc(a.symbol)}</span>` : ""}
+      ${a._mine ? `<span class="tag" style="background:var(--up-soft,#e3f4ec);color:var(--up,#0b7a4b)">yours</span>` : ""}
       <span>${esc(a.publisher || "")}</span><span>·</span><span>${esc(ago(a.published))}</span>
+      ${a._dupes ? `<span>·</span><span>${a._dupes} more source${a._dupes === 1 ? "" : "s"}</span>` : ""}
     </span></a>`;
 }
 
@@ -402,7 +483,7 @@ async function loadNews(reset){
       return;
     }
   }
-  const arts = (d && d.articles) || [];
+  const arts = prepareBatch((d && d.articles) || [], reset);
   S.total = (d && d.total) || 0;
 
   if (reset && !arts.length){
@@ -626,6 +707,6 @@ function startFeedDrift(){
   apply();
 })();
 </script>
-<script src="nav.js"></script>
+<script src="assets/nav.385c7da8.js"></script>
 </body>
 </html>

@@ -4,13 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ticker Alpha — markets today</title>
+<meta name="description" content="Today's market in one page — what moved and why, the earnings calendar, sector heatmap and performance, and a watchlist with charts. Every figure from the latest close.">
+<link rel="canonical" href="https://tickeralpha.ai/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ticker Alpha — markets today">
+<meta property="og:description" content="Today's market in one page — what moved and why, the earnings calendar, sector heatmap and a watchlist with charts.">
+<meta property="og:url" content="https://tickeralpha.ai/">
+<meta property="og:site_name" content="Ticker Alpha">
 <script src="config.js"></script>
-<script src="logo.js"></script>
-<script src="analytics.js"></script>
+<script src="assets/logo.fecf2b22.js"></script>
+<script src="assets/analytics.620c6959.js"></script>
+<script src="assets/posthog-init.ca04ed3b.js"></script>
 <script type="module" src="clarity-init.js"></script>
-<link rel="stylesheet" href="nav.css">
+<link rel="stylesheet" href="assets/nav.359aeec5.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Every page's first act is an RPC to Supabase; warming the connection here
+     saves the DNS + TCP + TLS setup that otherwise sits in front of the first
+     byte of data. The origin is already public in config.js. -->
+<link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
 <style>
 /* ---------------------------------------------------------------------------
@@ -142,11 +154,13 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin-bottom:12px}
 /* Tiles are placed in whole pixels, so the rightmost can land a hair past the
    canvas. Clipping that is right; a scrollbar for two pixels is not. */
 #heatmap{overflow:hidden}
-table{width:100%;border-collapse:collapse;font-size:13.5px}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
+thead{position:relative;z-index:2}
 thead th{
-  position:sticky;top:0;background:var(--card);z-index:1;
+  position:sticky;top:0;background:var(--card);z-index:2;
+  background-clip:padding-box;box-shadow:0 1px 0 var(--rule);
   font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
-  font-weight:600;text-align:right;padding:8px 18px 8px 0;border-bottom:1px solid var(--rule);
+  font-weight:600;text-align:right;padding:8px 18px 8px 0;
 }
 thead th:first-child{text-align:left;padding-left:18px}
 tbody td{padding:9px 0 9px 0;border-bottom:1px solid var(--rule-2);text-align:right;
@@ -228,20 +242,6 @@ svg{display:block;max-width:100%}
 }
 .grid2 > .panel{overflow:visible}
 .scroll{overflow-x:auto;padding:10px 18px 18px}
-/* Congress & Insiders: fixed-height panes with a real scrollbar and sticky
-   headers so scrolling past the first screenful stays readable. */
-#insiders.scroll, #congress.scroll{
-  max-height:420px; overflow-y:auto; overflow-x:auto;
-  scrollbar-gutter:stable; overscroll-behavior:contain;
-}
-#insiders .mini thead th, #congress .mini thead th{
-  position:sticky; top:0; z-index:1; background:var(--card);
-  box-shadow:0 1px 0 var(--rule);
-}
-#insiders .trade-more, #congress .trade-more{
-  text-align:center; font-size:11.5px; color:var(--ink-3); padding:10px 0 2px;
-}
-#insiders .trade-more .load, #congress .trade-more .load{margin-right:6px}
 .legend{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center;
   font-size:13.5px;color:var(--ink-3);padding:0 18px 14px}
 .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:6px;
@@ -304,6 +304,91 @@ svg{display:block;max-width:100%}
 @keyframes sp{to{transform:rotate(360deg)}}
 
 /* ---- market pulse + news strip (above Market Summary) -------------------- */
+/* ---- Today's Brief -------------------------------------------------------
+   Insights left, the day's calendar right, in the same proportions the list
+   and chart below use. Both halves are fixed-height and scroll internally, so
+   a heavy news day cannot push the market-cap table off the fold. */
+.brief{
+  display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.9fr);
+  gap:18px;margin:0 0 18px;align-items:start;
+}
+@media (max-width:980px){ .brief{grid-template-columns:minmax(0,1fr)} }
+.brief .panel{display:flex;flex-direction:column;min-width:0}
+.bstamp{font-size:11.5px;color:var(--ink-3);white-space:nowrap;flex-shrink:0}
+/* ~3 cards and ~4 calendar rows before either side scrolls; the two columns
+   are deliberately the same height so the section reads as one block. */
+#brief-list,.cal-scroll{height:268px;overflow-y:auto;scrollbar-gutter:stable}
+.bcard{
+  display:block;padding:11px 14px;border-bottom:1px solid var(--rule-2);
+  text-decoration:none;color:inherit;
+}
+.bcard:last-child{border-bottom:0}
+.bcard h4{
+  margin:0 0 4px;font-size:13.5px;font-weight:650;letter-spacing:-.01em;
+  color:var(--ink);line-height:1.3;
+}
+.bcard p{margin:0;font-size:12.5px;line-height:1.5;color:var(--ink-2)}
+.bfoot{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:7px}
+.bwhen{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
+  color:var(--ink-3);letter-spacing:.02em;
+}
+.bkind{
+  font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;
+  color:var(--ink-3);border:1px solid var(--rule);border-radius:99px;
+  padding:1px 7px;
+}
+.bsym{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;
+  color:var(--accent);text-decoration:none;border:1px solid var(--rule);
+  border-radius:99px;padding:1px 7px;
+}
+.bsym:hover{border-color:var(--accent);background:var(--accent-soft)}
+.bsrc{font-size:11px;color:var(--ink-3);text-decoration:none;margin-left:auto}
+.bsrc:hover{color:var(--accent);text-decoration:underline}
+/* Calendar rows, matching the portfolio page's so the two read as one product. */
+.brow{
+  display:flex;align-items:center;gap:10px;padding:0 12px;height:56px;
+  border-bottom:1px solid var(--rule-2);box-sizing:border-box;
+}
+.brow:last-child{border-bottom:0}
+.brow .av{
+  width:30px;height:30px;border-radius:50%;flex-shrink:0;display:grid;
+  place-items:center;font-family:"IBM Plex Mono",monospace;font-size:10px;
+  font-weight:700;color:#fff;overflow:hidden;
+}
+.brow .av img{width:100%;height:100%;object-fit:cover}
+.brow .body{min-width:0;flex:1}
+.brow .row1{display:flex;align-items:baseline;gap:8px;min-width:0}
+.brow .nm{
+  font-size:12.5px;font-weight:600;color:var(--ink);text-decoration:none;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+a.nm:hover{color:var(--accent)}
+.brow .when{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-3);
+  flex-shrink:0;margin-left:auto;
+}
+.brow .meta{
+  font-size:11.5px;color:var(--ink-3);margin-top:2px;line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+/* Impact dot: the releases that move the whole market read first. */
+.idot{
+  width:7px;height:7px;border-radius:50%;flex-shrink:0;
+  background:var(--ink-3);display:inline-block;
+}
+.idot.high{background:var(--down)} .idot.medium{background:#eda100}
+.bmore{
+  display:block;padding:10px 12px;font-size:12px;color:var(--ink-3);
+  text-decoration:none;text-align:center;
+}
+.bmore:hover{color:var(--accent)}
+.bempty{
+  height:100%;display:grid;place-items:center;padding:0 20px;text-align:center;
+  color:var(--ink-3);font-size:12.5px;line-height:1.5;
+}
+
 .pulse{
   display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
   background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
@@ -511,9 +596,6 @@ svg{display:block;max-width:100%}
      under half the screen for the whole card to be. */
   #heatmap{max-height:36vh}
   .rows{max-height:38vh}
-  /* The 420px cap set with .trade-scroll wins on a phone otherwise, and
-     420px of an 844px screen is half of it. */
-  .panel #insiders,.panel #congress{max-height:min(38vh,420px)}
 }
 
 /* ---- Discover news carousel (under sector movements) --------------------- */
@@ -602,6 +684,42 @@ svg{display:block;max-width:100%}
   <div class="pulse" id="pulse" aria-label="Market pulse">
     <div class="note" style="grid-column:1/-1;padding:18px"><span class="load"></span></div>
   </div>
+
+  <div class="brief" id="brief">
+    <section class="panel">
+      <div class="hmhead">
+        <div class="htitle">
+          <h3>Today's Brief</h3>
+          <button type="button" class="info-i" aria-label="About Today's Brief">
+            <span aria-hidden="true">i</span>
+            <span class="info-bubble">Written once each morning before the
+              open, from the day's scheduled releases, the companies reporting
+              and the last day of news. It describes what is happening, not
+              what to do about it — nothing here is investment advice.</span>
+          </button>
+        </div>
+        <div class="bstamp" id="brief-stamp"></div>
+      </div>
+      <div id="brief-list"><div class="note"><span class="load"></span></div></div>
+    </section>
+
+    <section class="panel">
+      <div class="hmhead">
+        <div class="htitle">
+          <h3>On the Calendar</h3>
+          <button type="button" class="info-i" aria-label="About the calendar">
+            <span aria-hidden="true">i</span>
+            <span class="info-bubble">US economic releases first, most
+              market-moving at the top, then the largest companies reporting
+              today. Times are Eastern.</span>
+          </button>
+        </div>
+        <div class="bstamp" id="brief-day"></div>
+      </div>
+      <div class="cal-scroll" id="brief-cal"><div class="note"><span class="load"></span></div></div>
+    </section>
+  </div>
+
   <section class="panel">
     <div class="split">
       <div>
@@ -626,10 +744,10 @@ svg{display:block;max-width:100%}
             <div class="meta" id="c-meta"></div>
           </div>
           <div class="range" id="chart-range" role="group" aria-label="Chart range">
-            <button type="button" data-r="1W" aria-pressed="true">1W</button>
+            <button type="button" data-r="1W" aria-pressed="false">1W</button>
             <button type="button" data-r="1M" aria-pressed="false">1M</button>
             <button type="button" data-r="YTD" aria-pressed="false">YTD</button>
-            <button type="button" data-r="1Y" aria-pressed="false">1Y</button>
+            <button type="button" data-r="1Y" aria-pressed="true">1Y</button>
           </div>
         </div>
         <div id="chart"></div>
@@ -672,9 +790,9 @@ svg{display:block;max-width:100%}
             <button data-p="1W"  aria-pressed="false">1W</button>
             <button data-p="1M"  aria-pressed="false">1M</button>
             <button data-p="YTD" aria-pressed="false">YTD</button>
-            <button data-p="1Y"  aria-pressed="false">1Y</button>
+            <button data-p="1Y"  aria-pressed="true">1Y</button>
             <button data-p="5Y"  aria-pressed="false">5Y</button>
-            <button data-p="10Y" aria-pressed="true">10Y</button>
+            <button data-p="10Y" aria-pressed="false">10Y</button>
             <button data-p="ALL" aria-pressed="false">ALL</button>
           </div>
           <div class="drop" id="risk-interval-wrap">
@@ -684,10 +802,10 @@ svg{display:block;max-width:100%}
             </button>
             <div class="dropmenu" id="risk-interval-menu" role="listbox" hidden>
               <div class="dropcap">Interval</div>
-              <button type="button" role="option" data-i="daily">Daily</button>
+              <button type="button" role="option" data-i="daily" aria-selected="true">Daily</button>
               <button type="button" role="option" data-i="weekly">Weekly</button>
               <button type="button" role="option" data-i="monthly">Monthly</button>
-              <button type="button" role="option" data-i="annual" aria-selected="true">Annual</button>
+              <button type="button" role="option" data-i="annual">Annual</button>
             </div>
           </div>
         </div>
@@ -737,36 +855,6 @@ svg{display:block;max-width:100%}
     </div>
     <div class="disc-dots" id="discover-dots" role="tablist" aria-label="Discover pages"></div>
   </section>
-
-  <h2 style="margin-top:26px">Congress &amp; Insiders</h2>
-  <div class="grid2">
-    <section class="panel">
-      <div class="hmhead">
-        <div class="htitle">
-          <h3>Insider Transactions</h3>
-          <button type="button" class="info-i" aria-label="About Insider Transactions">
-            <span aria-hidden="true">i</span>
-            <span class="info-bubble">Officers and directors buying or selling their own company's stock, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding. Scroll for more.</span>
-          </button>
-        </div>
-      </div>
-      <div class="scroll" id="insiders" tabindex="0" aria-label="Insider transactions">
-        <div class="note"><span class="load"></span></div></div>
-    </section>
-    <section class="panel">
-      <div class="hmhead">
-        <div class="htitle">
-          <h3>Congress Trades</h3>
-          <button type="button" class="info-i" aria-label="About Congress Trades">
-            <span aria-hidden="true">i</span>
-            <span class="info-bubble">Trades disclosed by members of the House and Senate over the last 14 days. Amounts are the ranges they are required to report, not exact figures. Scroll for more.</span>
-          </button>
-        </div>
-      </div>
-      <div class="scroll" id="congress" tabindex="0" aria-label="Congress trades">
-        <div class="note"><span class="load"></span></div></div>
-    </section>
-  </div>
 
   <div class="foot" id="foot"></div>
 </main>
@@ -843,7 +931,9 @@ const avatarColour = s => {
 
 const S = { view: "market_cap", rows: [], symbol: null, overview: null, movement: null,
             pricePoll: null, intraPoll: null, sel: 0, gotIntraday: false,
-            chartRange: "1W", chartBars: [] };
+            // A year is the range that shows a trend rather than noise, and
+            // it is what a first-time visitor should meet.
+            chartRange: "1Y", chartBars: [] };
 
 const INDEX_LABELS = {
   SPX: "S&P 500",
@@ -1289,8 +1379,12 @@ function askWatchPrices(sym){
 async function toggleWatch(symbol, source){
   const sym = String(symbol || "").toUpperCase();
   if (!sym) return false;
-  const report = watching => GA.track(
-    watching ? "add_to_watchlist" : "remove_from_watchlist", { ticker: sym, source });
+  const report = watching => {
+    GA.track(watching ? "add_to_watchlist" : "remove_from_watchlist", { ticker: sym, source });
+    if (window.posthog) window.posthog.capture(
+      watching ? "watchlist_ticker_added" : "watchlist_ticker_removed",
+      { ticker: sym, source });
+  };
   // The watchlist is the gate. This used to save to localStorage and *then*
   // ask for an account, which meant the visitor already had what they came
   // for and the modal was pure interruption -- the reason it converted at
@@ -1512,8 +1606,15 @@ function watchSearchMarkup(placeholder){
 /** Nothing on the list yet: offer the obvious names and a search, rather than
     an empty table that gives no way forward. */
 async function renderWatchEmpty(host){
+  // Array.isArray, not `|| []`: a rejected token can come back 200 with an
+  // error object rather than a row set, and `{}.map` took the whole empty
+  // state down with it. That state is now the only thing a signed-out visitor
+  // sees on this tab, so it is the last thing that should be able to break.
   let popular = [];
-  try { popular = await rpc("get_market_summary", { p_view: "market_cap", p_limit: 6 }) || []; } catch {}
+  try {
+    const rows = await rpc("get_market_summary", { p_view: "market_cap", p_limit: 6 });
+    if (Array.isArray(rows)) popular = rows;
+  } catch {}
 
   host.innerHTML = `
     <div class="wl-empty">
@@ -2048,7 +2149,10 @@ const PERF = { days: 7, history: null };
 /* ---- Risk & Return ---------------------------------------------------------
    Every period/interval pair is precomputed by the worker, so switching a
    filter is a redraw of numbers already in hand rather than a fetch. */
-const RISK = { period: "10Y", interval: "annual", sectors: null };
+// 1Y daily: the window most readers are actually asking about, at the
+// resolution that shows how a sector really moved rather than a decade
+// averaged into eleven points.
+const RISK = { period: "1Y", interval: "daily", sectors: null };
 
 const RISK_PERIOD_LABEL = {
   "1W": "the last week", "1M": "the last month", "YTD": "the year so far",
@@ -2110,10 +2214,19 @@ function renderRisk(payload){
   // Labels sit on the bubbles, so the top and side margins carry a little
   // more room than the plot itself needs -- a label on the highest or
   // widest bubble would otherwise run off the frame.
-  // H is set so this panel finishes level with Sector Performance beside it.
-  // Its header wraps to two rows at half-width where that one's does not, so
-  // the plot is the shorter of the two to make the panels the same height.
-  const W = 570, H = 310, ml = 52, mr = 16, mt = 20, mb = 40;
+  //
+  // The viewBox scales to the column, and this panel sits in the 1.7fr side
+  // of the pair, so its height on screen is well over what these numbers
+  // suggest: 310 rendered at ~386px and made the row taller than the content
+  // needed. 250 brings it to ~310px.
+  //
+  // It cannot usefully go much below ~215. Sector Performance beside it has
+  // an intrinsic height of about 347px, and once this panel drops under that
+  // the row stops shrinking and this one just gains white space instead --
+  // the two are levelled by whichever is taller, and that is currently this
+  // one. Bubble radii are in viewBox units and do not shrink with H, so the
+  // plot also crowds vertically as this comes down.
+  const W = 570, H = 250, ml = 52, mr = 16, mt = 16, mb = 36;
   const pw = W - ml - mr, ph = H - mt - mb;
 
   // Pad the extents so no bubble is clipped by the frame, and always include
@@ -2339,10 +2452,18 @@ function wireRiskHover(pts){
 
   // The label is part of the bubble as far as a reader is concerned, so it
   // carries the same tooltip -- and it is the easier target of the two for
-  // the small sectors.
+  // the small sectors. A click opens the tracking ETF's own page: the tooltip
+  // already names it ("Tracked by XLE"), and the sector payload carries the
+  // symbol, so the destination comes from the data rather than a second map.
   svg.querySelectorAll(".rbub, .rlab").forEach(el => {
+    el.style.cursor = "pointer";
     el.addEventListener("mousemove", ev => show(ev, el.dataset.k));
     el.addEventListener("mouseleave", hideTip);
+    el.addEventListener("click", () => {
+      const p = byKey[el.dataset.k];
+      if (p && p.s.etf) location.href =
+        `company.html?t=${encodeURIComponent(p.s.etf)}&src=market_page`;
+    });
   });
 }
 
@@ -2387,6 +2508,7 @@ function wireRiskControls(){
       if (fallback) RISK.interval = fallback;
     }
     GA.track("change_chart_range", { range: RISK.period, source: "sector_risk" });
+    if (window.posthog) window.posthog.capture("sector_range_changed", { range: RISK.period });
     renderRisk();
   });
 
@@ -2449,8 +2571,9 @@ function renderSectorPerf(history){
     const up = r.changePct >= 0;
     parts.push(`<rect x="${up ? zero : zero + w}" y="${cy - bh/2}" width="${Math.abs(w)}"
         height="${bh}" rx="3" fill="var(${up ? "--up" : "--down"})"
-        data-s="${esc(r.sector)}" data-v="${r.changePct}" style="cursor:default"></rect>
+        data-s="${esc(r.sector)}" data-v="${r.changePct}" style="cursor:pointer"></rect>
       <text x="${ml-10}" y="${cy+5}" text-anchor="end" font-size="15.5"
+        data-s="${esc(r.sector)}" style="cursor:pointer"
         fill="var(--ink-2)">${esc(r.sector)}</text>
       <text x="${up ? zero + w + 6 : zero + w - 6}" y="${cy+5}"
         text-anchor="${up ? "start" : "end"}" font-size="12.5" class="tnum"
@@ -2466,178 +2589,22 @@ function renderSectorPerf(history){
        ["Change", pct(+el.dataset.v)]]));
     el.addEventListener("mouseleave", hideTip);
   });
-}
-
-/* ===========================================================================
-   Congress and insiders
-=========================================================================== */
-const shares = v => !v ? "—"
-  : v >= 1e6 ? (v/1e6).toFixed(2) + "M" : v >= 1e3 ? (v/1e3).toFixed(1) + "K" : String(Math.round(v));
-const amount = v => {
-  if (v === null || v === undefined || !v) return "—";
-  const a = Math.abs(v), sign = v < 0 ? "−" : "";
-  return sign + (a >= 1e9 ? `$${(a/1e9).toFixed(2)}B`
-       : a >= 1e6 ? `$${(a/1e6).toFixed(2)}M`
-       : a >= 1e3 ? `$${(a/1e3).toFixed(0)}K` : `$${a.toFixed(0)}`);
-};
-// Ticker over company name, as the summary rows do. get_trades carries the
-// name from 0019; before that migration it is absent and only the symbol
-// shows, which is what the page did before.
-const symLink = (s, name) =>
-  `<a class="tsym" href="company.html?t=${encodeURIComponent(s)}&src=market_page">
-     <span class="tsym-t">${esc(s)}</span>
-     ${name ? `<span class="tsym-n">${esc(name)}</span>` : ""}
-   </a>`;
-
-/** Role over name — same stack as ticker/company. Insider titles are
-    normalised by the worker (CEO, CFO, …); congress uses Senator / Rep. */
-const peopleStack = (title, person, fallback = "Insider") => {
-  const role = (title || "").trim() || fallback;
-  const who = (person || "").trim();
-  return `<div class="ppl" title="${esc(who ? `${role} · ${who}` : role)}">
-     <span class="ppl-t">${esc(role)}</span>
-     ${who ? `<span class="ppl-n">${esc(who)}</span>` : ""}
-   </div>`;
-};
-
-const congressRole = chamber => {
-  const c = String(chamber || "").toLowerCase();
-  if (c.includes("senate")) return "Senator";
-  if (c.includes("house")) return "Representative";
-  return "Member";
-};
-
-/** Normalise FMP side strings (Purchase, Sale (Partial), …) to Buy/Sell pills. */
-const sidePill = side => {
-  const raw = String(side || "").trim();
-  const s = raw.toLowerCase();
-  let label = raw || "—", cls = "";
-  if (/^(buy|purchase|receive)/.test(s) || s.includes("purchase") || s.includes("receive")) {
-    label = "Buy"; cls = "buy";
-  } else if (/^(sell|sale)/.test(s) || s.includes("sale") || s.includes("sell") || s.includes("exchange")) {
-    label = "Sell"; cls = "sell";
-  }
-  return `<span class="side ${cls}">${esc(label)}</span>`;
-};
-
-/** Congressional disclosures are reported as a band, never an exact figure,
-    so the band is what gets shown -- compacted, not rounded to a single
-    number that would imply a precision the filing does not have. */
-const range = raw => {
-  if (!raw) return "—";
-  const nums = String(raw).match(/[\d,]+/g);
-  if (!nums || !nums.length) return String(raw);
-  const short = n => {
-    const v = +n.replace(/,/g, "");
-    return v >= 1e6 ? `${(v/1e6).toFixed(v % 1e6 ? 1 : 0)}M`
-         : v >= 1e3 ? `${Math.round(v/1e3)}K` : String(v);
+  // A bar or its sector name opens the tracking ETF's page. The map mirrors
+  // the worker's SECTOR_ETF, keyed by the same full sector names these rows
+  // already carry.
+  const SECTOR_PAGE = {
+    "Technology": "XLK", "Financial Services": "XLF", "Healthcare": "XLV",
+    "Consumer Cyclical": "XLY", "Consumer Defensive": "XLP",
+    "Industrials": "XLI", "Energy": "XLE", "Utilities": "XLU",
+    "Real Estate": "XLRE", "Basic Materials": "XLB",
+    "Communication Services": "XLC",
   };
-  return nums.length > 1 ? `${short(nums[0])}–${short(nums[1])}` : short(nums[0]);
-};
-
-/* Paginated trade feeds. Insiders use 7 days; congress uses 14. Each panel
-   scrolls independently and asks for the next page near the bottom. */
-const TRADES = {
-  page: 20,
-  insider:  { days: 7,  rows: [], total: 0, loading: false, done: false, wired: false },
-  congress: { days: 14, rows: [], total: 0, loading: false, done: false, wired: false },
-};
-
-const insiderRow = r =>
-  `<tr><td>${esc(r.filed || "")}</td>
-       <td class="idcol">${symLink(r.symbol, r.name)}</td>
-       <td class="idcol">${peopleStack(r.title, r.person)}</td>
-       <td>${sidePill(r.side)}</td>
-       <td>${esc(shares(r.shares))}</td>
-       <td>${esc(amount(r.amount))}</td></tr>`;
-
-const congressRow = r =>
-  `<tr><td>${esc(r.disclosed || "")}</td>
-       <td class="idcol">${symLink(r.symbol, r.name)}</td>
-       <td class="idcol">${peopleStack(congressRole(r.chamber), r.person)}</td>
-       <td>${sidePill(r.side)}</td>
-       <td title="${esc(r.amount || "")}">${esc(range(r.amount))}</td></tr>`;
-
-function renderTradePanel(kind){
-  const isIns = kind === "insider";
-  const host = document.getElementById(isIns ? "insiders" : "congress");
-  const bucket = TRADES[isIns ? "insider" : "congress"];
-  if (!host) return;
-
-  if (!bucket.rows.length) {
-    host.innerHTML = bucket.loading
-      ? `<div class="note"><span class="load"></span></div>`
-      : `<div class="note">${isIns
-          ? "No insider filings in the last 7 days."
-          : "No congressional disclosures in the last 14 days."}</div>`;
-    return;
-  }
-
-  const head = isIns
-    ? `<th>Filed</th><th class="idcol">Ticker</th><th class="idcol">People</th>
-       <th>Side</th><th>Shares</th><th>Amount</th>`
-    : `<th>Disclosed</th><th class="idcol">Ticker</th>
-       <th class="idcol">People</th><th>Side</th><th>Amount</th>`;
-  const body = bucket.rows.map(isIns ? insiderRow : congressRow).join("");
-  const more = bucket.loading
-    ? `<div class="trade-more"><span class="load"></span>Loading more…</div>`
-    : bucket.done ? ""
-    : `<div class="trade-more">Scroll for more · ${bucket.rows.length} of ${bucket.total}</div>`;
-  const top = host.scrollTop;
-  host.innerHTML = `<table class="mini"><thead><tr>${head}</tr></thead>
-                    <tbody>${body}</tbody></table>${more}`;
-  host.scrollTop = top;
-  wireTradeScroll(kind);
-}
-
-function wireTradeScroll(kind){
-  const isIns = kind === "insider";
-  const host = document.getElementById(isIns ? "insiders" : "congress");
-  const bucket = TRADES[isIns ? "insider" : "congress"];
-  if (!host || bucket.wired) return;
-  bucket.wired = true;
-  host.addEventListener("scroll", () => {
-    if (bucket.loading || bucket.done) return;
-    if (host.scrollTop + host.clientHeight < host.scrollHeight - 48) return;
-    loadTrades(kind);
-  }, { passive: true });
-}
-
-async function loadTrades(kind){
-  const isIns = kind === "insider";
-  const bucket = TRADES[isIns ? "insider" : "congress"];
-  if (bucket.loading || bucket.done) return;
-  bucket.loading = true;
-  if (bucket.rows.length) renderTradePanel(kind);
-  try {
-    const d = await rpc("get_trades", {
-      p_limit: TRADES.page,
-      p_offset: bucket.rows.length,
-      p_days: bucket.days,
-      p_kind: isIns ? "insider" : "congress",
+  host.querySelectorAll("[data-s]").forEach(el => {
+    el.addEventListener("click", () => {
+      const t = SECTOR_PAGE[el.dataset.s];
+      if (t) location.href = `company.html?t=${encodeURIComponent(t)}&src=market_page`;
     });
-    const key = isIns ? "insiders" : "congress";
-    const totalKey = isIns ? "insidersTotal" : "congressTotal";
-    const chunk = (d && d[key]) || [];
-    bucket.total = (d && d[totalKey]) || 0;
-    bucket.rows = bucket.rows.concat(chunk);
-    bucket.done = !chunk.length
-      || chunk.length < TRADES.page
-      || (bucket.total > 0 && bucket.rows.length >= bucket.total);
-  } catch {
-    if (!bucket.rows.length) {
-      bucket.done = true;
-    }
-  } finally {
-    bucket.loading = false;
-    renderTradePanel(kind);
-  }
-}
-
-function bootTrades(){
-  loadTrades("insider");
-  loadTrades("congress");
-  wirePanelInfoTips();
+  });
 }
 
 /** Pin .info-i bubbles on document.body so panel/button overflow cannot crop them. */
@@ -2672,6 +2639,176 @@ function wirePanelInfoTips(root){
   });
 }
 
+/* ---- Today's Brief -------------------------------------------------------
+   Insights are written once a morning by .github/workflows/insights.yml and
+   stored; this only reads them. get_market_brief (migration 0065) returns the
+   insights, the day's US economic releases and its largest earnings in one
+   call, because the block sits above the fold and must not arrive in pieces. */
+
+const BRIEF_KIND = {
+  topic: "Big story", theme: "Moving together", move: "Big mover",
+  buzz: "Most covered", economics: "Economy", earnings: "Earnings",
+  news: "News", market: "Markets",
+};
+
+function briefDayLabel(iso){
+  const [y, m, d] = String(iso || "").split("-").map(Number);
+  if (!y) return "";
+  return new Date(y, m - 1, d).toLocaleDateString(undefined,
+    { weekday: "short", day: "numeric", month: "short" });
+}
+
+/** A stable colour per symbol, so a company keeps its dot between visits. */
+function briefAvatar(sym){
+  let h = 0;
+  for (const ch of String(sym || "?")) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return `hsl(${h} 42% 42%)`;
+}
+
+function renderBriefInsights(data){
+  const host = document.getElementById("brief-list");
+  const stamp = document.getElementById("brief-stamp");
+  if (!host) return;
+  const rows = (data && data.insights) || [];
+
+  if (!rows.length) {
+    host.innerHTML = `<div class="bempty">The brief is written each morning
+      before the market opens. Check back shortly.</div>`;
+    if (stamp) stamp.textContent = "";
+    return;
+  }
+
+  // The brief is written in the morning; a visitor before that run, or on a
+  // weekend, sees the last one. Say which day it is rather than letting it
+  // pass for today's.
+  if (stamp) {
+    const from = data.insightsDay, today = data.day;
+    stamp.textContent = from && today && from !== today
+      ? `From ${briefDayLabel(from)}` : "";
+  }
+
+  host.innerHTML = rows.map(r => {
+    const syms = (r.symbols || []).map(s =>
+      `<a class="bsym" href="company.html?t=${encodeURIComponent(s)}&src=market_brief"
+          data-sym="${esc(s)}">${esc(s)}</a>`).join("");
+    const when = r.eventTime ? `<span class="bwhen">${esc(r.eventTime)} ET</span>` : "";
+    const kind = BRIEF_KIND[r.kind] ? `<span class="bkind">${esc(BRIEF_KIND[r.kind])}</span>` : "";
+    // When the reason came from a story, let the reader go and read it.
+    const src = /^https?:\/\//.test(r.sourceUrl || "")
+      ? `<a class="bsrc" href="${esc(r.sourceUrl)}" target="_blank" rel="noopener noreferrer"
+           >Source ↗</a>` : "";
+    const foot = when || kind || syms || src
+      ? `<div class="bfoot">${when}${kind}${syms}${src}</div>` : "";
+    return `<div class="bcard">
+      <h4>${esc(r.headline)}</h4>
+      <p>${esc(r.body)}</p>
+      ${foot}
+    </div>`;
+  }).join("");
+
+  host.querySelectorAll(".bsym").forEach(a => a.addEventListener("click", () => {
+    GA.track("select_content", { content_type: "ticker", item_id: a.dataset.sym });
+    if (window.posthog) {
+      window.posthog.capture("brief_ticker_clicked", { symbol: a.dataset.sym });
+    }
+  }));
+}
+
+function renderBriefCalendar(data){
+  const host = document.getElementById("brief-cal");
+  const dayLabel = document.getElementById("brief-day");
+  if (!host) return;
+  const econ = (data && data.economics) || [];
+  const earn = (data && data.earnings) || [];
+  if (dayLabel) dayLabel.textContent = briefDayLabel(data && data.day);
+
+  if (!econ.length && !earn.length) {
+    // Weekends and holidays land here: the RPC is asked for today, and today
+    // has nothing on it.
+    host.innerHTML = `<div class="bempty">Nothing scheduled today. US markets
+      are closed at weekends and on market holidays.</div>`;
+    return;
+  }
+
+  const num = v => v === null || v === undefined || !Number.isFinite(Number(v))
+    ? null : (Math.abs(v) >= 1000 ? Number(v).toLocaleString() : String(v));
+  const cap = v => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
+    if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+    if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+    return `$${(n / 1e6).toFixed(0)}M`;
+  };
+
+  const econRows = econ.map(e => {
+    const impact = String(e.impact || "").toLowerCase();
+    const bits = [];
+    for (const [k, v] of [["Est.", e.estimate], ["Act.", e.actual], ["Prev.", e.previous]]) {
+      const n = num(v);
+      if (n !== null) bits.push(`${k} ${n}`);
+    }
+    return `<div class="brow">
+      <span class="av" style="background:var(--ink-3)">E</span>
+      <div class="body">
+        <div class="row1">
+          <span class="idot ${esc(impact)}" title="${esc(impact || "low")} impact"></span>
+          <span class="nm">${esc(e.event || "Economic release")}</span>
+          <span class="when">${esc(e.time || "")}</span>
+        </div>
+        <div class="meta">${esc(bits.join(" · ") || "No forecast published")}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const earnRows = earn.map(e => {
+    const sym = String(e.symbol || "");
+    const sess = { bmo: "Pre-Mkt", amc: "Post-Mkt" }[String(e.time || "").toLowerCase()] || "";
+    const bits = [cap(e.marketCap), e.epsEstimated != null
+      ? `EPS est. ${Number(e.epsEstimated).toFixed(2)}` : null].filter(Boolean);
+    return `<div class="brow">
+      <span class="av" data-logo="${esc(sym)}" style="background:${briefAvatar(sym)}"
+        >${esc(sym.slice(0, 2))}</span>
+      <div class="body">
+        <div class="row1">
+          <a class="nm" href="company.html?t=${encodeURIComponent(sym)}&src=market_brief"
+             >${esc(e.name || sym)}</a>
+          <span class="when">${esc(sess)}</span>
+        </div>
+        <div class="meta">${esc(sym)}${bits.length ? " · " + esc(bits.join(" · ")) : ""}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  // The RPC caps the earnings array at twelve; say so rather than implying
+  // that is the whole day.
+  const total = Number(data.earningsTotal || earn.length);
+  const more = total > earn.length
+    ? `<a class="bmore" href="earnings.html">${total - earn.length} more companies
+       reporting today →</a>` : "";
+
+  host.innerHTML = econRows + earnRows + more;
+  if (window.TickerLogos) {
+    window.TickerLogos.hydrate(earn.map(e => e.symbol).filter(Boolean), host);
+  }
+}
+
+async function loadBrief(){
+  try {
+    const data = await rpc("get_market_brief");
+    renderBriefInsights(data);
+    renderBriefCalendar(data);
+  } catch (e) {
+    // Before migration 0065 is applied the RPC does not exist. That should
+    // read as "not here yet", not as a broken page.
+    const host = document.getElementById("brief-list");
+    const cal = document.getElementById("brief-cal");
+    if (host) host.innerHTML = `<div class="bempty">The brief is unavailable
+      right now.</div>`;
+    if (cal) cal.innerHTML = `<div class="bempty">The calendar is unavailable
+      right now.</div>`;
+  }
+}
+
 /* ---- boot ---------------------------------------------------------------- */
 (async function boot(){
   wireChartRange();
@@ -2680,6 +2817,7 @@ function wirePanelInfoTips(root){
   // the visitor never chose is not a screener they ran.
   document.querySelectorAll("#views button").forEach(b => b.onclick = () => {
     GA.track("run_screener", { screener_name: b.dataset.v });
+    if (window.posthog) window.posthog.capture("market_view_changed", { view: b.dataset.v });
     setView(b.dataset.v);
   });
 
@@ -2715,6 +2853,9 @@ function wirePanelInfoTips(root){
     catch { try { pulse = await assemblePulseFallback(); } catch {} }
     renderPulse(pulse);
   })();
+
+  // Above the fold, and independent of everything else on the page.
+  loadBrief();
 
   wireDiscover();
   loadDiscover();
@@ -2772,9 +2913,12 @@ function wirePanelInfoTips(root){
     document.getElementById("sectorperf").innerHTML = `<div class="note">Unavailable.</div>`;
   });
 
-  bootTrades();
+  // The Congress & Insiders panels moved to their own page. This call came in
+  // with them and is kept: the heatmap, risk/return and sector panels above
+  // carry .info-i bubbles that nothing else wires.
+  wirePanelInfoTips();
 })();
 </script>
-<script src="nav.js"></script>
+<script src="assets/nav.385c7da8.js"></script>
 </body>
 </html>
