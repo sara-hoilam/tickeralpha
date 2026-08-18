@@ -373,6 +373,12 @@ COMPANY_STORY_MIN = 3
 BUZZ_MIN_STORIES = 3
 BUZZ_MEGACAP_MIN = 2      # a megacap qualifies on lighter coverage
 TOPIC_MIN_STORIES = 3
+# Subjects that draw heavy coverage every single day of the year. Volume on
+# an evergreen is background noise, not a story -- "Earnings" tops the count
+# table every morning of earnings season and says nothing. The index names
+# are the same: coverage of "S&P 500" is coverage of everything.
+EVERGREEN_TOPICS = {"S&P 500", "Nasdaq", "Dow Jones", "Earnings", "Guidance",
+                    "Dividends", "Buybacks", "Upgrades", "IPO"}
 
 # Round numbers a price crossing gets talked about: 10, 25, 50, 100, 250 ...
 _ROUND_STEPS = (10, 25, 50, 100, 250, 500, 1000, 2000, 5000, 10000)
@@ -539,8 +545,8 @@ def find_news_clusters(news: list, taken_queries: set[str]) -> list[dict]:
 
     out = []
     for i, (word, rows) in enumerate(clusters):
-        facts = [f"{len(rows)} separate stories share the subject "
-                 f"'{word}' in the last two days"]
+        facts = [f"several separate stories in the last two days converge "
+                 f"on '{word}'"]
         facts += [f"headline: {str(a.get('title') or '').strip()}"
                   for a in rows[:4] if a.get("title")]
         score, parts = curation_score(
@@ -572,21 +578,36 @@ def build_topic_candidates(topics: list, news: list, brief: dict,
     about it.
     """
     out = []
-    ranked = sorted((t for t in topics or []
-                     if (t.get("count") or 0) >= TOPIC_MIN_STORIES),
-                    key=lambda t: t.get("count") or 0, reverse=True)
-    for i, t in enumerate(ranked[:4]):
+    # The RPC's count is against the whole stored corpus -- a ranking hint,
+    # not a fact about the last two days. Attention here is the number of
+    # matching stories in the 48-hour feed, and it lives in the score, not
+    # in the facts: coverage weight is the curator's business, and a brief
+    # that quotes it is talking about its own plumbing.
+    scored_topics = []
+    for t in topics or []:
         word = str(t.get("word") or "").strip()
-        query = str(t.get("query") or word).lower()
-        if not word:
+        if not word or word in EVERGREEN_TOPICS:
             continue
+        query = str(t.get("query") or word).lower()
+        # Word-boundary matching, not substring: "war" must not count
+        # "software" or "warns". Short queries take only a plural; longer
+        # ones ("geopolit", "tariff") extend to their derived forms.
+        if len(query) >= 5:
+            pattern = re.compile(r"\b" + re.escape(query) + r"\w*", re.I)
+        else:
+            pattern = re.compile(r"\b" + re.escape(query) + r"s?\b", re.I)
         matching = [a for a in news or []
-                    if query in (str(a.get("title") or "") + " "
-                                 + str(a.get("summary") or "")).lower()]
+                    if pattern.search(str(a.get("title") or "") + " "
+                                      + str(a.get("summary") or ""))]
+        if len(matching) < TOPIC_MIN_STORIES:
+            continue
         matching.sort(key=lambda a: str(a.get("published") or ""), reverse=True)
+        scored_topics.append((word, query, matching))
+    scored_topics.sort(key=lambda p: len(p[2]), reverse=True)
 
-        facts = [f"{t.get('count')} stories in the last two days mention "
-                 f"{word}"]
+    for i, (word, query, matching) in enumerate(scored_topics[:4]):
+        facts = [f"{word} is one of the most-covered subjects in the news "
+                 f"right now"]
         syms: list[str] = []
         for a in matching[:3]:
             title = str(a.get("title") or "").strip()
@@ -613,7 +634,7 @@ def build_topic_candidates(topics: list, news: list, brief: dict,
                 resolves = True
                 break
         score, parts = curation_score(
-            "topic", None, t.get("count") or 0,
+            "topic", None, len(matching),
             _age_hours(matching[0].get("published")) if matching else None,
             evidence, resolves)
         out.append({
@@ -782,7 +803,7 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
                                  or 0) >= COMPANY_STORY_CAP))),
                   key=lambda pair: len(pair[1]), reverse=True)
     for i, (sym, rows) in enumerate(buzz[:2]):
-        facts = [f"{len(rows)} separate stories on {sym} in the last two days"]
+        facts = [f"{sym} is drawing repeated coverage in the last two days"]
         move = moves_by_symbol.get(sym) or {}
         if move.get("changePct") is not None:
             facts.append(f"{sym} {fmt_pct(move['changePct'])} today")
@@ -909,15 +930,17 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
 
     # 6. One synthetic candidate carrying the last session's tape, so an
     #    insight can say what the market did without a second lookup.
+    # Only names a reader would recognise: the tape's job is context, and
+    # "ETON +44.26%" is a screener line, not context.
     facts = []
-    for row in (gainers or [])[:2]:
+    tape_syms = []
+    for row in (gainers or []) + (losers or []):
+        if (row.get("marketCap") or 0) < COMPANY_STORY_CAP:
+            continue
         pct = fmt_pct(row.get("changePct"))
-        if pct:
+        if pct and len(tape_syms) < 4:
             facts.append(f"{row.get('symbol')} {pct}")
-    for row in (losers or [])[:2]:
-        pct = fmt_pct(row.get("changePct"))
-        if pct:
-            facts.append(f"{row.get('symbol')} {pct}")
+            tape_syms.append(str(row.get("symbol")).upper())
     best, worst = _sector_extremes(sectors)
     if best:
         facts.append(f"best sector {best}")
@@ -933,9 +956,7 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
             "when": None,
             "title": "The last session",
             "facts": facts,
-            "symbols": [str(r.get("symbol")).upper()
-                        for r in (gainers or [])[:2] + (losers or [])[:2]
-                        if r.get("symbol")],
+            "symbols": tape_syms,
             "url": None,
             "score": 10.0, "score_parts": "reach 10.0 (context only)",
         })
@@ -980,10 +1001,23 @@ in plain English.
 
 Write it the way a sharp market columnist would: energetic, specific, and
 concrete. The energy has to come from the facts -- the size of a move, how
-long it has been running, a price crossed for the first time, how many
-stories a subject is drawing -- and never from adjectives, exclamation
-marks, or telling the reader something is exciting. A precise number is
-more thrilling than an intensifier, and it has the advantage of being true.
+long it has been running, a price crossed for the first time -- and never
+from adjectives, exclamation marks, or telling the reader something is
+exciting. A precise number is more thrilling than an intensifier, and it
+has the advantage of being true.
+
+THE SHAPE OF AN INSIGHT -- story first, market second:
+- The headline states the story itself, the way a newspaper would: what
+  happened or what is at stake. Never the coverage ("X draws 400 stories"),
+  never the ranking, never our screen.
+- First sentence: the event, told from the supplied headlines -- who did
+  what, what changed, what is at stake.
+- Second sentence: what the market did or watches because of it, with the
+  numbers -- the moves, the levels, the milestones, the time it resolves.
+- Coverage weight is the curator's business. It decided the order you
+  received; it never appears in your prose, as a number or otherwise. If
+  breadth of discussion is itself the point, say it plainly ("dominating
+  the news flow") -- one qualitative phrase, no figures.
 
 RULES - these are absolute:
 
@@ -1050,22 +1084,28 @@ the supplied facts.
 
 EXAMPLES of the judgement being asked for:
 
-Good lead: "Oil and defence names jumped after the White House threatened
-strikes over the Strait of Hormuz, with energy the day's strongest sector at
-+3.1%." Global story, index-scale consequences, the affected industry named
-with its move as evidence. The story leads; the tape corroborates.
+Good lead: "Hopes for a US-Iran deal faded after the White House threatened
+strikes over the Strait of Hormuz. Energy was the day's strongest sector at
++3.1%, with defence names higher alongside." The story leads, told from the
+headlines; the tape corroborates in sentence two.
 
-Good lead: "The Fed decides on rates at 14:00, with six stories in two days
-split on the outcome." Maximum reach, heavy coverage, resolves today -- the
-one case where the calendar rightly takes rank 1.
+Good lead: "The Fed decides on rates at 14:00, and the statement's wording
+sets what savers earn and borrowers pay across the economy." Maximum reach,
+resolves today -- the one case where the calendar rightly takes rank 1.
 
 Good: "Memory chipmakers jumped together after contract prices rose again:
 the industry gained 6.8% and Micron closed above $1,000 for the first
 time." Breadth, a sourced cause, and a milestone people repeat.
 
-Good: "Apple rose just 1.4% but drew five separate stories, from an EU
-ruling on App Store fees to an in-house memory controller." Attention times
-size qualifies it even though the percentage never would.
+Good: "Apple is dominating the news flow, from an EU ruling on App Store
+fees to reports of an in-house memory controller, even as the stock barely
+moved at 1.4%." The story is the coverage itself -- said qualitatively,
+with the events named, and not a count in sight.
+
+Bad: "War shows up in 990 stories as oil climbs." That is the curator
+talking about its own plumbing. The reader wants the story those articles
+tell: "Hopes for a US-Iran deal faded as supply risks grew, and oil moved
+up."
 
 Bad: "Amrize drops 8.94%, the largest decline on our screen. No headline
 explains the move." Every day has a biggest loser -- its existence is not
@@ -1124,11 +1164,13 @@ RESULT_SCHEMA = {
 def user_message(day: dt.date, candidates: list[dict], complaint: str = "") -> str:
     # The date line is the only temporal grounding the model gets, and it is
     # what stops "today" and "tomorrow" sliding by a day.
+    payload = [{k: v for k, v in c.items()
+                if k not in ("score", "score_parts")} for c in candidates]
     parts = [
         f"Date: {long_day(day)} (US market open 09:30 ET)",
         "",
-        "Candidates:",
-        json.dumps(candidates, indent=1),
+        "Candidates, in the curator's ranked order (best first):",
+        json.dumps(payload, indent=1),
     ]
     if complaint:
         parts += ["", "Your previous attempt was rejected:", complaint,
