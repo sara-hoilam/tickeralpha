@@ -264,10 +264,12 @@ the prompt:
 * **The code decides what is important; the model only explains it.** Ranking
   and filtering are settled in Python before the call — the model receives a
   short list of already-chosen candidates and cannot surface an event that was
-  never selected. Those candidates lead with movement, not the schedule: an
-  industry whose members ran together, a name at a 52-week high, a month-long
-  climb. A brief that ignores every one of them on a day the market moved is
-  rejected as a ranking failure.
+  never selected. Candidates are scored by attention times reach: a topic
+  drawing stories, a breaking subject no list anticipated, an industry
+  running together, a covered megacap. Price change is evidence, never the
+  ranking signal — a move alone is not a candidate. A brief that ignores a
+  top-scored story, or cites more than one bare mover, is rejected as a
+  ranking failure.
 * **Every number is copied, not computed.** Each candidate carries its figures
   as pre-formatted strings, and a validator rejects the whole run if any
   number in the output is not a substring of the candidate it cites. Other

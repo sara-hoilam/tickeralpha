@@ -8,10 +8,12 @@ prices they have never closed above, runs weeks in the making -- alongside
 the day's schedule and news, asks Claude to pick the three to five worth
 knowing about, and writes the result to ledger.market_insight (0065).
 
-Movement leads on purpose. The first version of this was handed the calendar
-and nothing else, so it could only narrate the calendar, and it read like a
-timetable. What a reader is talking about on a given morning is usually a
-move.
+Attention leads on purpose. The first version narrated the calendar; the
+second led with price change, which is structurally a microcap leaderboard.
+This one ranks by attention times reach -- how many stories a subject drew,
+sized by how much market value it touches -- with price action attached as
+evidence. The scored table in the run log is the ranking, and "why didn't X
+appear" is answerable from it.
 
 The governing idea: the code decides what is important, the model only
 explains it. Ranking, filtering, and every number are settled here in Python
@@ -75,10 +77,10 @@ FALLBACK_MODEL = os.environ.get("ANTHROPIC_FALLBACK_MODEL") or ""
 # Thinking is on by default on the current models and counts against
 # max_tokens, so leave headroom above what the brief itself needs (~800).
 MAX_TOKENS = 8000
-# Three themes, three standout movers, two most-covered names, three
-# releases, three reporters, four stories and the last session. The cap
-# sits just above a full day so nothing is silently dropped off the end.
-MAX_CANDIDATES = 20
+# The scored shortlist sent to the model. Everything eligible is scored and
+# the top of the table goes over; anything below the cut appears in the run
+# log with the reason it scored where it did.
+MAX_CANDIDATES = 12
 MIN_INSIGHTS = 3
 MAX_INSIGHTS = 5
 
@@ -234,6 +236,56 @@ def fmt_cap(v) -> str | None:
 # News dedupe -- mirrors newsKey() in news.html
 # ---------------------------------------------------------------------------
 
+def _age_hours(published) -> float | None:
+    """Hours since a story's timestamp; None when it cannot be read."""
+    s = str(published or "").strip()
+    if not s:
+        return None
+    try:
+        t = dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=dt.timezone.utc)
+    return (dt.datetime.now(dt.timezone.utc) - t).total_seconds() / 3600
+
+
+def curation_score(kind: str, cap: float | None, story_count: int,
+                   newest_age_h: float | None, has_evidence: bool,
+                   resolves_today: bool) -> tuple[float, str]:
+    """The deterministic rank -- attention times reach, evidence attached.
+
+    reach      how much market value the item touches, on a log scale;
+               a macro topic or economic release reaches everything
+    attention  distinct stories citing it over two days
+    freshness  the newest supporting story is hours old, not yesterday's
+    evidence   price action corroborates the story
+    schedule   it resolves today
+
+    The weights are set so a widely-covered macro story beats a megacap
+    story, which beats a sector theme, which beats any single mover --
+    unless the lower tier carries overwhelming attention. Percentage change
+    is deliberately absent: it is evidence, never the ranking signal.
+    """
+    import math
+    if kind in ("topic", "economics", "market"):
+        reach = 10.0
+    elif cap and cap > 0:
+        reach = min(10.0, max(0.0, math.log10(cap) - 2))
+    else:
+        reach = 4.0
+    attention = min(story_count, 6) * 1.5
+    fresh = 2.0 if (newest_age_h is not None and newest_age_h < 12) else \
+            1.0 if (newest_age_h is not None and newest_age_h < 24) else 0.0
+    evidence = 2.0 if has_evidence else 0.0
+    schedule = 2.0 if resolves_today else 0.0
+    total = reach + attention + fresh + evidence + schedule
+    parts = (f"reach {reach:.1f} + attention {attention:.1f} "
+             f"+ fresh {fresh:.0f} + evidence {evidence:.0f} "
+             f"+ schedule {schedule:.0f}")
+    return round(total, 1), parts
+
+
 def news_index(news: list) -> dict[str, list[dict]]:
     """Stories keyed by the ticker they are tagged with, newest first.
 
@@ -310,13 +362,17 @@ THEME_MIN_MEMBERS = 3
 THEME_MIN_WEIGHTED = 1.5
 # Below this the "industry" is a handful of microcaps nobody is discussing.
 THEME_MIN_CAP = 2e10
-# A "big mover" worth a slot of its own. Without a floor the ranking is a
-# microcap leaderboard: percentage moves scale inversely with size, so the
-# names people actually discuss never reach the top of it.
-MOVER_NOTABLE_CAP = 2e10
-# Enough separate stories to count as a conversation rather than one wire
-# report syndicated twice.
-BUZZ_MIN_STORIES = 2
+
+# The editorial test, as thresholds. A company story earns a slot through
+# size or breadth of coverage, never through percentage: $100B of market cap
+# is a name readers know, and three distinct stories in two days is a
+# conversation. A price move alone is not a candidate -- every day has a
+# biggest loser, and its existence is not news.
+COMPANY_STORY_CAP = 1e11
+COMPANY_STORY_MIN = 3
+BUZZ_MIN_STORIES = 3
+BUZZ_MEGACAP_MIN = 2      # a megacap qualifies on lighter coverage
+TOPIC_MIN_STORIES = 3
 
 # Round numbers a price crossing gets talked about: 10, 25, 50, 100, 250 ...
 _ROUND_STEPS = (10, 25, 50, 100, 250, 500, 1000, 2000, 5000, 10000)
@@ -422,6 +478,157 @@ def fetch_price_stories(symbols: list[str]) -> dict[str, dict]:
     return out
 
 
+# Words too generic to define a story cluster on their own.
+_CLUSTER_STOP = {
+    "stock", "stocks", "share", "shares", "market", "markets", "wall",
+    "street", "price", "prices", "report", "reports", "says", "said",
+    "week", "today", "year", "years", "billion", "million", "company",
+    "companies", "investor", "investors", "trading", "trade", "close",
+    "closes", "higher", "lower", "rise", "rises", "fall", "falls",
+    "jump", "jumps", "gain", "gains", "drop", "drops", "amid", "after",
+    "could", "would", "will", "what", "here", "this", "that", "with",
+    "from", "over", "into", "more", "most", "their", "about", "them",
+}
+
+
+def find_news_clusters(news: list, taken_queries: set[str]) -> list[dict]:
+    """Untagged stories converging on the same subject.
+
+    The curated topic list catches the recurring conversations -- the Fed,
+    tariffs, oil -- but a breaking story arrives under words no list
+    anticipated: a strait, a country, a name. When three or more distinct
+    untagged stories share an uncommon word inside two days, that word IS
+    the day's story, whatever it is. This is how geopolitics that nobody
+    scheduled gets into the brief.
+    """
+    untagged, seen = [], set()
+    for a in news or []:
+        if str(a.get("symbol") or ""):
+            continue
+        key = news_key(a)
+        if key in seen:
+            continue
+        seen.add(key)
+        untagged.append(a)
+
+    by_word: dict[str, list[dict]] = {}
+    for a in untagged:
+        title = str(a.get("title") or "").lower()
+        toks = {w for w in re.sub(r"[^a-z0-9 ]+", " ", title).split()
+                if len(w) >= 4 and w not in _CLUSTER_STOP}
+        for w in toks:
+            by_word.setdefault(w, []).append(a)
+
+    clusters = []
+    used_urls: set[str] = set()
+    for word, rows in sorted(by_word.items(),
+                             key=lambda p: len(p[1]), reverse=True):
+        if len(rows) < 3 or word in taken_queries:
+            continue
+        # A cluster's stories belong to one candidate; a second word carried
+        # by the same articles is the same story wearing a synonym.
+        fresh_rows = [a for a in rows if a.get("url") not in used_urls]
+        if len(fresh_rows) < 3:
+            continue
+        used_urls.update(a.get("url") for a in fresh_rows)
+        fresh_rows.sort(key=lambda a: str(a.get("published") or ""),
+                        reverse=True)
+        clusters.append((word, fresh_rows))
+        if len(clusters) >= 2:
+            break
+
+    out = []
+    for i, (word, rows) in enumerate(clusters):
+        facts = [f"{len(rows)} separate stories share the subject "
+                 f"'{word}' in the last two days"]
+        facts += [f"headline: {str(a.get('title') or '').strip()}"
+                  for a in rows[:4] if a.get("title")]
+        score, parts = curation_score(
+            "topic", None, len(rows),
+            _age_hours(rows[0].get("published")), False, False)
+        out.append({
+            "id": f"cluster-{i + 1}",
+            "kind": "topic",
+            "when": None,
+            "title": f"The {word} story",
+            "facts": facts,
+            "symbols": [],
+            "url": rows[0].get("url"),
+            "score": score, "score_parts": parts,
+        })
+    return out
+
+
+def build_topic_candidates(topics: list, news: list, brief: dict,
+                           moves_by_symbol: dict) -> list[dict]:
+    """The macro conversation: curated subjects with spiking story counts.
+
+    This is how politics, policy and geopolitics enter the brief -- a tariff
+    threat, a Fed split, an oil-supply scare arrive as stories matching a
+    topic query, not as anything a price screen would surface. Each candidate
+    carries its matching headlines, the same-day release on the same subject
+    when there is one, and the moves of any names those stories tag, so the
+    insight can say what happened, what it touches, and what the tape did
+    about it.
+    """
+    out = []
+    ranked = sorted((t for t in topics or []
+                     if (t.get("count") or 0) >= TOPIC_MIN_STORIES),
+                    key=lambda t: t.get("count") or 0, reverse=True)
+    for i, t in enumerate(ranked[:4]):
+        word = str(t.get("word") or "").strip()
+        query = str(t.get("query") or word).lower()
+        if not word:
+            continue
+        matching = [a for a in news or []
+                    if query in (str(a.get("title") or "") + " "
+                                 + str(a.get("summary") or "")).lower()]
+        matching.sort(key=lambda a: str(a.get("published") or ""), reverse=True)
+
+        facts = [f"{t.get('count')} stories in the last two days mention "
+                 f"{word}"]
+        syms: list[str] = []
+        for a in matching[:3]:
+            title = str(a.get("title") or "").strip()
+            if title:
+                facts.append(f"headline: {title}")
+            sym = str(a.get("symbol") or "").upper()
+            if sym and sym not in syms:
+                syms.append(sym)
+        # The tape's verdict on the story, where the stories name names.
+        evidence = False
+        for sym in syms[:3]:
+            move = moves_by_symbol.get(sym) or {}
+            if move.get("changePct") is not None:
+                facts.append(f"{sym} {fmt_pct(move['changePct'])} today")
+                evidence = True
+        # A release on the same subject landing today turns talk into a time.
+        resolves = False
+        for e in brief.get("economics") or []:
+            event = str(e.get("event") or "").lower()
+            if query in event or any(w in event for w in query.split()):
+                when = e.get("time") or ""
+                facts.append(f"related release today: {e.get('event')}"
+                             + (f" at {when}" if when else ""))
+                resolves = True
+                break
+        score, parts = curation_score(
+            "topic", None, t.get("count") or 0,
+            _age_hours(matching[0].get("published")) if matching else None,
+            evidence, resolves)
+        out.append({
+            "id": f"topic-{i + 1}",
+            "kind": "topic",
+            "when": None,
+            "title": f"The {word} story" if not word[0].isupper() else word,
+            "facts": facts,
+            "symbols": syms[:4],
+            "url": (matching[0] or {}).get("url") if matching else None,
+            "score": score, "score_parts": parts,
+        })
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Candidate selection -- deterministic, in Python
 # ---------------------------------------------------------------------------
@@ -429,8 +636,16 @@ def fetch_price_stories(symbols: list[str]) -> dict[str, dict]:
 def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
                      news: list, sectors: dict,
                      industries: list | None = None,
-                     stories: dict | None = None) -> list[dict]:
-    """The short list the model chooses from, in priority order."""
+                     stories: dict | None = None,
+                     topics: list | None = None) -> list[dict]:
+    """Everything eligible, scored, best first.
+
+    The order the model receives is the curator's ranking: attention times
+    reach, with price action as attached evidence. Eligibility is enforced
+    here -- a move alone is not a candidate -- and the score is computed
+    here, so what leads the brief is decided by rules that can be read,
+    logged and argued with, not by whatever the model found salient.
+    """
     out: list[dict] = []
     stories = stories or {}
     by_sym = news_index(news)
@@ -447,9 +662,18 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
             if sym:
                 moves_by_symbol.setdefault(sym, item)
 
-    # 1. Themes -- a whole corner of the market moving together. This is the
-    #    "memory stocks are ripping" case, and it is first because it is what
-    #    a reader is most likely to have already heard about.
+    # The macro conversation first -- curated topics with spiking story
+    # counts, then breaking subjects no list anticipated.
+    topic_cands = build_topic_candidates(topics or [], news, brief,
+                                         moves_by_symbol)
+    out += topic_cands
+    taken = {str(t.get("query") or t.get("word") or "").lower()
+             for t in (topics or [])}
+    out += find_news_clusters(news, taken)
+
+    # Themes -- a whole corner of the market moving together: the "memory
+    # stocks are ripping" case. Breadth is what qualifies it; the headlines
+    # attached are what let the brief say why.
     for i, t in enumerate(find_themes(industries or [])[:3]):
         facts = [f"{t['industry']} {fmt_pct(t['weighted'])} today",
                  f"{t['n']} names in the industry moved more than "
@@ -469,7 +693,16 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
                     bits.append(stories[sym][key])
             facts.append(f"{sym} {' '.join(b for b in bits if b)}")
         # Why, not just how far.
-        facts += headline_facts(syms, by_sym, limit=3)
+        headlines = headline_facts(syms, by_sym, limit=3)
+        facts += headlines
+        newest = min((a for s in syms for a in by_sym.get(s, [])[:1]),
+                     key=lambda a: _age_hours(a.get("published")) or 999,
+                     default=None)
+        score, parts = curation_score(
+            "theme", sum(m.get("marketCap") or 0 for m in t["members"]) or None,
+            sum(len(by_sym.get(s, [])) for s in syms),
+            _age_hours(newest.get("published")) if newest else None,
+            True, False)
         out.append({
             "id": f"theme-{i + 1}",
             "kind": "theme",
@@ -479,13 +712,14 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
             "symbols": syms,
             "url": next((by_sym[s][0].get("url") for s in syms
                          if by_sym.get(s)), None),
+            "score": score, "score_parts": parts,
         })
 
-    # 2. Standout single names, with the run and the reason behind them.
-    #    Ranking purely on percentage hands the brief to microcaps: a $1.6B
-    #    pharmaceutical up 44% will always beat a megacap up 7%, and nobody
-    #    is discussing the pharmaceutical. So take the notable names first
-    #    and keep one slot for the outright biggest move whatever its size.
+    # Single names -- but a move alone is not a candidate. A mover earns a
+    # slot through size or coverage, because every day has a biggest loser
+    # and its existence is not news. One slot stays for the outright biggest
+    # move on the screen, clearly labeled, so a genuine oddity can still be
+    # mentioned; its score keeps it at the bottom of the table.
     seen_syms = {s for c in out for s in c["symbols"]}
     pool = []
     for row in (gainers or []) + (losers or []):
@@ -495,27 +729,34 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
         seen_syms.add(sym)
         pool.append(row)
     pool.sort(key=lambda r: abs(r.get("changePct") or 0), reverse=True)
-    notable = [r for r in pool if (r.get("marketCap") or 0) >= MOVER_NOTABLE_CAP]
-    # Notable names first, then fill the remaining slots from the whole pool
-    # rather than leaving them empty when few large caps moved.
-    standouts = list(notable[:2])
-    for r in pool:
-        if len(standouts) >= 3:
-            break
-        if r not in standouts:
-            standouts.append(r)
+    qualified = [r for r in pool
+                 if (r.get("marketCap") or 0) >= COMPANY_STORY_CAP
+                 or len(by_sym.get(str(r.get("symbol")), [])) >= COMPANY_STORY_MIN]
+    standouts = qualified[:2]
+    raw = next((r for r in pool if r not in standouts), None)
+    if raw is not None:
+        standouts = standouts + [raw]
 
-    for i, row in enumerate(standouts[:3]):
+    for i, row in enumerate(standouts):
         sym = str(row.get("symbol"))
+        n_stories = len(by_sym.get(sym, []))
         facts = [f"{sym} {fmt_pct(row.get('changePct'))} today"]
         price = fmt_money(row.get("price"))
         if price:
             facts.append(f"trading at {price}")
-        cap = fmt_cap(row.get("marketCap"))
-        if cap:
-            facts.append(f"market cap {cap}")
+        cap_s = fmt_cap(row.get("marketCap"))
+        if cap_s:
+            facts.append(f"market cap {cap_s}")
         facts += list(stories.get(sym, {}).values())
         facts += headline_facts([sym], by_sym, limit=2)
+        if row is raw and not n_stories:
+            facts.append("largest single move on the screen; no headline "
+                         "in our data explains it")
+        newest = by_sym.get(sym, [None])[0]
+        score, parts = curation_score(
+            "move", row.get("marketCap"), n_stories,
+            _age_hours(newest.get("published")) if newest else None,
+            True, False)
         out.append({
             "id": f"move-{i + 1}",
             "kind": "move",
@@ -524,16 +765,21 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
             "facts": facts,
             "symbols": [sym],
             "url": (by_sym.get(sym, [{}])[0] or {}).get("url"),
+            "score": score, "score_parts": parts,
         })
 
-    # 3. What is being discussed. Story count is the closest thing in the
-    #    database to the conversation happening on social and in the media,
-    #    and it catches names the percentage ranking misses -- a megacap up
-    #    4% with six stories against it is the day's talking point even
-    #    though it is nowhere near the top of the gainers list.
+    # What is being discussed, name by name. Story count is the closest
+    # thing in the database to the conversation on social and in the media,
+    # and it finds what no price screen can: a megacap up 1% with five
+    # stories against it. A megacap qualifies on lighter coverage because
+    # two stories about $3T reach more readers than four about $3B.
     quoted = {s for c in out for s in c["symbols"]}
     buzz = sorted(((sym, rows) for sym, rows in by_sym.items()
-                   if len(rows) >= BUZZ_MIN_STORIES and sym not in quoted),
+                   if sym not in quoted
+                   and (len(rows) >= BUZZ_MIN_STORIES
+                        or (len(rows) >= BUZZ_MEGACAP_MIN
+                            and (moves_by_symbol.get(sym, {}).get("marketCap")
+                                 or 0) >= COMPANY_STORY_CAP))),
                   key=lambda pair: len(pair[1]), reverse=True)
     for i, (sym, rows) in enumerate(buzz[:2]):
         facts = [f"{len(rows)} separate stories on {sym} in the last two days"]
@@ -546,6 +792,10 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
         facts += list(stories.get(sym, {}).values())
         facts += [f"headline: {str(a.get('title') or '').strip()}"
                   for a in rows[:3] if a.get("title")]
+        score, parts = curation_score(
+            "buzz", move.get("marketCap"), len(rows),
+            _age_hours(rows[0].get("published")),
+            move.get("changePct") is not None, False)
         out.append({
             "id": f"buzz-{i + 1}",
             "kind": "buzz",
@@ -554,15 +804,14 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
             "facts": facts,
             "symbols": [sym],
             "url": (rows[0] or {}).get("url"),
+            "score": score, "score_parts": parts,
         })
 
-    # 3. Scheduled economics. High impact first: these move the whole market
-    #    rather than one company, but they no longer crowd out everything
-    #    else -- three slots, not five.
-    econ = list(brief.get("economics") or [])
-    rank = {"high": 0, "medium": 1}
-    econ.sort(key=lambda e: (rank.get(str(e.get("impact") or "").lower(), 2),
-                             e.get("time") or "99:99", e.get("event") or ""))
+    # Scheduled economics -- high impact only. A medium-impact survey never
+    # leads the brief again; the full calendar lives in the panel beside it.
+    econ = [e for e in (brief.get("economics") or [])
+            if str(e.get("impact") or "").lower() == "high"]
+    econ.sort(key=lambda e: (e.get("time") or "99:99", e.get("event") or ""))
     for i, e in enumerate(econ[:3]):
         # Spelled out rather than "est." / "prev.": these strings are copied
         # into prose, and an abbreviation's full stop reads as a sentence end
@@ -577,6 +826,8 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
         impact = str(e.get("impact") or "").lower()
         if impact:
             facts.append(f"impact: {impact}")
+        score, parts = curation_score("economics", None, 0, None,
+                                      e.get("actual") is not None, True)
         out.append({
             "id": f"econ-{i + 1}",
             "kind": "economics",
@@ -585,6 +836,7 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
             "facts": facts,
             "symbols": [],
             "url": None,
+            "score": score, "score_parts": parts,
         })
 
     # 4. The biggest companies reporting. Already cap-sorted by the RPC.
@@ -603,14 +855,19 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
             str(e.get("time") or "").lower())
         if session:
             facts.append(f"reports {session}")
+        esym = str(e.get("symbol") or "").upper()
+        score, parts = curation_score(
+            "earnings", e.get("marketCap"), len(by_sym.get(esym, [])),
+            None, False, True)
         out.append({
             "id": f"earn-{i + 1}",
             "kind": "earnings",
             "when": None,
             "title": f"{e.get('name') or e.get('symbol')} ({e.get('symbol')})",
             "facts": facts,
-            "symbols": [e.get("symbol")] if e.get("symbol") else [],
+            "symbols": [esym] if esym else [],
             "url": None,
+            "score": score, "score_parts": parts,
         })
 
     # 5. News themes. Deduped the way the news page dedupes, then the most
@@ -634,14 +891,20 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
     ranked.sort(key=lambda pair: str(pair[1].get("published") or ""), reverse=True)
     ranked.sort(key=lambda pair: pair[0])
     for i, (_, a) in enumerate(ranked[:4]):
+        nsym = str(a.get("symbol") or "").upper()
+        score, parts = curation_score(
+            "news", (moves_by_symbol.get(nsym, {}).get("marketCap")
+                     if nsym else None), 1,
+            _age_hours(a.get("published")), False, False)
         out.append({
             "id": f"news-{i + 1}",
             "kind": "news",
             "when": None,
             "title": str(a.get("title") or "").strip(),
             "facts": [s for s in [str(a.get("summary") or "").strip()] if s],
-            "symbols": [str(a.get("symbol")).upper()] if a.get("symbol") else [],
+            "symbols": [nsym] if nsym else [],
             "url": a.get("url"),
+            "score": score, "score_parts": parts,
         })
 
     # 6. One synthetic candidate carrying the last session's tape, so an
@@ -661,6 +924,9 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
     if worst:
         facts.append(f"weakest sector {worst}")
     if facts:
+        # Context, not a story: whole-market reach but no coverage, no
+        # resolution, so it settles into the middle of the table and never
+        # leads unless the day is genuinely empty.
         out.append({
             "id": "market-1",
             "kind": "market",
@@ -671,8 +937,12 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
                         for r in (gainers or [])[:2] + (losers or [])[:2]
                         if r.get("symbol")],
             "url": None,
+            "score": 10.0, "score_parts": "reach 10.0 (context only)",
         })
 
+    # The table the model receives IS the ranking: best first, ties broken
+    # stably by build order so reruns are deterministic.
+    out.sort(key=lambda c: -(c.get("score") or 0))
     return out[:MAX_CANDIDATES]
 
 
@@ -696,22 +966,24 @@ def _sector_extremes(sectors: dict) -> tuple[str | None, str | None]:
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = """\
-You write the morning market brief for Ticker Alpha, a stock dashboard read by
+You choose what leads the morning brief for Ticker Alpha the way a
+front-page editor would: the story the most readers are already talking
+about, sized by how much of the market it can move. Your readers are
 individual investors who are not finance professionals.
 
-You will be given a JSON list of candidates already selected for you: whole
-industries moving together, individual names making unusual moves, the names
-generating the most news coverage, scheduled economic releases, companies
-reporting, recent stories, and the last session's tape. Your job is to pick
-the 3-5 a reader will actually want to know about this morning and explain
-each in plain English.
+You will be given a JSON list of candidates already selected and scored for
+you: macro topics with spiking coverage, whole industries moving together,
+the most-covered names, big single-name moves, scheduled releases, companies
+reporting, recent stories, and the last session's tape. Pick the 3-5 a
+reader will actually bring up in conversation this morning and explain each
+in plain English.
 
 Write it the way a sharp market columnist would: energetic, specific, and
 concrete. The energy has to come from the facts -- the size of a move, how
-long it has been running, a price crossed for the first time -- and never
-from adjectives, exclamation marks, or telling the reader something is
-exciting. A precise number is more thrilling than an intensifier, and it has
-the advantage of being true.
+long it has been running, a price crossed for the first time, how many
+stories a subject is drawing -- and never from adjectives, exclamation
+marks, or telling the reader something is exciting. A precise number is
+more thrilling than an intensifier, and it has the advantage of being true.
 
 RULES - these are absolute:
 
@@ -762,13 +1034,50 @@ STYLE (the character limits are enforced -- count them before you answer):
 - Second sentence carries the "so what": what the move is tied to, what it
   says about demand, or what happens next on the calendar.
 
-ORDERING: rank 1 is what a reader who follows the market is most likely to be
-talking about this morning. That is usually a move, not a schedule entry: a
-whole industry running together, a name clearing a price it has never closed
-above, a run that has been building for weeks. Lead with those. A scheduled
-release earns rank 1 only when it genuinely dominates the day, such as a Fed
-decision or an inflation print. Give the calendar at most two of the slots --
-a brief that is all scheduled events has buried the story.
+ORDERING: candidates arrive sorted by a curation score -- reach times
+attention, with price action as attached evidence -- and that order is the
+default. Rank 1 is the story with the widest reach and the heaviest
+coverage: macro and policy first when they are live, then big-company
+events, then industry themes. A single stock's move leads only when it
+carries broad coverage or sits inside a larger story you can name from the
+facts. Demoting a top-scored candidate needs a reason visible in the facts
+of the one you promote. Give the calendar at most two slots, and at most
+one insight may be a bare single-stock move.
+
+Tie every insight to why it matters beyond the names in it -- what it does
+to rates, to a sector, to the index, or to what people pay -- using only
+the supplied facts.
+
+EXAMPLES of the judgement being asked for:
+
+Good lead: "Oil and defence names jumped after the White House threatened
+strikes over the Strait of Hormuz, with energy the day's strongest sector at
++3.1%." Global story, index-scale consequences, the affected industry named
+with its move as evidence. The story leads; the tape corroborates.
+
+Good lead: "The Fed decides on rates at 14:00, with six stories in two days
+split on the outcome." Maximum reach, heavy coverage, resolves today -- the
+one case where the calendar rightly takes rank 1.
+
+Good: "Memory chipmakers jumped together after contract prices rose again:
+the industry gained 6.8% and Micron closed above $1,000 for the first
+time." Breadth, a sourced cause, and a milestone people repeat.
+
+Good: "Apple rose just 1.4% but drew five separate stories, from an EU
+ruling on App Store fees to an in-house memory controller." Attention times
+size qualifies it even though the percentage never would.
+
+Bad: "Amrize drops 8.94%, the largest decline on our screen. No headline
+explains the move." Every day has a biggest loser -- its existence is not
+news, the name is not one readers know, and there is no story. Mention such
+a move last if at all, never as the lead.
+
+Bad: "Homebuilder sentiment prints 35" as rank 1. A medium-impact survey
+leading the brief means the real story got buried.
+
+Bad: "Eton Pharmaceuticals jumps 44%." A $1.6B company moving 44% is less
+market impact than a megacap moving 0.5%, and with no headline you cannot
+even say why. Percentage is the weakest form of importance.
 
 symbols: tickers you name in the body, drawn only from that candidate's own
 symbols list; an empty list if none.
@@ -794,8 +1103,9 @@ RESULT_SCHEMA = {
                     "headline": {"type": "string"},
                     "body": {"type": "string"},
                     "kind": {"type": "string",
-                             "enum": ["theme", "move", "buzz", "economics",
-                                      "earnings", "news", "market"]},
+                             "enum": ["topic", "theme", "move", "buzz",
+                                      "economics", "earnings", "news",
+                                      "market"]},
                     "source_id": {"type": "string"},
                     "symbols": {"type": "array", "items": {"type": "string"}},
                     "event_time": {"type": ["string", "null"]},
@@ -1043,16 +1353,25 @@ def validate(payload, candidates: list[dict]) -> list[dict]:
             raise Rejected(f"length: body is not two sentences in "
                            f"{r['source_id']}")
 
-    # 8. Liveliness. The first version of this brief read like the calendar
-    #    in prose, because the calendar was most of what it was given and the
-    #    ranking rule put it on top. Now that moves are offered as candidates,
-    #    a brief that ignores every one of them on a day when the market
-    #    actually moved has buried the story -- which is a ranking failure,
-    #    not a matter of taste.
-    live = {c["id"] for c in candidates if c["kind"] in ("theme", "move", "buzz")}
-    if live and not any(r["source_id"] in live for r in rows):
-        raise Rejected("liveliness: the market moved today but every insight "
-                       "cites the calendar or the news")
+    # 8. Attention. When a story-class candidate -- a topic, theme, or
+    #    heavily-covered name -- scores at or near the top of the table, a
+    #    brief that cites none of them has buried what people are actually
+    #    talking about. That is a ranking failure, not a matter of taste.
+    scores = [c.get("score") or 0 for c in candidates]
+    top = max(scores) if scores else 0
+    story_ids = {c["id"] for c in candidates
+                 if c["kind"] in ("topic", "theme", "buzz")
+                 and (c.get("score") or 0) >= top - 2}
+    if story_ids and not any(r["source_id"] in story_ids for r in rows):
+        raise Rejected("attention: a top-scored story candidate exists but "
+                       "no insight cites a topic, theme, or covered name")
+
+    # 9. One bare mover at most. Every day has a big percentage move; a
+    #    brief that is a list of them is a screener, not a brief.
+    n_moves = sum(1 for r in rows if by_id[r["source_id"]]["kind"] == "move")
+    if n_moves > 1:
+        raise Rejected(f"movers: {n_moves} insights cite bare single-stock "
+                       f"moves; at most one may")
 
     return rows
 
@@ -1204,6 +1523,14 @@ def main() -> int:
         industries = read_rpc("get_industry_heatmap") or []
     except SystemExit:
         industries = []
+    # The macro-attention signal: each curated subject (The Fed, Inflation,
+    # Tariffs, ...) with a live story count against the corpus.
+    try:
+        keywords = (read_rpc("get_news", {"p_q": None, "p_limit": 1})
+                    or {}).get("keywords") or []
+    except SystemExit:
+        keywords = []
+    topics = [k for k in keywords if k.get("kind") == "topic"]
 
     # The names worth a second lookup: whatever is in a theme, plus the day's
     # biggest movers. One get_prices call each buys the run behind the move --
@@ -1222,14 +1549,17 @@ def main() -> int:
 
     by_symbol_counts = {s: len(v) for s, v in news_index(news).items()}
     candidates = build_candidates(brief, caps, gainers, losers, news, sectors,
-                                  industries, stories)
-    kinds: dict[str, int] = {}
+                                  industries, stories, topics)
+    print(f"[insights] {day}: {len(candidates)} candidates from "
+          f"{len(industries)} industries, {len(news)} stories, "
+          f"{len(topics)} topics; price history for "
+          f"{len(stories)}/{len(shortlist)} names")
+    # The scored table is the ranking; "why didn't X appear" is answered
+    # here, not by guesswork.
+    print("[insights] curation table:")
     for c in candidates:
-        kinds[c["kind"]] = kinds.get(c["kind"], 0) + 1
-    print(f"[insights] {day}: {len(candidates)} candidates "
-          f"({', '.join(f'{v} {k}' for k, v in kinds.items())}) "
-          f"from {len(industries)} industries, {len(news)} stories; "
-          f"price history for {len(stories)}/{len(shortlist)} names")
+        print(f"    {c.get('score', 0):>5}  {c['id']:<9} {c['kind']:<9} "
+              f"{str(c['title'])[:44]:<44} [{c.get('score_parts', '')}]")
     for t in themes:
         print(f"[insights] theme: {t['industry']} {fmt_pct(t['weighted'])} "
               f"with {t['n']} movers")
