@@ -378,7 +378,7 @@ TOPIC_MIN_STORIES = 3
 # table every morning of earnings season and says nothing. The index names
 # are the same: coverage of "S&P 500" is coverage of everything.
 EVERGREEN_TOPICS = {"S&P 500", "Nasdaq", "Dow Jones", "Earnings", "Guidance",
-                    "Dividends", "Buybacks", "Upgrades", "IPO"}
+                    "Dividends", "Buybacks", "Upgrades", "IPO", "M&A"}
 
 # Round numbers a price crossing gets talked about: 10, 25, 50, 100, 250 ...
 _ROUND_STEPS = (10, 25, 50, 100, 250, 500, 1000, 2000, 5000, 10000)
@@ -1330,18 +1330,28 @@ def validate(payload, candidates: list[dict]) -> list[dict]:
             raise Rejected(f"source: '{sid}' was cited twice")
         used.add(sid)
 
+    # Numbers and names are checked against the cited candidate first, then
+    # against everything else we handed over. An insight that weaves in a
+    # sibling candidate -- housing starts alongside building permits, a
+    # mover inside the story that explains it -- is quoting our data
+    # correctly; only a figure found nowhere is an invention.
+    global_hay = " ".join(_haystack(c) for c in candidates)
+    global_values = _numbers_in(global_hay)
+
     for r in rows:
         cand = by_id[r["source_id"]]
         text = f"{r['headline']} {r['body']}"
         hay = _haystack(cand)
 
         # 3. Number provenance. Bare years pass; every other figure has to
-        #    come from the candidate we handed over.
+        #    come from somewhere in the candidate list.
         hay_values = _numbers_in(hay)
         for tok in _NUM_TOKEN.findall(text):
             if re.fullmatch(r"(19|20)\d{2}", tok):
                 continue
             if _number_is_sourced(tok, hay, hay_values):
+                continue
+            if _number_is_sourced(tok, global_hay, global_values):
                 continue
             raise Rejected(f"number: '{tok}' in {r['source_id']} is not in "
                            f"that candidate's facts")
@@ -1353,11 +1363,15 @@ def validate(payload, candidates: list[dict]) -> list[dict]:
                 raise Rejected(f"symbol: '{s}' is not one of "
                                f"{r['source_id']}'s symbols")
         for tok in _CAPS_TOKEN.findall(r["body"]):
+            # "U.S." arrives as "U.S"; dotted abbreviations are the same
+            # words as their undotted forms, not tickers.
+            if tok.replace(".", "") in NOT_TICKERS:
+                continue
             if tok in NOT_TICKERS or tok.upper() in allowed:
                 continue
             # Headlines carry tickers of their own, and quoting one back is
-            # sourced -- the haystack is the candidate we handed over.
-            if tok in hay:
+            # sourced -- from the cited candidate or any sibling.
+            if tok in hay or tok in global_hay:
                 continue
             raise Rejected(f"symbol: '{tok}' in {r['source_id']} is not a "
                            f"ticker from that candidate")
@@ -1401,12 +1415,16 @@ def validate(payload, candidates: list[dict]) -> list[dict]:
     #    talking about. That is a ranking failure, not a matter of taste.
     scores = [c.get("score") or 0 for c in candidates]
     top = max(scores) if scores else 0
-    story_ids = {c["id"] for c in candidates
-                 if c["kind"] in ("topic", "theme", "buzz")
-                 and (c.get("score") or 0) >= top - 2}
-    if story_ids and not any(r["source_id"] in story_ids for r in rows):
-        raise Rejected("attention: a top-scored story candidate exists but "
-                       "no insight cites a topic, theme, or covered name")
+    top_is_story = any(c["kind"] in ("topic", "theme", "buzz")
+                       and (c.get("score") or 0) >= top
+                       for c in candidates)
+    if top_is_story and top >= 15:
+        story_ids = {c["id"] for c in candidates
+                     if c["kind"] in ("topic", "theme", "buzz")}
+        if not any(r["source_id"] in story_ids for r in rows):
+            raise Rejected("attention: the top-scored candidate is a story "
+                           "but no insight cites any topic, theme, or "
+                           "covered name")
 
     # 9. One bare mover at most. Every day has a big percentage move; a
     #    brief that is a list of them is a screener, not a brief.
