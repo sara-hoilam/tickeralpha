@@ -27,6 +27,35 @@
 /*.html
   Cache-Control: public, max-age=0, must-revalidate
 
+# Pages serves every .html at its extensionless path as well -- company.html
+# is browsed as /company -- and the rule above matches the request path, not
+# the file behind it, so the URL people actually visit had no cache policy at
+# all. It fell back to the default and could be served from cache long after a
+# deploy, which is exactly what a merge that "did not ship" looks like.
+# Listed rather than splatted: /* would also catch the report PDFs and covers,
+# which are large, change rarely, and are deliberately left cacheable.
+
+/company
+  Cache-Control: public, max-age=0, must-revalidate
+
+/news
+  Cache-Control: public, max-age=0, must-revalidate
+
+/earnings
+  Cache-Control: public, max-age=0, must-revalidate
+
+/portfolio
+  Cache-Control: public, max-age=0, must-revalidate
+
+/politicians
+  Cache-Control: public, max-age=0, must-revalidate
+
+/reports
+  Cache-Control: public, max-age=0, must-revalidate
+
+/privacy
+  Cache-Control: public, max-age=0, must-revalidate
+
 /config.js
   Cache-Control: public, max-age=0, must-revalidate
 
