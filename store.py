@@ -238,6 +238,20 @@ def replace_symbol_dividends(symbol: str, rows: list[dict]) -> int:
     }) or 0
 
 
+def replace_symbol_earnings(symbol: str, rows: list[dict]) -> int:
+    return rpc("replace_symbol_earnings", {
+        "p_symbol": symbol,
+        "p_rows": rows,
+    }) or 0
+
+
+def replace_symbol_holders(symbol: str, rows: list[dict]) -> int:
+    return rpc("replace_symbol_holders", {
+        "p_symbol": symbol,
+        "p_rows": rows,
+    }) or 0
+
+
 def upsert_news(rows: list[dict], keywords: list[dict]) -> int:
     return rpc("upsert_news", {"p_rows": rows, "p_keywords": keywords}) or 0
 
