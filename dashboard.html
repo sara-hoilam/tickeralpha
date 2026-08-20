@@ -666,14 +666,15 @@ tbody tr:hover td{background:var(--sunk)}
 @media (max-width:1000px){ .pairrow{grid-template-columns:minmax(0,1fr)} }
 
 /* ---- section tabs -------------------------------------------------------
-   Overview / Financials / Ownership. One set of panels at every width: the
-   phone layout below only makes them denser, it no longer decides whether
-   they exist. */
+   Overview / Financials / Industry / Ownership. One set of panels at every
+   width: the phone layout below only makes them denser, it no longer decides
+   whether they exist.
+
+   The strip does not stick. A sticky bar over a full-bleed chart reads as a
+   band cut through the candles -- the plot scrolls under a translucent strip
+   that is neither part of the chart nor clear of it. */
 .mtabs{
   display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;
-  position:sticky;top:var(--mtab-top, 56px);z-index:80;
-  background:color-mix(in srgb, var(--ground) 92%, transparent);
-  backdrop-filter:blur(12px);
   border-bottom:1px solid var(--rule);
   padding:0;margin:0 0 20px;
   -webkit-overflow-scrolling:touch;
@@ -764,11 +765,12 @@ body.mreport .mtab-panel.on{display:block}
   /* Same tabs, phone density: full-bleed bar, tighter type, card-coloured
      so it reads as part of the header rather than the page. */
   .mtabs{
-    gap:0;top:var(--mtab-top, 96px);
-    background:color-mix(in srgb, var(--card) 94%, transparent);
+    gap:0;background:var(--card);
     padding:0 8px;margin-bottom:0;
   }
-  .mtabs button{padding:11px 14px 9px;font-size:13px}
+  /* Four tabs have to fit 390px without the last one hanging off the edge
+     where nobody looks for it. */
+  .mtabs button{padding:11px 10px 9px;font-size:12.5px}
 
   /* The picker row is the whole width of a phone, so it needs no gutter of
      its own beyond the page padding. */
@@ -1516,7 +1518,28 @@ function linePlot(host, series, opts){
 
   const lo = Math.min(...all), hi = Math.max(...all);
   const pad = (hi - lo) * 0.08 || 1;
-  const y0 = opts.zero ? Math.min(0, lo - pad) : lo - pad, y1 = hi + pad;
+  let y0 = opts.zero ? Math.min(0, lo - pad) : lo - pad, y1 = hi + pad;
+
+  /* A reference level outside the series' own range used to be drawn off the
+     top of the plot and simply never appear: an industry P/E of 25 against a
+     company trading at 17 left the chart with no industry line on it at all.
+
+     The axis stretches to take the reference in, so the line still sits at
+     its true height above the series -- which is the whole point of drawing
+     it. Only when that stretch would squash the series into less than half
+     the plot do the references get a second axis of their own -- the same
+     range compressed to fit, labelled on the right in the reference's own
+     colour so the two scales cannot be read as one. */
+  const refVals = (opts.refs || []).map(r => r.v).filter(Number.isFinite);
+  let refY = null;                        // null = references share the axis
+  if (refVals.some(v => v < y0 || v > y1)) {
+    const m0 = Math.min(y0, ...refVals), m1 = Math.max(y1, ...refVals);
+    const mPad = (m1 - m0) * 0.06 || 1;
+    const r0 = m0 - mPad, r1 = m1 + mPad;
+    if ((y1 - y0) / (r1 - r0) >= 0.5) { y0 = r0; y1 = r1; }
+    else refY = v => mt + ph - (v - r0) / (r1 - r0) * ph;
+  }
+
   const n = Math.max(...series.map(s => s.pts.length));
   const x = i => ml + (n < 2 ? pw / 2 : (i / (n - 1)) * pw);
   const y = v => mt + ph - (v - y0) / (y1 - y0) * ph;
@@ -1547,9 +1570,20 @@ function linePlot(host, series, opts){
       stroke-width="1.6" stroke-linejoin="round"/>` : "";
   }).join("");
 
-  const refs = (opts.refs || []).map(r => `
-    <line x1="${ml}" x2="${W - mr}" y1="${y(r.v).toFixed(1)}" y2="${y(r.v).toFixed(1)}"
-      stroke="${r.colour}" stroke-width="1.4" stroke-dasharray="5 4"/>`).join("");
+  const refs = (opts.refs || []).map(r => {
+    const ry = (refY || y)(r.v);
+    // On its own scale the line's height no longer reads off the axis beside
+    // it, so it carries its own figure there -- nudged clear when it lands on
+    // one of that axis's own labels.
+    const clash = ticks.some(t => Math.abs(y(t) - ry) < 9);
+    const ly = ry + 3.5 + (clash ? (ry > mt + ph / 2 ? 10 : -10) : 0);
+    return `
+    <line x1="${ml}" x2="${W - mr}" y1="${ry.toFixed(1)}" y2="${ry.toFixed(1)}"
+      stroke="${r.colour}" stroke-width="1.4" stroke-dasharray="5 4"/>` +
+    (refY ? `
+    <text x="${yLabelX}" y="${ly.toFixed(1)}" class="ax"
+      text-anchor="${yAnchor}" style="fill:${r.colour}">${opts.fmtY(r.v)}</text>` : "");
+  }).join("");
 
   const labs = series[0].pts;
   const labelN = opts.xLabels || 5;
@@ -4121,7 +4155,7 @@ function render(){
       <div class="unlockrow">${unlockReportBtn(c.ticker)}</div>
     </div>
 
-    ${tabBar(["overview", "financials", "ownership"])}
+    ${tabBar(["overview", "financials", "industry", "ownership"])}
 
     <!-- Overview: what the market is doing with the company right now --
          the price, the quote panel that carries the profile and the Wall
@@ -4162,22 +4196,6 @@ function render(){
       </section>
 
       <div id="extras" hidden>
-        <h3 class="grouphead">Industry benchmark</h3>
-        <div class="pairrow">
-          <section class="card panel">
-            <div class="phead"><div>
-              <h2>Price vs sector ${helpIcon("bench")}</h2>
-            </div></div>
-            <div class="lwrap" id="bench-chart"></div>
-          </section>
-          <section class="card panel">
-            <div class="phead"><div>
-              <h2>P/E vs industry ${helpIcon("pe")}</h2>
-            </div></div>
-            <div class="lwrap" id="pe-chart"></div>
-          </section>
-        </div>
-
         <div class="pairrow">
           <section class="card panel">
             <div class="phead">
@@ -4337,6 +4355,30 @@ function render(){
         <div class="scroll" id="b-chart"></div>
         <div class="legend" id="b-legend"></div>
       </section>
+    </div>
+
+    <!-- Industry: the two charts that read this company against the companies
+         it competes with. They were the head of the Overview tab, under
+         everything the company says about itself. -->
+    <div class="mtab-panel" data-mtab="industry" id="mtab-industry" role="tabpanel">
+      <div id="industry-extras" hidden>
+        <h3 class="grouphead">Industry benchmark</h3>
+        <div class="pairrow">
+          <section class="card panel">
+            <div class="phead"><div>
+              <h2>Price vs sector ${helpIcon("bench")}</h2>
+            </div></div>
+            <div class="lwrap" id="bench-chart"></div>
+          </section>
+          <section class="card panel">
+            <div class="phead"><div>
+              <h2>P/E vs industry ${helpIcon("pe")}</h2>
+            </div></div>
+            <div class="lwrap" id="pe-chart"></div>
+          </section>
+        </div>
+
+      </div>
     </div>
 
     <!-- Ownership: who holds the stock and who is paid to have an opinion on
@@ -5414,6 +5456,7 @@ const RANGE_INTERVAL = { 21: "daily", 63: "daily", 126: "daily", 252: "daily",
 const TAB_LABEL = {
   overview:   "Overview",
   financials: "Financials",
+  industry:   "Industry",
   ownership:  "Ownership",
 };
 
@@ -5428,14 +5471,6 @@ function tabBar(ids){
       id="mtab-btn-${id}" aria-controls="mtab-${id}"
       aria-selected="${i === 0}">${TAB_LABEL[id] || id}</button>`).join("")}
   </nav>`;
-}
-
-/** Sticky tab offset under the shared nav (and tape, when present). */
-function syncMtabOffset(){
-  const nav = document.querySelector(".nav");
-  const strip = document.querySelector(".nav-strip");
-  const h = (nav ? nav.offsetHeight : 0) + (strip ? strip.offsetHeight : 0);
-  document.documentElement.style.setProperty("--mtab-top", Math.max(48, h) + "px");
 }
 
 /** Show one tab. A chart drawn into a display:none panel measures zero, so
@@ -5463,6 +5498,7 @@ function selectTab(id, opts){
     renderMargins(); renderCostStack();
     try { renderBuilder(); } catch {}
   }
+  if (id === "industry") marketPanels();
   if (id === "ownership") {
     loadAnalyst();
     loadOwnershipTrades();
@@ -5477,18 +5513,6 @@ function selectTab(id, opts){
 function wireTabs(){
   const bar = document.getElementById("mtabs");
   if (!bar) return;
-  syncMtabOffset();
-  if (!wireTabs._ro && typeof ResizeObserver !== "undefined") {
-    wireTabs._ro = new ResizeObserver(syncMtabOffset);
-    const nav = document.querySelector(".nav");
-    const strip = document.querySelector(".nav-strip");
-    if (nav) wireTabs._ro.observe(nav);
-    if (strip) wireTabs._ro.observe(strip);
-  }
-  if (!wireTabs._resize) {
-    wireTabs._resize = true;
-    addEventListener("resize", syncMtabOffset, { passive: true });
-  }
   bar.querySelectorAll("[data-mtab]").forEach(b => {
     b.onclick = () => selectTab(b.dataset.mtab);
   });
@@ -5925,7 +5949,12 @@ function paintPrices(){
 function marketPanels(){
   if (!EXTRA.data || !(PRICE.bars || []).length) return;
   if (!document.getElementById("bench-chart")) return;
-  document.getElementById("extras").hidden = false;
+  // The panels this fills are split across two tabs now; both wait on the
+  // same fetch, so both are revealed by it.
+  ["extras", "industry-extras"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.hidden = false;
+  });
   drawBenchmark();
   drawPE();
   drawCompanyDrawdown();
