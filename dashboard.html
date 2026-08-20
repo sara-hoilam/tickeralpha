@@ -456,31 +456,6 @@ tbody tr:hover td{background:var(--sunk)}
 .wst-n:hover{color:var(--accent);text-decoration-color:currentColor}
 .wst-n:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
 
-/* ---- analyst ratings dialog --------------------------------------------- */
-.amodal{
-  position:fixed;inset:0;z-index:400;display:grid;place-items:center;padding:20px;
-  background:rgba(17,24,32,.48);backdrop-filter:blur(4px);
-}
-.amodal[hidden]{display:none}
-.amodal-card{
-  position:relative;width:min(660px,100%);max-height:min(78vh,720px);
-  overflow:auto;background:var(--card);border-radius:var(--r);
-  box-shadow:0 18px 50px -20px rgba(17,24,32,.55);
-}
-/* The card inside is already a .panel; a second border would double it. */
-.amodal-card .acol>.panel{border:0;box-shadow:none;margin:0}
-.amodal-card .ascroll{max-height:none}
-.amodal-x{
-  position:absolute;top:10px;right:10px;z-index:2;
-  width:30px;height:30px;border:0;border-radius:8px;
-  background:var(--sunk);color:var(--ink-3);cursor:pointer;
-  font-size:19px;line-height:1;display:grid;place-items:center;
-}
-.amodal-x:hover{background:var(--rule);color:var(--ink)}
-@media (max-width:720px){
-  .amodal{padding:12px}
-  .amodal-card{max-height:86vh}
-}
 .wst-t{display:flex;align-items:baseline;gap:10px;margin-top:6px}
 .wst-t b{font-family:"IBM Plex Mono",monospace;font-size:22px;font-weight:600;
   letter-spacing:-.02em;font-variant-numeric:tabular-nums}
@@ -690,8 +665,38 @@ tbody tr:hover td{background:var(--sunk)}
 
 @media (max-width:1000px){ .pairrow{grid-template-columns:minmax(0,1fr)} }
 
-/* ---- mobile report: Futu-style tabs, full-bleed charts, pinch zoom -------- */
-.mtabs{display:none}
+/* ---- section tabs -------------------------------------------------------
+   Overview / Financials / Industry / Ownership. One set of panels at every
+   width: the phone layout below only makes them denser, it no longer decides
+   whether they exist.
+
+   The strip does not stick. A sticky bar over a full-bleed chart reads as a
+   band cut through the candles -- the plot scrolls under a translucent strip
+   that is neither part of the chart nor clear of it. */
+.mtabs{
+  display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;
+  border-bottom:1px solid var(--rule);
+  padding:0;margin:0 0 20px;
+  -webkit-overflow-scrolling:touch;
+}
+.mtabs::-webkit-scrollbar{display:none}
+.mtabs button{
+  flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;
+  padding:11px 16px 9px;font-family:inherit;font-size:14px;font-weight:600;
+  letter-spacing:-.005em;color:var(--ink-3);cursor:pointer;white-space:nowrap;
+  min-height:0;
+}
+.mtabs button:hover{color:var(--ink)}
+.mtabs button[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent)}
+/* One tab at a time. .mreport is set by every report render, so the rule
+   cannot hide panels on a page that is not showing one. */
+body.mreport .mtab-panel{display:none}
+body.mreport .mtab-panel.on{display:block}
+
+/* The fiscal-quarter pickers moved out of the identity block and into the
+   Financials tab, which is the only tab they change anything on. */
+.tabctl{display:flex;justify-content:flex-end;margin:0 0 16px}
+.tabctl .period{text-align:right}
 .chart-fs-btn{display:none}
 .zoom-host{position:relative}
 .zoom-layer{transform-origin:0 0;will-change:transform}
@@ -728,7 +733,6 @@ tbody tr:hover td{background:var(--sunk)}
      490px on an 844px screen, which left nothing else in view. */
   .lwrap > svg,.scroll > svg,.lchart,#price-chart svg{max-height:40vh}
   .swrap{max-height:44vh}
-  /* Period pickers sit top-right under the nav Log In control. */
   .ident{
     display:flex;justify-content:space-between;align-items:flex-start;
     /* wrap, not nowrap. .unlockrow is flex-basis:100% so it can take its own
@@ -740,9 +744,6 @@ tbody tr:hover td{background:var(--sunk)}
   .ident > .unlockrow{flex-basis:100%;order:3;margin-top:6px;top:0}
   .ident > div:first-child{flex:1;min-width:0}
   .ident h1{font-size:20px;padding-right:4px}
-  .ident .period{
-    text-align:right;width:auto;flex:0 0 auto;max-width:46%;
-  }
   .qpick{
     display:flex;justify-content:flex-end;align-items:flex-end;
     gap:5px;flex-wrap:nowrap;
@@ -757,29 +758,24 @@ tbody tr:hover td{background:var(--sunk)}
     background-position:calc(100% - 10px) 52%, calc(100% - 6px) 52%;
     background-size:4px 4px,4px 4px;
   }
-  /* Same compact header on every tab — hide date/filing under the pickers. */
-  .period .small{display:none}
+  /* The pickers have a row of their own inside Financials now, so the filed
+     period and the link to the filing fit beside them again. */
+  .period .small{font-size:10.5px;margin-top:4px}
 
+  /* Same tabs, phone density: full-bleed bar, tighter type, card-coloured
+     so it reads as part of the header rather than the page. */
   .mtabs{
-    display:flex;gap:0;overflow-x:auto;scrollbar-width:none;
-    position:sticky;top:var(--mtab-top, 96px);z-index:80;
-    background:color-mix(in srgb, var(--card) 94%, transparent);
-    backdrop-filter:blur(12px);
-    border-bottom:1px solid var(--rule);
+    gap:0;background:var(--card);
     padding:0 8px;margin-bottom:0;
-    -webkit-overflow-scrolling:touch;
   }
-  .mtabs::-webkit-scrollbar{display:none}
-  .mtabs button{
-    flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;
-    padding:11px 14px 9px;font-size:13px;font-weight:600;color:var(--ink-3);
-    cursor:pointer;white-space:nowrap;min-height:0;
-  }
-  .mtabs button[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent)}
+  /* Four tabs have to fit 390px without the last one hanging off the edge
+     where nobody looks for it. */
+  .mtabs button{padding:11px 10px 9px;font-size:12.5px}
 
-  /* One tab at a time — desktop keeps the long scroll via the rule below. */
-  body.mreport .mtab-panel{display:none}
-  body.mreport .mtab-panel.on{display:block}
+  /* The picker row is the whole width of a phone, so it needs no gutter of
+     its own beyond the page padding. */
+  .tabctl{padding:0 2px;margin-bottom:10px}
+  .tabctl .qpick{justify-content:flex-end}
 
   .pricerow{margin-bottom:0;gap:0}
   .pricechart,.pricestats{
@@ -890,7 +886,7 @@ tbody tr:hover td{background:var(--sunk)}
   body.sankey-fs-open .grid2,
   body.sankey-fs-open .grouphead,
   body.sankey-fs-open .pairrow{display:none!important}
-  body.sankey-fs-open #mtab-filing{display:block!important}
+  body.sankey-fs-open #mtab-financials{display:block!important}
   body.sankey-fs-open #sankey-panel{
     position:fixed!important;z-index:260;margin:0!important;border:0!important;
     border-radius:0!important;box-shadow:none!important;
@@ -926,7 +922,7 @@ tbody tr:hover td{background:var(--sunk)}
   body.chart-fs-open .mtabs,
   body.chart-fs-open .ident,
   body.chart-fs-open .pricestats{display:none!important}
-  body.chart-fs-open #mtab-chart{display:block!important}
+  body.chart-fs-open #mtab-overview{display:block!important}
   body.chart-fs-open .pricerow{margin:0}
   body.chart-fs-open .pricechart{
     position:fixed!important;inset:0;z-index:250;margin:0;border:0!important;
@@ -946,11 +942,6 @@ tbody tr:hover td{background:var(--sunk)}
    so the grid cell is a wrapper the redraw cannot take with it. */
 .acol{display:flex;flex-direction:column;min-width:0;margin-bottom:16px}
 .acol>.panel{margin-bottom:0}
-@media (max-width:720px){
-  /* Moved under the price panel -- see placeAnalyst. It follows a card with
-     no bottom edge, so it brings its own gap. */
-  #mtab-chart>.acol{margin:10px 0 0}
-}
 .ascroll{max-height:330px;overflow-y:auto;scrollbar-width:thin;
   scrollbar-color:var(--rule) transparent}
 .atable{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
@@ -967,6 +958,38 @@ tbody tr:hover td{background:var(--sunk)}
 .grade.g-buy{color:var(--up)} .grade.g-hold{color:var(--ink-2)} .grade.g-sell{color:var(--down)}
 .act{font-size:11.5px;color:var(--ink-3);text-transform:capitalize}
 .act.up{color:var(--up)} .act.down{color:var(--down)}
+
+/* ---- ownership: insider and congressional filings ------------------------ */
+/* Two filings tables that sit beside each other, so they cap at the same
+   height and scroll rather than dragging the tab down the page. */
+.own-scroll{max-height:340px;overflow-y:auto;overflow-x:auto;padding:0;
+  scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
+.otab{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
+.otab thead{position:relative;z-index:2}
+.otab th{position:sticky;top:0;background:var(--card);z-index:2;text-align:left;
+  background-clip:padding-box;box-shadow:0 1px 0 var(--rule);white-space:nowrap;
+  font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:600;padding:8px 14px}
+.otab td{padding:9px 14px;border-bottom:1px solid var(--rule-2);vertical-align:top;
+  text-align:left}
+.otab tr:last-child td{border-bottom:0}
+.otab td:first-child{font-family:"IBM Plex Mono",monospace;font-size:11.5px;
+  color:var(--ink-3);white-space:nowrap}
+.otab .num{text-align:right;font-family:"IBM Plex Mono",monospace;white-space:nowrap}
+/* The name leads; what the person is sits under it in the muted line, so a
+   long title cannot push the figures off the card. */
+.owho{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0}
+.owho b{font-weight:600}
+.owho em{font-style:normal;font-size:10.5px;color:var(--ink-3)}
+.oside{font-weight:600;font-size:11.5px}
+.oside.buy{color:var(--up)} .oside.sell{color:var(--down)}
+@media (max-width:720px){
+  .otab th,.otab td{padding:8px 9px}
+  /* Five columns do not fit a phone. The share count and the dollar value are
+     the same trade in two units, so the one that compares across companies
+     stays and the other goes. */
+  .otab .col-shares{display:none}
+}
 
 
 /* ---- chart toolbar ------------------------------------------------------- */
@@ -1021,7 +1044,10 @@ tbody tr:hover td{background:var(--sunk)}
 .wstar-hint button{background:none;border:0;color:var(--accent);font:inherit;
   font-size:12px;font-weight:600;cursor:pointer;padding:0 0 0 4px}
 
-@media print{ .qpick{display:none} .card{box-shadow:none} body{background:#fff} .mtabs{display:none!important} }
+@media print{ .qpick{display:none} .card{box-shadow:none} body{background:#fff}
+  .mtabs{display:none!important}
+  /* Every tab prints -- the reader of a sheet of paper cannot click. */
+  body.mreport .mtab-panel{display:block!important} }
 </style>
 </head>
 <body>
@@ -1228,6 +1254,13 @@ const API = {
                             : Promise.resolve(null),
   requestAnalyst: symbol => HOSTED ? rpc("request_analyst", { p_symbol: symbol })
                                    : Promise.resolve(null),
+
+  /* Insider and congressional filings for one ticker. The window is the
+     widest get_trades allows, because a single company files far less often
+     than the whole market does. */
+  trades: symbol => HOSTED
+    ? rpc("get_trades", { p_limit: 40, p_offset: 0, p_days: 90, p_symbols: [symbol] })
+    : Promise.resolve(null),
 };
 
 /* ===========================================================================
@@ -1383,6 +1416,8 @@ const HELP = {
   pe:        "Price to earnings from Financial Modeling Prep (the same source as the P/E in the price panel). The solid line is the company's quarterly P/E; when history has not been fetched yet, the chart follows the share price against today's trailing P/E. The dashed line is the current average for this company's industry — a reference level, not a series.",
   season:    "Every month's total return, one row per year. Green is a month that finished higher than it started. The bottom rows average the column, which is what people mean by a seasonal pattern.",
   news:      "Recent stories mentioning this company or its industry, newest first.",
+  insiders:  "Form 4 filings by officers, directors and 10% owners of this company over the last 90 days. Only filings worth more than $1M, or more than 1% of shares outstanding, are listed -- the routine grants and tax withholdings below that line would bury the rest.",
+  congress:  "Trades in this ticker disclosed by members of Congress under the STOCK Act, over the last 90 days. Members report a band rather than a figure, and may file up to 45 days after the trade, so the disclosure date is not the trade date.",
   houses:    "The most recent action from each institution covering the company. One row per firm, newest first, so a bank that reiterates weekly does not crowd out the rest.",
   drawdown:  "Percent below the index's last all-time high (the running peak in available price history). The pink line sits at 0% on new highs and falls as the index pulls back. Pastel green bands behind the line mark drawdown depths that were reached or exceeded on about 1%, 5%, 10%, 25%, and 50% of trading days over the last 25 years (or as much history as is cached): higher probability bands are lighter green, rarer deep drawdowns are darker. The left axis labels those probabilities; the right axis shows drawdown percent.",
 };
@@ -1483,7 +1518,28 @@ function linePlot(host, series, opts){
 
   const lo = Math.min(...all), hi = Math.max(...all);
   const pad = (hi - lo) * 0.08 || 1;
-  const y0 = opts.zero ? Math.min(0, lo - pad) : lo - pad, y1 = hi + pad;
+  let y0 = opts.zero ? Math.min(0, lo - pad) : lo - pad, y1 = hi + pad;
+
+  /* A reference level outside the series' own range used to be drawn off the
+     top of the plot and simply never appear: an industry P/E of 25 against a
+     company trading at 17 left the chart with no industry line on it at all.
+
+     The axis stretches to take the reference in, so the line still sits at
+     its true height above the series -- which is the whole point of drawing
+     it. Only when that stretch would squash the series into less than half
+     the plot do the references get a second axis of their own -- the same
+     range compressed to fit, labelled on the right in the reference's own
+     colour so the two scales cannot be read as one. */
+  const refVals = (opts.refs || []).map(r => r.v).filter(Number.isFinite);
+  let refY = null;                        // null = references share the axis
+  if (refVals.some(v => v < y0 || v > y1)) {
+    const m0 = Math.min(y0, ...refVals), m1 = Math.max(y1, ...refVals);
+    const mPad = (m1 - m0) * 0.06 || 1;
+    const r0 = m0 - mPad, r1 = m1 + mPad;
+    if ((y1 - y0) / (r1 - r0) >= 0.5) { y0 = r0; y1 = r1; }
+    else refY = v => mt + ph - (v - r0) / (r1 - r0) * ph;
+  }
+
   const n = Math.max(...series.map(s => s.pts.length));
   const x = i => ml + (n < 2 ? pw / 2 : (i / (n - 1)) * pw);
   const y = v => mt + ph - (v - y0) / (y1 - y0) * ph;
@@ -1514,9 +1570,20 @@ function linePlot(host, series, opts){
       stroke-width="1.6" stroke-linejoin="round"/>` : "";
   }).join("");
 
-  const refs = (opts.refs || []).map(r => `
-    <line x1="${ml}" x2="${W - mr}" y1="${y(r.v).toFixed(1)}" y2="${y(r.v).toFixed(1)}"
-      stroke="${r.colour}" stroke-width="1.4" stroke-dasharray="5 4"/>`).join("");
+  const refs = (opts.refs || []).map(r => {
+    const ry = (refY || y)(r.v);
+    // On its own scale the line's height no longer reads off the axis beside
+    // it, so it carries its own figure there -- nudged clear when it lands on
+    // one of that axis's own labels.
+    const clash = ticks.some(t => Math.abs(y(t) - ry) < 9);
+    const ly = ry + 3.5 + (clash ? (ry > mt + ph / 2 ? 10 : -10) : 0);
+    return `
+    <line x1="${ml}" x2="${W - mr}" y1="${ry.toFixed(1)}" y2="${ry.toFixed(1)}"
+      stroke="${r.colour}" stroke-width="1.4" stroke-dasharray="5 4"/>` +
+    (refY ? `
+    <text x="${yLabelX}" y="${ly.toFixed(1)}" class="ax"
+      text-anchor="${yAnchor}" style="fill:${r.colour}">${opts.fmtY(r.v)}</text>` : "");
+  }).join("");
 
   const labs = series[0].pts;
   const labelN = opts.xLabels || 5;
@@ -2156,55 +2223,157 @@ function consensusSummary(spot){
     </div>`;
 }
 
-/** The ratings belong beside the consensus they add up to. On one scroll that
-    is the same section as the news; behind tabs it is the chart tab, under
-    the price panel that carries the consensus.
+/* ---- Ownership ----------------------------------------------------------
+   Who holds the stock and who is paid to have an opinion on it: the Form 4
+   filings, the congressional disclosures, and the houses covering it. The
+   trades come from the same get_trades the portfolio page reads, narrowed to
+   this one symbol. */
+const OWN = { symbol: null, insiders: null, congress: null, loading: false };
 
-    The card is moved rather than drawn twice, so there is only ever one of
-    it, and moved rather than restyled, because the two homes are different
-    tabs and no rule can put an element in another panel. */
-/* The ratings card used to migrate between the news tab and the chart tab by
-   breakpoint. It now lives in its dialog at every width, so there is nothing
-   to place -- kept as a no-op because the market-only layout still calls it. */
-function placeAnalyst(){}
+/** The panel bodies. Built as one string because all three renders drop it
+    into a tab panel and nothing else varies between them. */
+function ownershipMarkup(){
+  return `
+    <div class="pairrow">
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>Insider transactions ${helpIcon("insiders")}</h2>
+          <p>Form 4 filings, last 90 days</p>
+        </div></div>
+        <div class="scroll own-scroll" id="own-insiders"><div class="note">
+          <span class="load"></span> &nbsp;Loading insider filings…</div></div>
+      </section>
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>Congress disclosures ${helpIcon("congress")}</h2>
+          <p>Periodic transaction reports, last 90 days</p>
+        </div></div>
+        <div class="scroll own-scroll" id="own-congress"><div class="note">
+          <span class="load"></span> &nbsp;Loading disclosures…</div></div>
+      </section>
+    </div>
 
-MOBILE_MQ.addEventListener("change", placeAnalyst);
+    <div class="acol" id="analyst"><section class="card panel"><div class="note">
+      <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>`;
+}
 
-/* ---- the analyst ratings dialog -----------------------------------------
-   Opened from the "N analysts" count beside the Wall Street consensus. The
+const ownSide = side => {
+  const raw = String(side || "").trim(), l = raw.toLowerCase();
+  if (/^(buy|purchase|receive)/.test(l) || l.includes("purchase") || l.includes("receive"))
+    return `<span class="oside buy">Buy</span>`;
+  if (/^(sell|sale)/.test(l) || l.includes("sale") || l.includes("sell") || l.includes("exchange"))
+    return `<span class="oside sell">Sell</span>`;
+  return `<span class="oside">${esc(raw || "—")}</span>`;
+};
+
+const ownShares = v => v == null ? "—" : compact(Math.abs(+v));
+
+/** Congressional amounts are filed as a band ("$1,001 - $15,000"), not a
+    figure, so they are shortened rather than formatted as a number. */
+const ownBand = raw => {
+  if (!raw) return "—";
+  const nums = String(raw).match(/[\d,]+/g);
+  if (!nums || !nums.length) return String(raw);
+  const short = n => {
+    const v = +n.replace(/,/g, "");
+    return v >= 1e6 ? `${(v / 1e6).toFixed(v % 1e6 ? 1 : 0)}M`
+         : v >= 1e3 ? `${Math.round(v / 1e3)}K` : String(v);
+  };
+  return nums.length > 1 ? `${short(nums[0])}–${short(nums[1])}` : short(nums[0]);
+};
+
+const ownRole = chamber => {
+  const c = String(chamber || "").toLowerCase();
+  if (c.includes("senate")) return "Senator";
+  if (c.includes("house")) return "Representative";
+  return "Member";
+};
+
+/** A person and what they are, stacked, so a long title does not push the
+    figures off the card. */
+const ownWho = (who, what) => `<span class="owho"><b>${esc(who || "—")}</b>${
+  what ? `<em>${esc(what)}</em>` : ""}</span>`;
+
+function drawOwnership(){
+  const ins = document.getElementById("own-insiders");
+  const con = document.getElementById("own-congress");
+  if (!ins || !con) return;
+  const sym = (S.company && S.company.ticker) || "this ticker";
+
+  if (OWN.insiders === null || OWN.congress === null) return;   // still loading
+
+  ins.innerHTML = OWN.insiders.length
+    ? `<table class="otab">
+        <thead><tr><th>Filed</th><th>Insider</th><th>Side</th>
+          <th class="num col-shares">Shares</th><th class="num">Value</th></tr></thead>
+        <tbody>${OWN.insiders.map(r => `<tr>
+          <td>${esc(shortDate(r.filed))}</td>
+          <td>${ownWho(r.person, r.title)}</td>
+          <td>${ownSide(r.side)}</td>
+          <td class="num col-shares">${esc(ownShares(r.shares))}</td>
+          <td class="num">${esc(r.amount == null ? "—" : money(Math.abs(r.amount), 1))}</td>
+        </tr>`).join("")}</tbody></table>`
+    : `<div class="note">No insider filing over $1M — or over 1% of shares
+       outstanding — for ${esc(sym)} in the last 90 days.</div>`;
+
+  con.innerHTML = OWN.congress.length
+    ? `<table class="otab">
+        <thead><tr><th>Disclosed</th><th>Member</th><th>Side</th>
+          <th class="num">Amount</th></tr></thead>
+        <tbody>${OWN.congress.map(r => `<tr>
+          <td>${esc(shortDate(r.disclosed))}</td>
+          <td>${ownWho(r.person, ownRole(r.chamber))}</td>
+          <td>${ownSide(r.side)}</td>
+          <td class="num" title="${esc(r.amount || "")}">${esc(ownBand(r.amount))}</td>
+        </tr>`).join("")}</tbody></table>`
+    : `<div class="note">No congressional disclosure naming ${esc(sym)} in the
+       last 90 days.</div>`;
+  wireHelp();
+}
+
+function ownState(msg){
+  ["own-insiders", "own-congress"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = `<div class="note">${esc(msg)}</div>`;
+  });
+}
+
+/** Fetched when the tab is first opened, and once per company. */
+async function loadOwnershipTrades(){
+  const sym = S.company && S.company.ticker;
+  if (!sym || !document.getElementById("own-insiders")) return;
+  if (OWN.symbol === sym && !OWN.loading) return drawOwnership();
+  if (OWN.loading) return;
+  OWN.symbol = sym;
+  OWN.loading = true;
+  OWN.insiders = OWN.congress = null;
+  try {
+    const d = await API.trades(sym);
+    if (OWN.symbol !== sym) return;              // another company was opened
+    OWN.insiders = (d && d.insiders) || [];
+    OWN.congress = (d && d.congress) || [];
+    drawOwnership();
+  } catch {
+    if (OWN.symbol !== sym) return;
+    OWN.insiders = OWN.congress = null;
+    ownState(`Insider and congressional filings for ${sym} are unavailable.`);
+  } finally {
+    OWN.loading = false;
+  }
+}
+
+/* The "N analysts" count beside the Wall Street consensus used to open a
+   dialog. The ratings have a tab of their own now, so it goes there. The
    count is rebuilt every time the price panel redraws, so the click is bound
    once on the document rather than to a button that keeps being replaced. */
-function openAnalystModal(){
-  const el = document.getElementById("amodal");
-  if (!el) return;
-  el.hidden = false;
-  document.body.style.overflow = "hidden";
-  // The ratings may never have been fetched: the tab that used to trigger the
-  // load is gone, so the dialog asks for them itself.
-  try { loadAnalyst(); } catch {}
-  const x = document.getElementById("amodal-x");
-  if (x) x.focus();
-}
-
-function closeAnalystModal(){
-  const el = document.getElementById("amodal");
-  if (!el || el.hidden) return;
-  el.hidden = true;
-  document.body.style.overflow = "";
-}
-
 addEventListener("click", e => {
   const t = e.target;
-  if (!t || !t.closest) return;
-  if (t.closest("[data-analysts]")) { e.preventDefault(); openAnalystModal(); return; }
-  if (t.closest("#amodal-x")) { closeAnalystModal(); return; }
-  // Clicking the backdrop, but not the card sitting on it.
-  const back = t.closest("#amodal");
-  if (back && !t.closest(".amodal-card")) closeAnalystModal();
-});
-
-addEventListener("keydown", e => {
-  if (e.key === "Escape") closeAnalystModal();
+  if (!t || !t.closest || !t.closest("[data-analysts]")) return;
+  e.preventDefault();
+  selectTab("ownership");
+  const host = document.getElementById("analyst");
+  if (host) requestAnimationFrame(() =>
+    host.scrollIntoView({ behavior: "smooth", block: "start" }));
 });
 
 /** Where each house covering the company stands now: one row per firm, its
@@ -2277,22 +2446,17 @@ function marketOnly(ticker, company, why){
       <div class="unlockrow">${unlockReportBtn(c.ticker || ticker)}</div>
     </div>
 
-    <nav class="mtabs" id="mtabs" role="tablist" aria-label="Report sections">
-      <button type="button" role="tab" data-mtab="chart" aria-selected="true">Chart</button>
-      <button type="button" role="tab" data-mtab="analyst" aria-selected="false">Analyst Ratings</button>
-    </nav>
+    ${tabBar(["overview", "ownership"])}
 
-    <div class="mtab-panel on" data-mtab="chart" id="mtab-chart" role="tabpanel">
+    <div class="mtab-panel on" data-mtab="overview" id="mtab-overview" role="tabpanel">
       <div class="pricerow" id="pricerow" hidden></div>
       <div class="card note" id="nofilings" style="margin:12px 14px;border-radius:var(--r)">
         <b>No filed financials for ${esc(ticker)}.</b><br>${esc(why)}
       </div>
     </div>
 
-    <div class="mtab-panel" data-mtab="analyst" id="mtab-analyst" role="tabpanel">
-      <h3 class="grouphead">Analyst ratings</h3>
-      <div class="acol" id="analyst"><section class="card panel"><div class="note">
-        <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>
+    <div class="mtab-panel" data-mtab="ownership" id="mtab-ownership" role="tabpanel">
+      ${ownershipMarkup()}
     </div>`;
 
   document.body.classList.add("mreport");
@@ -2308,7 +2472,8 @@ function marketOnly(ticker, company, why){
   wireStar();
   loadPrices();
   loadAnalyst();          // coverage exists even where filings do not
-  wireMobileTabs();
+  wireHelp();
+  wireTabs();
   hydratePageLogos();
 }
 
@@ -2507,6 +2672,29 @@ function openIndexSymbol(ticker, meta, opts){
   const holdTitle = sector ? `Holdings & industry (S&P 500 · ${sector})`
     : c.ticker === "IXIC" ? "Holdings & industry (Nasdaq-100)" : "Holdings & industry";
 
+  // The book the index holds -- rendered inside the Ownership tab, but built
+  // here so the tab panel stays one line.
+  const idxHoldMarkup = `
+    <p class="note" id="idx-hold-note" style="text-align:left;padding:0 0 10px;margin:0">
+      ${sector
+        ? `S&P 500 members of the ${esc(sector)} sector, weights renormalised within
+           the sector — the same book this fund tracks, stated from data already cached.`
+        : c.ticker === "IXIC"
+        ? "Price is the NASDAQ Composite; holdings below are the Nasdaq-100 (the investable large-cap book)."
+        : c.ticker === "DJI"
+          ? "Dow weights are price-weighted (not market-cap)."
+          : "Weights follow the index methodology (float market-cap for the S&P 500)."}
+    </p>
+    <div class="idx-split" id="idx-split">
+      <div class="idx-hold" id="idx-holdings">
+        <div class="note"><span class="load"></span> &nbsp;Loading holdings…</div>
+      </div>
+      <div class="idx-pie-col" id="idx-industry">
+        <div class="note"><span class="load"></span> &nbsp;Loading industries…</div>
+      </div>
+    </div>
+  `;
+
   main.innerHTML = `
     <div class="ident">
       <div class="ident-with-logo">
@@ -2527,27 +2715,10 @@ function openIndexSymbol(ticker, meta, opts){
       </div>
     </div>
 
-    <div class="pricerow" id="pricerow" hidden></div>
+    ${tabBar(["overview", "ownership"])}
 
-    <h3 class="grouphead" id="idx-hold-title">${esc(holdTitle)}</h3>
-    <p class="note" id="idx-hold-note" style="text-align:left;padding:0 0 10px;margin:0">
-      ${sector
-        ? `S&P 500 members of the ${esc(sector)} sector, weights renormalised within
-           the sector — the same book this fund tracks, stated from data already cached.`
-        : c.ticker === "IXIC"
-        ? "Price is the NASDAQ Composite; holdings below are the Nasdaq-100 (the investable large-cap book)."
-        : c.ticker === "DJI"
-          ? "Dow weights are price-weighted (not market-cap)."
-          : "Weights follow the index methodology (float market-cap for the S&P 500)."}
-    </p>
-    <div class="idx-split" id="idx-split">
-      <div class="idx-hold" id="idx-holdings">
-        <div class="note"><span class="load"></span> &nbsp;Loading holdings…</div>
-      </div>
-      <div class="idx-pie-col" id="idx-industry">
-        <div class="note"><span class="load"></span> &nbsp;Loading industries…</div>
-      </div>
-    </div>
+    <div class="mtab-panel on" data-mtab="overview" id="mtab-overview" role="tabpanel">
+    <div class="pricerow" id="pricerow" hidden></div>
 
     <div class="pairrow idx-valrow${sector ? " idx-solo" : ""}">
       ${sector ? "" : `<section class="card panel">
@@ -2595,7 +2766,13 @@ function openIndexSymbol(ticker, meta, opts){
         <h2>Monthly returns ${helpIcon("season")}</h2>
       </div></div>
       <div class="swrap" id="season-grid"><div class="note"><span class="load"></span> &nbsp;Loading seasonality…</div></div>
-    </section>`;
+    </section>
+    </div>
+
+    <div class="mtab-panel" data-mtab="ownership" id="mtab-ownership" role="tabpanel">
+    <h3 class="grouphead" id="idx-hold-title">${esc(holdTitle)}</h3>
+    ${idxHoldMarkup}
+    </div>`;
 
   document.body.classList.add("mreport");
   document.body.classList.remove("chart-fs-open", "sankey-fs-open");
@@ -2604,6 +2781,7 @@ function openIndexSymbol(ticker, meta, opts){
   PRICE.flipped = false; PRICE.descOpen = false;
   wireStar();
   wireHelp();
+  wireTabs();
   loadPrices();
   loadIndexHoldings(c.ticker, sector);
   if (sector) loadEtfSeasonality(c.ticker);
@@ -3975,23 +4153,15 @@ function render(){
         </div>
       </div>
       <div class="unlockrow">${unlockReportBtn(c.ticker)}</div>
-      <div class="period">
-        <div class="qpick" id="qpick"></div>
-        <div class="small">
-          ${q.start ? longDate(q.start) + " – " : ""}${longDate(q.end)} ·
-          <a href="${filingUrl}" target="_blank" rel="noopener">filing ↗</a>
-        </div>
-      </div>
     </div>
 
-    <nav class="mtabs" id="mtabs" role="tablist" aria-label="Report sections">
-      <button type="button" role="tab" data-mtab="chart" aria-selected="true">Chart</button>
-      <button type="button" role="tab" data-mtab="filing" aria-selected="false">Filing</button>
-      <button type="button" role="tab" data-mtab="market" aria-selected="false">Market</button>
-      <button type="button" role="tab" data-mtab="custom" aria-selected="false">Custom</button>
-    </nav>
+    ${tabBar(["overview", "financials", "industry", "ownership"])}
 
-    <div class="mtab-panel on" data-mtab="chart" id="mtab-chart" role="tabpanel">
+    <!-- Overview: what the market is doing with the company right now --
+         the price, the quote panel that carries the profile and the Wall
+         Street consensus, the news, and the comparisons that put the price
+         in context. Nothing here comes from a filing. -->
+    <div class="mtab-panel on" data-mtab="overview" id="mtab-overview" role="tabpanel">
       <div class="pricerow" id="pricerow" hidden>
         <section class="card pricechart">
           <div class="phead"><div>
@@ -4013,94 +4183,19 @@ function render(){
         </section>
         <aside class="card pricestats" id="price-stats"></aside>
       </div>
-    </div>
 
-    <div class="mtab-panel" data-mtab="filing" id="mtab-filing" role="tabpanel">
-      <div class="kpis" id="kpis"></div>
-
-      <section class="card panel" id="sankey-panel">
-        <div class="phead">
-          <div>
-            <h2>How the quarter's revenue became profit ${helpIcon("sankey")}</h2>
-          </div>
-          <div class="phead-tools">
-            <div class="seg" id="mix-cuts" role="group" aria-label="Revenue breakdown"></div>
-            <button type="button" class="chart-fs-btn" id="sankey-fs" aria-label="Expand diagram"
-              title="Full screen">
-              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"
-                stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-                <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div class="scroll" id="sankey"></div>
-      </section>
-
-      <div class="grid2">
-        <!-- The news feed was a tab of its own, below everything. It reads
-             better beside the quarter it is reporting on, in the slot the
-             revenue-mix donut used to hold. -->
-        <section class="card panel" id="conews-panel">
-          <div class="phead"><div>
-            <h2>News ${helpIcon("news")}</h2>
-            <p id="news-scope">Recent stories.</p>
-          </div></div>
-          <div class="newswrap" id="co-news"><div class="note">Loading news…</div></div>
-        </section>
-
-        <section class="card panel">
-          <div class="phead"><div>
-            <h2>Revenue by quarter ${helpIcon("revTrend")}</h2>
-          </div></div>
-          <div class="scroll" id="revtrend"></div>
-        </section>
-      </div>
-
-      <div class="grid2">
-        <section class="card panel">
-          <div class="phead"><div>
-            <h2>Margins ${helpIcon("margins")}</h2>
-          </div></div>
-          <div class="scroll" id="margins"></div>
-          <div class="legend" id="margins-legend"></div>
-        </section>
-
-        <section class="card panel">
-          <div class="phead"><div>
-            <h2>Where the revenue went ${helpIcon("costStack")}</h2>
-          </div></div>
-          <div class="scroll" id="coststack"></div>
-          <div class="legend" id="coststack-legend"></div>
-        </section>
-      </div>
-
-      <section class="card panel">
+      <!-- The news feed used to sit beside the quarter it reports on. It is
+           the plainest answer to "what is happening with this company", so it
+           reads better directly under the price than three sections down. -->
+      <section class="card panel" id="conews-panel">
         <div class="phead"><div>
-          <h2>Income statement ${helpIcon("statement")}</h2>
+          <h2>News ${helpIcon("news")}</h2>
+          <p id="news-scope">Recent stories.</p>
         </div></div>
-        <div class="scroll" id="istmt"></div>
+        <div class="newswrap" id="co-news"><div class="note">Loading news…</div></div>
       </section>
-    </div>
 
-    <div class="mtab-panel" data-mtab="market" id="mtab-market" role="tabpanel">
       <div id="extras" hidden>
-        <h3 class="grouphead">Industry benchmark</h3>
-        <div class="pairrow">
-          <section class="card panel">
-            <div class="phead"><div>
-              <h2>Price vs sector ${helpIcon("bench")}</h2>
-            </div></div>
-            <div class="lwrap" id="bench-chart"></div>
-          </section>
-          <section class="card panel">
-            <div class="phead"><div>
-              <h2>P/E vs industry ${helpIcon("pe")}</h2>
-            </div></div>
-            <div class="lwrap" id="pe-chart"></div>
-          </section>
-        </div>
-
         <div class="pairrow">
           <section class="card panel">
             <div class="phead">
@@ -4152,22 +4247,73 @@ function render(){
       </div>
     </div>
 
-    <!-- Analyst coverage is no longer a section of its own. It keeps the same
-         #analyst host -- so loadAnalyst and drawAnalyst are untouched -- but
-         that host now lives in a dialog opened from the "N analysts" count in
-         the Wall Street consensus block, which is where a reader asking who
-         the analysts are actually is. -->
-    <div class="amodal" id="amodal" role="dialog" aria-modal="true"
-         aria-label="Analyst ratings" hidden>
-      <div class="amodal-card">
-        <button type="button" class="amodal-x" id="amodal-x"
-                aria-label="Close">&times;</button>
-        <div class="acol" id="analyst"><section class="card panel"><div class="note">
-          <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>
+    <!-- Financials: everything read out of the filings, and the quarter
+         picker that chooses which filing. The picker was in the page header,
+         where it sat over a price chart it does not change. -->
+    <div class="mtab-panel" data-mtab="financials" id="mtab-financials" role="tabpanel">
+      <div class="tabctl">
+        <div class="period">
+          <div class="qpick" id="qpick"></div>
+          <div class="small">
+            ${q.start ? longDate(q.start) + " – " : ""}${longDate(q.end)} ·
+            <a href="${filingUrl}" target="_blank" rel="noopener">filing ↗</a>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <div class="mtab-panel" data-mtab="custom" id="mtab-custom" role="tabpanel">
+      <div class="kpis" id="kpis"></div>
+
+      <section class="card panel" id="sankey-panel">
+        <div class="phead">
+          <div>
+            <h2>How the quarter's revenue became profit ${helpIcon("sankey")}</h2>
+          </div>
+          <div class="phead-tools">
+            <div class="seg" id="mix-cuts" role="group" aria-label="Revenue breakdown"></div>
+            <button type="button" class="chart-fs-btn" id="sankey-fs" aria-label="Expand diagram"
+              title="Full screen">
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"
+                stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="scroll" id="sankey"></div>
+      </section>
+
+      <div class="grid2">
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>Revenue by quarter ${helpIcon("revTrend")}</h2>
+          </div></div>
+          <div class="scroll" id="revtrend"></div>
+        </section>
+
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>Margins ${helpIcon("margins")}</h2>
+          </div></div>
+          <div class="scroll" id="margins"></div>
+          <div class="legend" id="margins-legend"></div>
+        </section>
+      </div>
+
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>Where the revenue went ${helpIcon("costStack")}</h2>
+        </div></div>
+        <div class="scroll" id="coststack"></div>
+        <div class="legend" id="coststack-legend"></div>
+      </section>
+
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>Income statement ${helpIcon("statement")}</h2>
+        </div></div>
+        <div class="scroll" id="istmt"></div>
+      </section>
+
       <section class="card panel" id="builder">
         <div class="phead"><div>
           <h2>Build your own chart ${helpIcon("builder")}</h2>
@@ -4210,6 +4356,37 @@ function render(){
         <div class="legend" id="b-legend"></div>
       </section>
     </div>
+
+    <!-- Industry: the two charts that read this company against the companies
+         it competes with. They were the head of the Overview tab, under
+         everything the company says about itself. -->
+    <div class="mtab-panel" data-mtab="industry" id="mtab-industry" role="tabpanel">
+      <div id="industry-extras" hidden>
+        <h3 class="grouphead">Industry benchmark</h3>
+        <div class="pairrow">
+          <section class="card panel">
+            <div class="phead"><div>
+              <h2>Price vs sector ${helpIcon("bench")}</h2>
+            </div></div>
+            <div class="lwrap" id="bench-chart"></div>
+          </section>
+          <section class="card panel">
+            <div class="phead"><div>
+              <h2>P/E vs industry ${helpIcon("pe")}</h2>
+            </div></div>
+            <div class="lwrap" id="pe-chart"></div>
+          </section>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Ownership: who holds the stock and who is paid to have an opinion on
+         it. Coverage used to be a dialog behind the consensus count, which is
+         a hard place to find a table of twenty banks. -->
+    <div class="mtab-panel" data-mtab="ownership" id="mtab-ownership" role="tabpanel">
+      ${ownershipMarkup()}
+    </div>
   `;
 
   document.getElementById("qpick").append(
@@ -4229,7 +4406,7 @@ function render(){
   renderCostStack();
   renderStatement();
   wireBuilder();
-  wireMobileTabs();
+  wireTabs();
   hydratePageLogos();
 }
 
@@ -5075,10 +5252,16 @@ function renderCostStack(){
     return;
   }
 
-  const W = 560, H = 300, ml = 46, mr = 12, mt = 16, mb = 46;
+  // The card is full width on a desktop now that the filings have a tab of
+  // their own, so the plot is drawn at the width it is shown at: stretching
+  // the old half-column geometry to 1400px put 750px-tall bars on screen.
+  // A phone is still one narrow column, and gets the narrow geometry -- the
+  // wide one scales down to a third and takes its axis labels with it.
+  const wide = !MOBILE_MQ.matches;
+  const W = wide ? 1180 : 560, H = wide ? 340 : 300, ml = 46, mr = 12, mt = 16, mb = 46;
   const pw = W - ml - mr, ph = H - mt - mb;
   const y = v => mt + ph - (v/100)*ph;
-  const bw = Math.min(34, pw/qs.length - 7);
+  const bw = Math.min(wide ? 54 : 34, pw/qs.length - (wide ? 10 : 7));
   const parts = [];
 
   for (let t = 0; t <= 100; t += 25)
@@ -5266,56 +5449,74 @@ const RANGES = [["1M", 21], ["3M", 63], ["6M", 126], ["1Y", 252], ["5Y", 1260], 
 const RANGE_INTERVAL = { 21: "daily", 63: "daily", 126: "daily", 252: "daily",
                          1260: "weekly", 0: "monthly" };
 
-/** Sticky tab offset under the shared nav (and tape, when present). */
-function syncMtabOffset(){
-  const nav = document.querySelector(".nav");
-  const strip = document.querySelector(".nav-strip");
-  const h = (nav ? nav.offsetHeight : 0) + (strip ? strip.offsetHeight : 0);
-  document.documentElement.style.setProperty("--mtab-top", Math.max(48, h) + "px");
+/** The three sections of a ticker page, in the order they are read: what the
+    market is doing (Overview), what the filings say (Financials), and who
+    holds or covers the stock (Ownership). A view that cannot fill one --
+    an index has no income statement -- simply does not list it. */
+const TAB_LABEL = {
+  overview:   "Overview",
+  financials: "Financials",
+  industry:   "Industry",
+  ownership:  "Ownership",
+};
+
+const TABS = { active: "overview" };
+
+/** The tab strip. Every render builds its own, so the set of tabs is a
+    property of the view rather than something the markup repeats. */
+function tabBar(ids){
+  TABS.active = ids[0];
+  return `<nav class="mtabs" id="mtabs" role="tablist" aria-label="Sections">
+    ${ids.map((id, i) => `<button type="button" role="tab" data-mtab="${id}"
+      id="mtab-btn-${id}" aria-controls="mtab-${id}"
+      aria-selected="${i === 0}">${TAB_LABEL[id] || id}</button>`).join("")}
+  </nav>`;
 }
 
-/** Mobile section tabs — desktop keeps the long scroll; phones switch panels. */
-function wireMobileTabs(){
+/** Show one tab. A chart drawn into a display:none panel measures zero, so
+    every panel redraws what it owns on the way in rather than at load. */
+function selectTab(id, opts){
   const bar = document.getElementById("mtabs");
   if (!bar) return;
-  syncMtabOffset();
-  if (!wireMobileTabs._ro && typeof ResizeObserver !== "undefined") {
-    wireMobileTabs._ro = new ResizeObserver(syncMtabOffset);
-    const nav = document.querySelector(".nav");
-    const strip = document.querySelector(".nav-strip");
-    if (nav) wireMobileTabs._ro.observe(nav);
-    if (strip) wireMobileTabs._ro.observe(strip);
-  }
-  addEventListener("resize", syncMtabOffset, { passive: true });
-
-  const select = id => {
-    bar.querySelectorAll("[data-mtab]").forEach(b => {
-      b.setAttribute("aria-selected", b.dataset.mtab === id ? "true" : "false");
-    });
-    document.querySelectorAll(".mtab-panel").forEach(p => {
-      p.classList.toggle("on", p.dataset.mtab === id);
-    });
-    document.body.classList.toggle("mtab-chart", id === "chart");
-    if (id === "chart" && PRICE.bars.length) drawCandles();
-    // Charts in a display:none panel get a zero box; redraw once revealed.
-    if (id === "filing") {
-      renderSankey(); renderMix(); renderRevTrend();
-      renderMargins(); renderCostStack();
-    }
-    if (id === "market") marketPanels();
-    // The report keeps coverage in its News tab; the market-only view, which
-    // has no news to keep it company, gives it a tab of its own.
-    // Coverage sits in the chart tab on a phone, beside the news on a desktop,
-    // and in a tab of its own where there are no filings to report.
-    if (id === "chart" || id === "news" || id === "analyst") loadAnalyst();
-    if (id === "custom") { try { renderBuilder(); } catch {} }
-    scrollTo({ top: 0, behavior: "auto" });
-  };
+  const btn = bar.querySelector(`[data-mtab="${id}"]`);
+  if (!btn) return;                       // this view has no such tab
+  TABS.active = id;
   bar.querySelectorAll("[data-mtab]").forEach(b => {
-    b.onclick = () => select(b.dataset.mtab);
+    b.setAttribute("aria-selected", b.dataset.mtab === id ? "true" : "false");
   });
-  document.body.classList.toggle("mtab-chart",
-    !!document.querySelector('#mtab-chart.on, .mtab-panel.on[data-mtab="chart"]'));
+  document.querySelectorAll(".mtab-panel").forEach(p => {
+    p.classList.toggle("on", p.dataset.mtab === id);
+  });
+  document.body.dataset.tab = id;
+
+  if (id === "overview") {
+    if (PRICE.bars.length) drawCandles();
+    marketPanels();
+  }
+  if (id === "financials") {
+    renderSankey(); renderMix(); renderRevTrend();
+    renderMargins(); renderCostStack();
+    try { renderBuilder(); } catch {}
+  }
+  if (id === "industry") marketPanels();
+  if (id === "ownership") {
+    loadAnalyst();
+    loadOwnershipTrades();
+    // The holdings scrollport is sized from measured row heights, which are
+    // zero while the panel is hidden.
+    if (document.getElementById("idx-holdings")) requestAnimationFrame(fitHoldingsRows);
+  }
+  if (!opts || opts.scroll !== false) scrollTo({ top: 0, behavior: "auto" });
+}
+
+/** Section tabs, at every width. */
+function wireTabs(){
+  const bar = document.getElementById("mtabs");
+  if (!bar) return;
+  bar.querySelectorAll("[data-mtab]").forEach(b => {
+    b.onclick = () => selectTab(b.dataset.mtab);
+  });
+  document.body.dataset.tab = TABS.active;
 }
 
 /** Pinch only — one finger always scrolls the page. */
@@ -5748,7 +5949,12 @@ function paintPrices(){
 function marketPanels(){
   if (!EXTRA.data || !(PRICE.bars || []).length) return;
   if (!document.getElementById("bench-chart")) return;
-  document.getElementById("extras").hidden = false;
+  // The panels this fills are split across two tabs now; both wait on the
+  // same fetch, so both are revealed by it.
+  ["extras", "industry-extras"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.hidden = false;
+  });
   drawBenchmark();
   drawPE();
   drawCompanyDrawdown();
