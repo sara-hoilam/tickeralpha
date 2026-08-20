@@ -1,7 +1,7 @@
 # Render blueprint — the ingest worker.
 #
 # Dashboard → Blueprints → New Blueprint Instance → pick this repo.
-# Then set the two secret values in the service's Environment tab.
+# Then set the three secret values in the service's Environment tab.
 #
 # IMPORTANT: numInstances stays at 1. The SEC rate limit is per IP and the
 # limiter lives inside this process, so a second instance would double the
@@ -28,6 +28,14 @@ services:
         value: https://etembhwwbqswzcepfhxp.supabase.co
       # Secret. Paste in the dashboard; never commit it.
       - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Paid secret, same rule. Everything the worker knows about prices,
+      # quotes, movers, earnings and 13F holders comes through this key --
+      # without it market.configured() is false and those refreshes are all
+      # skipped, while the SEC filings carry on regardless. It was reachable
+      # through the environment but never declared here, so a blueprint deploy
+      # came up with the filings and none of the market data.
+      - key: FMP_API_KEY
         sync: false
       - key: SEC_MAX_RPS
         value: "8"
