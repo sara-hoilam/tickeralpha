@@ -768,9 +768,14 @@ body.mreport .mtab-panel.on{display:block}
     gap:0;background:var(--card);
     padding:0 8px;margin-bottom:0;
   }
-  /* Four tabs have to fit 390px without the last one hanging off the edge
-     where nobody looks for it. */
   .mtabs button{padding:11px 10px 9px;font-size:12.5px}
+  /* Five tabs do not fit 390px, so the strip scrolls -- and a row of tabs
+     that simply stops at the bezel reads as the whole set. The fade says
+     there is more of it, and lifts once there is not. */
+  .mtabs.more{
+    -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 26px),transparent);
+    mask-image:linear-gradient(to right,#000 calc(100% - 26px),transparent);
+  }
 
   /* The picker row is the whole width of a phone, so it needs no gutter of
      its own beyond the page padding. */
@@ -959,11 +964,27 @@ body.mreport .mtab-panel.on{display:block}
 .act{font-size:11.5px;color:var(--ink-3);text-transform:capitalize}
 .act.up{color:var(--up)} .act.down{color:var(--down)}
 
+/* ---- earnings ------------------------------------------------------------ */
+/* Four tiles that wrap rather than a fixed six-column grid: this row carries
+   the next date and the record going into it, not a filing's line items. */
+.erow{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:12px;margin-bottom:20px}
+.erow .kpi .v{font-size:19px}
+.erow .kpi .d{flex-wrap:wrap}
+@media (max-width:720px){
+  .erow{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 2px}
+  .erow .kpi{padding:12px}
+  .erow .kpi .v{font-size:16px}
+}
+
 /* ---- ownership: insider and congressional filings ------------------------ */
 /* Two filings tables that sit beside each other, so they cap at the same
    height and scroll rather than dragging the tab down the page. */
 .own-scroll{max-height:340px;overflow-y:auto;overflow-x:auto;padding:0;
   scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
+/* The holders table stands alone across the card rather than sharing a row,
+   so it can show more of itself before it starts scrolling. */
+#own-holders{max-height:420px}
 .otab{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
 .otab thead{position:relative;z-index:2}
 .otab th{position:sticky;top:0;background:var(--card);z-index:2;text-align:left;
@@ -973,7 +994,9 @@ body.mreport .mtab-panel.on{display:block}
 .otab td{padding:9px 14px;border-bottom:1px solid var(--rule-2);vertical-align:top;
   text-align:left}
 .otab tr:last-child td{border-bottom:0}
-.otab td:first-child{font-family:"IBM Plex Mono",monospace;font-size:11.5px;
+/* Dates, not first cells: the holders table leads with an institution's name,
+   which is prose and should not be set as a figure. */
+.otab .dt{font-family:"IBM Plex Mono",monospace;font-size:11.5px;
   color:var(--ink-3);white-space:nowrap}
 .otab .num{text-align:right;font-family:"IBM Plex Mono",monospace;white-space:nowrap}
 /* The name leads; what the person is sits under it in the muted line, so a
@@ -987,8 +1010,11 @@ body.mreport .mtab-panel.on{display:block}
   .otab th,.otab td{padding:8px 9px}
   /* Five columns do not fit a phone. The share count and the dollar value are
      the same trade in two units, so the one that compares across companies
-     stays and the other goes. */
-  .otab .col-shares{display:none}
+     stays and the other goes. Revenue goes the same way on the earnings
+     table, and the derived percentage and the quarter-end valuation on the
+     holders table: EPS and the share count are the figures those are read
+     from. */
+  .otab .col-shares,.otab .col-rev,.otab .col-pct,.otab .col-val{display:none}
 }
 
 
@@ -1261,6 +1287,13 @@ const API = {
   trades: symbol => HOSTED
     ? rpc("get_trades", { p_limit: 40, p_offset: 0, p_days: 90, p_symbols: [symbol] })
     : Promise.resolve(null),
+
+  earnings: symbol => HOSTED ? rpc("get_symbol_earnings", { p_symbol: symbol })
+                             : Promise.resolve(null),
+
+  holders: symbol => HOSTED
+    ? rpc("get_symbol_holders", { p_symbol: symbol, p_limit: 25 })
+    : Promise.resolve(null),
 };
 
 /* ===========================================================================
@@ -1416,6 +1449,9 @@ const HELP = {
   pe:        "Price to earnings from Financial Modeling Prep (the same source as the P/E in the price panel). The solid line is the company's quarterly P/E; when history has not been fetched yet, the chart follows the share price against today's trailing P/E. The dashed line is the current average for this company's industry — a reference level, not a series.",
   season:    "Every month's total return, one row per year. Green is a month that finished higher than it started. The bottom rows average the column, which is what people mean by a seasonal pattern.",
   news:      "Recent stories mentioning this company or its industry, newest first.",
+  beats:     "What the company reported against what the analysts covering it expected, quarter by quarter. The bar is the figure it reported; the notch across it is the estimate it was measured against. A bar that clears its notch is a beat. Estimates are the consensus at the time of the report, from Financial Modeling Prep.",
+  nextrep:   "The next scheduled announcement and the consensus going into it. Companies confirm dates a few weeks ahead, so a date further out than that can still move.",
+  holders:   "Institutions holding the stock, from their quarterly 13F filings with the SEC, largest position first. Funds managing over $100M must file within 45 days of each quarter end, so the picture is accurate as of the reporting date rather than today. A percentage is the position measured against shares outstanding.",
   insiders:  "Form 4 filings by officers, directors and 10% owners of this company over the last 90 days. Only filings worth more than $1M, or more than 1% of shares outstanding, are listed -- the routine grants and tax withholdings below that line would bury the rest.",
   congress:  "Trades in this ticker disclosed by members of Congress under the STOCK Act, over the last 90 days. Members report a band rather than a figure, and may file up to 45 days after the trade, so the disclosure date is not the trade date.",
   houses:    "The most recent action from each institution covering the company. One row per firm, newest first, so a bank that reiterates weekly does not crowd out the rest.",
@@ -2223,17 +2259,277 @@ function consensusSummary(spot){
     </div>`;
 }
 
+/* ---- Earnings -----------------------------------------------------------
+   What the company reported against what was expected of it. Neither half is
+   a filing figure: the filing carries the result, never the estimate it was
+   measured against, and the estimate is what made the result news.
+
+   The market-wide earnings calendar cannot answer this -- the worker rewrites
+   it to a rolling 90-day window on every run -- so the per-symbol record is
+   fetched and kept separately, and read here alongside the calendar's next
+   date. */
+const EARN = { symbol: null, data: null, loading: false, failed: false };
+
+function earningsMarkup(){
+  return `
+    <div class="erow" id="earn-next"></div>
+
+    <section class="card panel">
+      <div class="phead"><div>
+        <h2>Reported vs expected ${helpIcon("beats")}</h2>
+        <p>Each bar is the quarter's reported EPS; the notch across it is the
+           consensus it was measured against.</p>
+      </div></div>
+      <div class="scroll" id="earn-chart"><div class="note">
+        <span class="load"></span> &nbsp;Loading earnings history…</div></div>
+      <div class="legend" id="earn-legend"></div>
+    </section>
+
+    <section class="card panel">
+      <div class="phead"><div>
+        <h2>Quarters reported</h2>
+      </div></div>
+      <div class="scroll" id="earn-table"></div>
+    </section>`;
+}
+
+/** A surprise is only meaningful against an estimate that is not ~zero: a
+    penny against a one-cent estimate is not a 100% beat in any useful sense. */
+function epsSurprise(actual, est){
+  if (actual == null || est == null || Math.abs(est) < 0.01) return null;
+  return (actual - est) / Math.abs(est) * 100;
+}
+
+const earnPct = v => v == null ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}%`;
+const earnEps = v => v == null ? "—"
+  : (v < 0 ? "−$" : "$") + Math.abs(v).toFixed(2);
+
+/** Bars for the reported EPS, a notch for the estimate it was measured
+    against. Drawn at the width the card is shown at, like the cost stack. */
+function renderEarningsChart(reports){
+  const host = document.getElementById("earn-chart");
+  const legend = document.getElementById("earn-legend");
+  if (!host) return;
+  const rows = reports.filter(r => r.epsActual != null)
+    .slice(0, MOBILE_MQ.matches ? 8 : 12).reverse();   // oldest → newest
+  if (!rows.length) {
+    host.innerHTML = `<div class="note">No reported quarter carries an EPS figure yet.</div>`;
+    if (legend) legend.innerHTML = "";
+    return;
+  }
+
+  const wide = !MOBILE_MQ.matches;
+  const W = wide ? 1180 : 560, H = wide ? 320 : 290;
+  const ml = 58, mr = 14, mt = 18, mb = 46;
+  const pw = W - ml - mr, ph = H - mt - mb;
+
+  const vals = rows.flatMap(r => [r.epsActual, r.epsEstimated])
+    .filter(v => v != null);
+  let hi = Math.max(...vals, 0), lo = Math.min(...vals, 0);
+  const pad = (hi - lo) * 0.12 || 1;
+  hi += pad; lo -= (lo < 0 ? pad : 0);
+  const y = v => mt + ph - (v - lo) / (hi - lo) * ph;
+  const zero = y(0);
+
+  // Five ticks over the range, rounded to something a reader would choose.
+  const rawStep = (hi - lo) / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep || 1)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(v => v >= rawStep) || mag * 10;
+  const ticks = [];
+  for (let t = Math.ceil(lo / step) * step; t <= hi + step * 1e-6; t += step) ticks.push(t);
+
+  const bw = Math.min(wide ? 56 : 32, pw / rows.length - (wide ? 12 : 8));
+  const grid = ticks.map(t => `
+    <line x1="${ml}" y1="${y(t).toFixed(1)}" x2="${W - mr}" y2="${y(t).toFixed(1)}"
+      stroke="var(--rule-2)"></line>
+    <text x="${ml - 8}" y="${(y(t) + 4).toFixed(1)}" text-anchor="end" font-size="10.5"
+      class="tnum" fill="var(--ink-3)">${earnEps(t)}</text>`).join("");
+
+  const bars = rows.map((r, i) => {
+    const cx = ml + pw * (i + 0.5) / rows.length;
+    const beat = r.epsEstimated == null ? null : r.epsActual >= r.epsEstimated;
+    const col = beat === null ? "var(--ink-3)" : beat ? "var(--up)" : "var(--down)";
+    const ya = y(r.epsActual);
+    const top = Math.min(ya, zero), h = Math.abs(ya - zero);
+    const notch = r.epsEstimated == null ? "" : `
+      <line x1="${(cx - bw / 2 - 4).toFixed(1)}" x2="${(cx + bw / 2 + 4).toFixed(1)}"
+        y1="${y(r.epsEstimated).toFixed(1)}" y2="${y(r.epsEstimated).toFixed(1)}"
+        stroke="var(--ink)" stroke-width="1.6" stroke-linecap="round"></line>`;
+    const surprise = epsSurprise(r.epsActual, r.epsEstimated);
+    return `<g>
+      <title>${esc(shortDate(r.date))} — reported ${earnEps(r.epsActual)}${
+        r.epsEstimated == null ? "" : `, expected ${earnEps(r.epsEstimated)}${
+          surprise == null ? "" : ` (${earnPct(surprise)})`}`}</title>
+      <rect x="${(cx - bw / 2).toFixed(1)}" y="${top.toFixed(1)}"
+        width="${bw.toFixed(1)}" height="${Math.max(1, h).toFixed(1)}"
+        fill="${col}" rx="2"></rect>
+      ${notch}
+      <text x="${cx.toFixed(1)}" y="${H - 26}" text-anchor="middle" font-size="10.5"
+        class="tnum" fill="var(--ink-3)">${esc(shortDate(r.date).slice(0, 6))}</text>
+      <text x="${cx.toFixed(1)}" y="${H - 12}" text-anchor="middle" font-size="10.5"
+        class="tnum" fill="var(--ink-3)">'${esc(String(r.date).slice(2, 4))}</text>
+    </g>`;
+  }).join("");
+
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img"
+    aria-label="Reported earnings per share against consensus">
+    ${grid}
+    <line x1="${ml}" y1="${zero.toFixed(1)}" x2="${W - mr}" y2="${zero.toFixed(1)}"
+      stroke="var(--rule)"></line>
+    ${bars}
+  </svg>`;
+  if (legend) legend.innerHTML =
+    `<div><i style="background:var(--up)"></i>Beat</div>` +
+    `<div><i style="background:var(--down)"></i>Miss</div>` +
+    // The consensus is a rule across the bar, not a block of colour; its key
+    // says so rather than showing a third square.
+    `<div><i style="background:var(--ink);height:3px;border-radius:2px"></i>Consensus</div>`;
+}
+
+function renderEarningsTable(reports){
+  const host = document.getElementById("earn-table");
+  if (!host) return;
+  const rows = reports.filter(r => r.epsActual != null || r.revenueActual != null);
+  if (!rows.length) {
+    host.innerHTML = `<div class="note">No quarter has reported figures yet.</div>`;
+    return;
+  }
+  host.innerHTML = `<table class="otab">
+    <thead><tr>
+      <th>Reported</th>
+      <th class="num">EPS est.</th><th class="num">EPS actual</th><th class="num">Surprise</th>
+      <th class="num col-rev">Revenue est.</th><th class="num col-rev">Revenue actual</th>
+      <th class="num col-rev">Surprise</th>
+    </tr></thead>
+    <tbody>${rows.map(r => {
+      const eSur = epsSurprise(r.epsActual, r.epsEstimated);
+      const rSur = r.revenueActual != null && r.revenueEstimated
+        ? (r.revenueActual - r.revenueEstimated) / Math.abs(r.revenueEstimated) * 100 : null;
+      const tone = v => v == null ? "" : v >= 0 ? "up" : "down";
+      return `<tr>
+        <td class="dt">${esc(shortDate(r.date))}</td>
+        <td class="num">${esc(earnEps(r.epsEstimated))}</td>
+        <td class="num">${esc(earnEps(r.epsActual))}</td>
+        <td class="num ${tone(eSur)}">${esc(earnPct(eSur))}</td>
+        <td class="num col-rev">${esc(r.revenueEstimated == null ? "—" : money(r.revenueEstimated, 1))}</td>
+        <td class="num col-rev">${esc(r.revenueActual == null ? "—" : money(r.revenueActual, 1))}</td>
+        <td class="num col-rev ${tone(rSur)}">${esc(earnPct(rSur))}</td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+}
+
+/** The date ahead, and the consensus going into it. */
+function renderNextEarnings(d){
+  const host = document.getElementById("earn-next");
+  if (!host) return;
+  const next = d && d.next;
+  const reports = (d && d.reports) || [];
+  const last = reports.find(r => r.epsActual != null);
+  const lastSurprise = last ? epsSurprise(last.epsActual, last.epsEstimated) : null;
+  const beats = reports.filter(r => r.epsActual != null && r.epsEstimated != null);
+  const won = beats.filter(r => r.epsActual >= r.epsEstimated).length;
+
+  // "bmo"/"amc" is how the calendar files the session; spell it out.
+  const session = (next && next.time) ? ({
+    bmo: "Before the open", amc: "After the close",
+  }[String(next.time).toLowerCase()] || String(next.time)) : null;
+
+  const tiles = [
+    ["Next report", next ? shortDate(next.date) : "Not scheduled",
+     session || (next ? "Date confirmed by the company" : "No date on the calendar yet")],
+    ["EPS consensus", next ? earnEps(next.epsEstimated) : "—",
+     next && next.revenueEstimated != null
+       ? `Revenue ${money(next.revenueEstimated, 1)}` : "For the quarter ahead"],
+    ["Last reported", last ? earnEps(last.epsActual) : "—",
+     last ? `${shortDate(last.date)}${lastSurprise == null ? ""
+       : ` · <b class="${lastSurprise >= 0 ? "up" : "down"}">${earnPct(lastSurprise)}</b>`}` : "—"],
+    ["Beat rate", beats.length ? `${won}/${beats.length}` : "—",
+     beats.length ? `Quarters above consensus` : "No estimates on record"],
+  ];
+  host.innerHTML = tiles.map(([k, v, d2]) => `
+    <div class="kpi">
+      <div class="k">${esc(k)}</div>
+      <div class="v">${esc(v)}</div>
+      <div class="d">${d2}</div>
+    </div>`).join("");
+}
+
+function earningsState(msg, busy){
+  ["earn-chart", "earn-table"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = `<div class="note">`
+      + `${busy ? `<span class="load"></span> &nbsp;` : ""}${esc(msg)}</div>`;
+  });
+  const legend = document.getElementById("earn-legend");
+  if (legend) legend.innerHTML = "";
+}
+
+function drawEarnings(){
+  const d = EARN.data;
+  if (!document.getElementById("earn-chart")) return;
+  renderNextEarnings(d);
+  // null reports = never fetched for this symbol; [] = fetched and empty. The
+  // page has different things to say about those, so it keeps them apart.
+  const reports = d && d.reports;
+  if (!reports) {
+    return earningsState(EARN.failed
+      ? `Earnings history for ${EARN.symbol} is unavailable.`
+      : `Earnings history for ${EARN.symbol} arrives with the next price refresh.`);
+  }
+  if (!reports.length) {
+    return earningsState(`No reported quarter is on record for ${EARN.symbol}.`);
+  }
+  renderEarningsChart(reports);
+  renderEarningsTable(reports);
+  wireHelp();
+}
+
+/** Fetched when the tab is first opened, and once per company. */
+async function loadEarnings(){
+  const sym = S.company && S.company.ticker;
+  if (!sym || !HOSTED || !document.getElementById("earn-chart")) return;
+  if (EARN.symbol === sym && !EARN.loading) return drawEarnings();
+  if (EARN.loading) return;
+  EARN.symbol = sym;
+  EARN.loading = true;
+  EARN.data = null;
+  EARN.failed = false;
+  earningsState(`Loading earnings for ${sym}…`, true);
+  try {
+    const d = await API.earnings(sym);
+    if (EARN.symbol !== sym) return;              // another company was opened
+    EARN.data = d || { reports: null, next: null };
+  } catch {
+    if (EARN.symbol !== sym) return;
+    EARN.failed = true;
+    EARN.data = { reports: null, next: null };
+  } finally {
+    EARN.loading = false;
+    if (EARN.symbol === sym) drawEarnings();
+  }
+}
+
 /* ---- Ownership ----------------------------------------------------------
    Who holds the stock and who is paid to have an opinion on it: the Form 4
    filings, the congressional disclosures, and the houses covering it. The
    trades come from the same get_trades the portfolio page reads, narrowed to
    this one symbol. */
 const OWN = { symbol: null, insiders: null, congress: null, loading: false };
+const HELD = { symbol: null, data: null, loading: false, failed: false };
 
 /** The panel bodies. Built as one string because all three renders drop it
     into a tab panel and nothing else varies between them. */
 function ownershipMarkup(){
   return `
+    <section class="card panel">
+      <div class="phead"><div>
+        <h2>Institutional holders ${helpIcon("holders")}</h2>
+        <p id="holders-scope">From the latest 13F filings.</p>
+      </div></div>
+      <div class="scroll own-scroll" id="own-holders"><div class="note">
+        <span class="load"></span> &nbsp;Loading institutional holders…</div></div>
+    </section>
+
     <div class="pairrow">
       <section class="card panel">
         <div class="phead"><div>
@@ -2307,7 +2603,7 @@ function drawOwnership(){
         <thead><tr><th>Filed</th><th>Insider</th><th>Side</th>
           <th class="num col-shares">Shares</th><th class="num">Value</th></tr></thead>
         <tbody>${OWN.insiders.map(r => `<tr>
-          <td>${esc(shortDate(r.filed))}</td>
+          <td class="dt">${esc(shortDate(r.filed))}</td>
           <td>${ownWho(r.person, r.title)}</td>
           <td>${ownSide(r.side)}</td>
           <td class="num col-shares">${esc(ownShares(r.shares))}</td>
@@ -2321,7 +2617,7 @@ function drawOwnership(){
         <thead><tr><th>Disclosed</th><th>Member</th><th>Side</th>
           <th class="num">Amount</th></tr></thead>
         <tbody>${OWN.congress.map(r => `<tr>
-          <td>${esc(shortDate(r.disclosed))}</td>
+          <td class="dt">${esc(shortDate(r.disclosed))}</td>
           <td>${ownWho(r.person, ownRole(r.chamber))}</td>
           <td>${ownSide(r.side)}</td>
           <td class="num" title="${esc(r.amount || "")}">${esc(ownBand(r.amount))}</td>
@@ -2329,6 +2625,85 @@ function drawOwnership(){
     : `<div class="note">No congressional disclosure naming ${esc(sym)} in the
        last 90 days.</div>`;
   wireHelp();
+}
+
+/** Who owns the company, as filed. Shares are worth more than dollars here:
+    a 13F's market value is struck at the quarter end, so it is stale in a way
+    a share count is not. */
+function drawHolders(){
+  const host = document.getElementById("own-holders");
+  const scope = document.getElementById("holders-scope");
+  if (!host) return;
+  const d = HELD.data;
+  const rows = d && d.holders;
+  const out = d && d.sharesOut;
+
+  if (!rows) {
+    host.innerHTML = `<div class="note">${HELD.failed
+      ? `Institutional holders for ${esc(HELD.symbol || "")} are unavailable.`
+      : `Institutional holdings arrive with the next refresh for ${esc(HELD.symbol || "")}.`
+    }</div>`;
+    if (scope) scope.textContent = "From the latest 13F filings.";
+    return;
+  }
+  if (!rows.length) {
+    host.innerHTML = `<div class="note">No institution files a 13F position in `
+      + `${esc(HELD.symbol || "this ticker")}.</div>`;
+    return;
+  }
+
+  if (scope) {
+    const share = out && d.totalShares ? (d.totalShares / out * 100) : null;
+    scope.innerHTML = `${d.holderCount || rows.length} institution${
+      (d.holderCount || rows.length) === 1 ? "" : "s"} on file${
+      share == null ? "" : `, holding <b>${share.toFixed(1)}%</b> of shares outstanding`}${
+      d.reported ? ` · as of ${esc(shortDate(d.reported))}` : ""}`;
+  }
+
+  host.innerHTML = `<table class="otab">
+    <thead><tr><th>Institution</th>
+      <th class="num">Shares</th>
+      <th class="num col-pct">% out</th>
+      <th class="num col-val">Value</th>
+      <th class="num">Change</th></tr></thead>
+    <tbody>${rows.map(r => {
+      const pctOut = out && r.shares != null ? r.shares / out * 100 : null;
+      const ch = r.change;
+      return `<tr>
+        <td>${esc(r.holder || "—")}</td>
+        <td class="num">${esc(r.shares == null ? "—" : compact(r.shares))}</td>
+        <td class="num col-pct">${pctOut == null ? "—" : esc(pctOut.toFixed(2) + "%")}</td>
+        <td class="num col-val">${esc(r.value == null ? "—" : money(r.value, 1))}</td>
+        <td class="num ${ch == null || ch === 0 ? "" : ch > 0 ? "up" : "down"}">${
+          ch == null ? "—" : ch === 0 ? "—"
+            : esc((ch > 0 ? "+" : "−") + compact(Math.abs(ch)))}</td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+  wireHelp();
+}
+
+/** Fetched when the tab is first opened, and once per company. */
+async function loadHolders(){
+  const sym = S.company && S.company.ticker;
+  if (!sym || !HOSTED || !document.getElementById("own-holders")) return;
+  if (HELD.symbol === sym && !HELD.loading) return drawHolders();
+  if (HELD.loading) return;
+  HELD.symbol = sym;
+  HELD.loading = true;
+  HELD.data = null;
+  HELD.failed = false;
+  try {
+    const d = await API.holders(sym);
+    if (HELD.symbol !== sym) return;             // another company was opened
+    HELD.data = d || { holders: null };
+  } catch {
+    if (HELD.symbol !== sym) return;
+    HELD.failed = true;
+    HELD.data = { holders: null };
+  } finally {
+    HELD.loading = false;
+    if (HELD.symbol === sym) drawHolders();
+  }
 }
 
 function ownState(msg){
@@ -2446,13 +2821,17 @@ function marketOnly(ticker, company, why){
       <div class="unlockrow">${unlockReportBtn(c.ticker || ticker)}</div>
     </div>
 
-    ${tabBar(["overview", "ownership"])}
+    ${tabBar(["overview", "earnings", "ownership"])}
 
     <div class="mtab-panel on" data-mtab="overview" id="mtab-overview" role="tabpanel">
       <div class="pricerow" id="pricerow" hidden></div>
       <div class="card note" id="nofilings" style="margin:12px 14px;border-radius:var(--r)">
         <b>No filed financials for ${esc(ticker)}.</b><br>${esc(why)}
       </div>
+    </div>
+
+    <div class="mtab-panel" data-mtab="earnings" id="mtab-earnings" role="tabpanel">
+      ${earningsMarkup()}
     </div>
 
     <div class="mtab-panel" data-mtab="ownership" id="mtab-ownership" role="tabpanel">
@@ -4155,7 +4534,7 @@ function render(){
       <div class="unlockrow">${unlockReportBtn(c.ticker)}</div>
     </div>
 
-    ${tabBar(["overview", "financials", "industry", "ownership"])}
+    ${tabBar(["overview", "financials", "earnings", "industry", "ownership"])}
 
     <!-- Overview: what the market is doing with the company right now --
          the price, the quote panel that carries the profile and the Wall
@@ -4355,6 +4734,14 @@ function render(){
         <div class="scroll" id="b-chart"></div>
         <div class="legend" id="b-legend"></div>
       </section>
+    </div>
+
+    <!-- Earnings: what the company reported against what was expected of it,
+         which is neither a filing figure nor a market one -- the filings do
+         not carry the estimate, and the estimate is what makes the figure
+         news. -->
+    <div class="mtab-panel" data-mtab="earnings" id="mtab-earnings" role="tabpanel">
+      ${earningsMarkup()}
     </div>
 
     <!-- Industry: the two charts that read this company against the companies
@@ -5456,6 +5843,7 @@ const RANGE_INTERVAL = { 21: "daily", 63: "daily", 126: "daily", 252: "daily",
 const TAB_LABEL = {
   overview:   "Overview",
   financials: "Financials",
+  earnings:   "Earnings",
   industry:   "Industry",
   ownership:  "Ownership",
 };
@@ -5488,6 +5876,10 @@ function selectTab(id, opts){
     p.classList.toggle("on", p.dataset.mtab === id);
   });
   document.body.dataset.tab = id;
+  // The strip scrolls on a phone, so the tab just chosen may be off the edge
+  // of it -- particularly when the choice was made for the reader, by the
+  // analyst count on the Overview tab.
+  keepTabInView(bar, btn);
 
   if (id === "overview") {
     if (PRICE.bars.length) drawCandles();
@@ -5498,15 +5890,25 @@ function selectTab(id, opts){
     renderMargins(); renderCostStack();
     try { renderBuilder(); } catch {}
   }
+  if (id === "earnings") loadEarnings();
   if (id === "industry") marketPanels();
   if (id === "ownership") {
     loadAnalyst();
     loadOwnershipTrades();
+    loadHolders();
     // The holdings scrollport is sized from measured row heights, which are
     // zero while the panel is hidden.
     if (document.getElementById("idx-holdings")) requestAnimationFrame(fitHoldingsRows);
   }
   if (!opts || opts.scroll !== false) scrollTo({ top: 0, behavior: "auto" });
+}
+
+/** Scroll the strip, and only the strip, until the chosen tab is on it. */
+function keepTabInView(bar, btn){
+  if (!bar || !btn || bar.scrollWidth <= bar.clientWidth) return;
+  const strip = bar.getBoundingClientRect(), tab = btn.getBoundingClientRect();
+  if (tab.left < strip.left) bar.scrollLeft -= (strip.left - tab.left) + 12;
+  else if (tab.right > strip.right) bar.scrollLeft += (tab.right - strip.right) + 12;
 }
 
 /** Section tabs, at every width. */
@@ -5516,6 +5918,19 @@ function wireTabs(){
   bar.querySelectorAll("[data-mtab]").forEach(b => {
     b.onclick = () => selectTab(b.dataset.mtab);
   });
+  // Marks the strip as having more to the right of it -- see .mtabs.more.
+  const fade = () => bar.classList.toggle(
+    "more", bar.scrollWidth - bar.clientWidth - bar.scrollLeft > 4);
+  fade();
+  bar.addEventListener("scroll", fade, { passive: true });
+  if (!wireTabs._fade) {
+    wireTabs._fade = true;
+    addEventListener("resize", () => {
+      const el = document.getElementById("mtabs");
+      if (el) el.classList.toggle(
+        "more", el.scrollWidth - el.clientWidth - el.scrollLeft > 4);
+    }, { passive: true });
+  }
   document.body.dataset.tab = TABS.active;
 }
 

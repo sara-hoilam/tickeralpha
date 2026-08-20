@@ -662,6 +662,32 @@ def fetch_prices(symbol: str) -> bool:
     except store.StoreError as exc:
         log(f"  dividends {sym}: {exc}")
 
+    # Beat/miss history for the ticker page's Earnings tab. The market-wide
+    # earnings calendar is rewritten to a rolling window every run, so the
+    # per-symbol record has to be fetched and kept separately.
+    try:
+        eps = market.earnings_history(sym)
+        n_eps = store.replace_symbol_earnings(sym, eps)
+        if eps:
+            extras += f", {n_eps} earnings"
+    except market.MarketError as exc:
+        log(f"  earnings {sym}: {exc}")
+    except store.StoreError as exc:
+        log(f"  earnings {sym}: {exc}")
+
+    # 13F holders for the Ownership tab. The most likely failure here is a plan
+    # that does not carry institutional ownership at all, which is why it is
+    # last and why it only logs: everything above it has already been written.
+    try:
+        held = market.institutional_holders(sym)
+        n_held = store.replace_symbol_holders(sym, held)
+        if held:
+            extras += f", {n_held} holders"
+    except market.MarketError as exc:
+        log(f"  holders {sym}: {exc}")
+    except store.StoreError as exc:
+        log(f"  holders {sym}: {exc}")
+
     log(f"prices {sym}: {len(bars)} bars{', quote' if q else ', no quote'}{extras}")
     return True
 

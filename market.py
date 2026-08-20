@@ -26,6 +26,8 @@ import urllib.parse
 import urllib.request
 
 BASE = "https://financialmodelingprep.com/stable"
+# A couple of endpoints never made it onto /stable; those calls pass this in.
+V3_BASE = "https://financialmodelingprep.com/api/v3"
 KEY = os.environ.get("FMP_API_KEY", "")
 
 # FMP bills per request and rate-limits per minute. Nothing here is urgent, so
@@ -42,7 +44,9 @@ def configured() -> bool:
     return bool(KEY)
 
 
-def _get(path: str, **params):
+def _get(path: str, _base: str | None = None, **params):
+    """One FMP call. ``_base`` overrides the stable API root for the few
+    endpoints that only exist on the older versioned one."""
     if not KEY:
         raise MarketError("FMP_API_KEY is not set; market data is unavailable.")
 
@@ -52,7 +56,7 @@ def _get(path: str, **params):
     _last[0] = time.time()
 
     params["apikey"] = KEY
-    url = f"{BASE}/{path}?{urllib.parse.urlencode(params)}"
+    url = f"{_base or BASE}/{path}?{urllib.parse.urlencode(params)}"
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -1819,6 +1823,125 @@ def earnings_calendar(start: dt.date | None = None,
 
     out = list(by_key.values())
     out.sort(key=lambda x: (x["date"], x["symbol"]))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Institutional ownership (13F holders)
+# ---------------------------------------------------------------------------
+
+# The one thing on this page FMP has moved more than once. The stable API and
+# the older versioned one disagree on both the path and the row keys, and which
+# of them an account can reach depends on its plan, so the fetch tries the
+# spellings in turn and keeps the first that answers with rows rather than
+# betting the feature on one guess. A 402 here is ordinary: 13F data sits above
+# the entry tiers.
+_HOLDER_ENDPOINTS = (
+    ("institutional-ownership/symbol-ownership", None),
+    ("institutional-ownership/extract-analytics/holder", None),
+    ("institutional-holder", V3_BASE),
+)
+
+# FMP has used every one of these for the same column.
+_HOLDER_KEYS = {
+    "holder": ("holderName", "investorName", "holder", "name"),
+    "shares": ("sharesNumber", "shares", "currentShares", "sharesHeld"),
+    "value": ("marketValue", "value", "currentMarketValue"),
+    "change": ("changeInSharesNumber", "change", "sharesChange"),
+    "date": ("date", "dateReported", "filingDate", "reportDate"),
+    "cik": ("cik", "investorCik", "holderCik"),
+}
+
+
+def _first(row: dict, keys) -> object:
+    for k in keys:
+        v = row.get(k)
+        if v not in (None, ""):
+            return v
+    return None
+
+
+def _as_float(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def institutional_holders(symbol: str, limit: int = 60) -> list[dict]:
+    """Institutions holding one ticker, largest position first.
+
+    Rows are whatever the reachable endpoint returns, normalised to one shape.
+    Raises MarketError when no spelling answers -- the caller logs it and
+    carries on, because a holders list is an addition to a company page rather
+    than a precondition for one.
+    """
+    last_error = None
+    for path, base in _HOLDER_ENDPOINTS:
+        try:
+            rows = _get(path, _base=base, symbol=symbol, limit=limit) or []
+        except MarketError as exc:
+            last_error = exc
+            continue
+        if not isinstance(rows, list) or not rows:
+            continue
+
+        out = []
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            name = _first(r, _HOLDER_KEYS["holder"])
+            shares = _as_float(_first(r, _HOLDER_KEYS["shares"]))
+            if not name or shares is None:
+                continue
+            out.append({
+                "holder": str(name).strip()[:120],
+                "cik": (str(_first(r, _HOLDER_KEYS["cik"]) or "") or None),
+                "shares": shares,
+                "value": _as_float(_first(r, _HOLDER_KEYS["value"])),
+                "change": _as_float(_first(r, _HOLDER_KEYS["change"])),
+                "date": (str(_first(r, _HOLDER_KEYS["date"]) or "")[:10] or None),
+            })
+        if out:
+            out.sort(key=lambda x: x["shares"], reverse=True)
+            return out[:limit]
+
+    raise MarketError(
+        f"institutional holders for {symbol}: no endpoint answered"
+        + (f" ({last_error})" if last_error else ""))
+
+
+def earnings_history(symbol: str, limit: int = 40) -> list[dict]:
+    """Reported and scheduled earnings for one ticker, newest first.
+
+    The same figures as ``earnings_calendar`` read along the other axis: that
+    one asks "who reports this week" across the market, this one asks "what has
+    this company reported" across its history. The ticker page's beat/miss
+    record needs the second, and the calendar cannot answer it — the worker
+    rewrites it to a rolling ±90-day window on every run.
+
+    Raises MarketError when the endpoint is not in the account's plan, which
+    the caller is expected to log and carry on from: an earnings history is an
+    addition to a company page, not a precondition for one.
+    """
+    rows = _get("earnings", symbol=symbol, limit=limit) or []
+    out = []
+    for r in rows:
+        day = (r.get("date") or "")[:10]
+        if not day:
+            continue
+        out.append({
+            "date": day,
+            "epsActual": r.get("epsActual"),
+            "epsEstimated": r.get("epsEstimated"),
+            "revenueActual": r.get("revenueActual"),
+            "revenueEstimated": r.get("revenueEstimated"),
+            "fiscalDate": (r.get("fiscalDateEnding") or r.get("fiscalDate")
+                           or "")[:10] or None,
+        })
+    # Newest first is the order the page reads them in, and the order FMP
+    # already returns -- sorted here so a change at their end cannot flip it.
+    out.sort(key=lambda x: x["date"], reverse=True)
     return out
 
 
