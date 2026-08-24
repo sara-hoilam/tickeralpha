@@ -26,9 +26,11 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
 <style>
 /* ---------------------------------------------------------------------------
-   News — the same tokens as the rest of the site, in a three-column reading
-   layout: what the market is doing on the left, what is being written in the
-   middle, and the topics plus a live ticker on the right.
+   News — a front page, not a firehose. One wide reading column: the biggest
+   stories first, ranked by how many publishers are writing them; then the
+   day sorted into sections; then the full time-ordered wire. The rail on the
+   right carries the market summary and the live feed. Search sits beside the
+   title, and searching collapses the page to the flat filtered list.
 --------------------------------------------------------------------------- */
 :root {
   color-scheme: light;
@@ -61,18 +63,19 @@ a{color:inherit}
   box-shadow:var(--shadow);overflow:hidden}
 h3{font-size:14px;font-weight:600;letter-spacing:-.005em}
 
-.cols{display:grid;grid-template-columns:270px minmax(0,1fr) 320px;gap:20px;align-items:start}
+/* Two columns: the stories, and a rail. The old left rail's market summary
+   moved to the rail and its topic chips retired -- search covers them -- so
+   the reading column gets the width back. */
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
 
-/* ---- left: the market summary list, same component as Markets Today ------ */
-/* Eight rows, then scroll. The column now carries Topics beneath it, so an
-   unbounded list would push them off the screen. */
-.side h3{padding:13px 15px 9px}
+/* ---- right rail: market summary above the live feed ---------------------- */
+.side-r{display:flex;flex-direction:column;gap:18px;
+  position:sticky;top:calc(var(--nav-h,56px) + 16px)}
+.side-r h3{padding:13px 15px 9px}
 .rows{max-height:298px;overflow-y:auto;scrollbar-width:thin;
   scrollbar-color:var(--rule) transparent}
 .rows::-webkit-scrollbar{width:8px}
 .rows::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
-
-.side-l{display:flex;flex-direction:column;gap:18px;align-items:stretch}
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
 thead{position:relative;z-index:2}
 thead th{position:sticky;top:0;background:var(--card);z-index:2;
@@ -97,28 +100,93 @@ tbody tr:hover td{background:var(--sunk)}
 .seg button:last-child{border-right:0}
 .seg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:500}
 
-/* ---- centre: the article grid ------------------------------------------- */
-.newshead{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
-  margin-bottom:14px;flex-wrap:wrap}
+/* ---- header: title, meta, and the search beside them --------------------- */
+.newshead{display:flex;justify-content:space-between;align-items:center;gap:14px;
+  margin-bottom:12px;flex-wrap:wrap}
 .newshead h1{font-family:"IBM Plex Serif",Georgia,serif;font-size:26px;font-weight:600;
   letter-spacing:-.018em}
 .newshead .meta{font-size:12px;color:var(--ink-3)}
+.headtools{display:flex;align-items:center;gap:10px;flex:1;justify-content:flex-end;min-width:0}
+.tsearch{position:relative;width:min(420px,100%)}
+.tsearch svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;
+  color:var(--ink-3);pointer-events:none}
+.tsearch input{width:100%;background:var(--card);border:1px solid var(--rule);border-radius:8px;
+  padding:8px 11px 8px 31px;font:inherit;font-size:12.5px;color:var(--ink)}
+.tsearch input::placeholder{color:var(--ink-3)}
+.tsearch input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .chip-active{display:inline-flex;align-items:center;gap:7px;background:var(--accent-soft);
-  color:var(--accent);border-radius:20px;padding:3px 6px 3px 12px;font-size:12.5px;font-weight:500}
+  color:var(--accent);border-radius:20px;padding:3px 6px 3px 12px;font-size:12.5px;font-weight:500;
+  white-space:nowrap}
 .chip-active button{background:none;border:0;cursor:pointer;color:inherit;font:inherit;
   font-size:15px;line-height:1;padding:0 4px}
 
-/* The stories scroll inside their own column so the market summary and the
-   feed stay put beside them, and so the page does not grow without end. */
-.newsscroll{height:calc(100vh - var(--nav-h,56px) - 190px);min-height:520px;
-  overflow-y:auto;padding-right:10px;scrollbar-gutter:stable}
-.newsscroll::-webkit-scrollbar{width:9px}
-.newsscroll::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
-.newsscroll::-webkit-scrollbar-thumb:hover{background:var(--ink-3)}
-.newsscroll{scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
-/* Three abreast on a wide screen, two when the centre column narrows, one on
-   a phone. Cards, not a fixed count: the breakpoints follow the space the
-   column actually has rather than the size of the window. */
+/* ---- section nav: anchors down one reading column ------------------------ */
+.secnav{display:flex;gap:2px;border-bottom:1px solid var(--rule);margin-bottom:18px;
+  overflow-x:auto;scrollbar-width:none}
+.secnav::-webkit-scrollbar{display:none}
+.secnav a{text-decoration:none;padding:9px 14px 8px;font-size:13.5px;font-weight:600;
+  color:var(--ink-3);border-bottom:2px solid transparent;white-space:nowrap;cursor:pointer}
+.secnav a.on{color:var(--accent);border-bottom-color:var(--accent)}
+.secnav a:hover{color:var(--ink)}
+
+/* ---- top stories band ---------------------------------------------------- */
+.topband{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);margin-bottom:20px}
+.bandhead{grid-column:1 / -1;display:flex;align-items:baseline;justify-content:space-between;
+  gap:12px;padding:13px 18px 11px;border-bottom:1px solid var(--rule-2)}
+.bandhead h3{color:var(--accent);font-size:15px}
+.bandhead .why{font-size:11.5px;color:var(--ink-3)}
+.lead{padding:18px;border-right:1px solid var(--rule-2);text-decoration:none;display:block}
+.lead .thumb{width:100%;aspect-ratio:16/8.4;border-radius:9px;overflow:hidden;background:var(--sunk);
+  margin-bottom:13px}
+.lead .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.lead h2{font-family:"IBM Plex Serif",Georgia,serif;font-size:23px;font-weight:600;line-height:1.25;
+  letter-spacing:-.015em;margin-bottom:8px}
+.lead:hover h2{color:var(--accent)}
+.lead p{font-size:13.5px;color:var(--ink-2);margin-bottom:10px;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.by{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3);flex-wrap:wrap}
+.tag{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;background:var(--sunk);
+  border:1px solid var(--rule);border-radius:5px;padding:1px 6px;color:var(--ink-2)}
+.srcs{color:var(--accent);font-weight:600}
+.tlist{display:flex;flex-direction:column;min-width:0}
+.tlist a{display:block;text-decoration:none;padding:13px 18px;border-bottom:1px solid var(--rule-2)}
+.tlist a:last-child{border-bottom:0}
+.tlist h4{font-size:15px;font-weight:600;line-height:1.32;letter-spacing:-.01em;margin-bottom:4px}
+.tlist a:hover h4{color:var(--accent)}
+/* The other publishers writing the lead story, folded behind its source count. */
+.alts{display:inline}
+.alts summary{list-style:none;cursor:pointer;display:inline}
+.alts summary::-webkit-details-marker{display:none}
+.alts summary .srcs::after{content:" ▾"} .alts[open] summary .srcs::after{content:" ▴"}
+.altlist{display:block;margin-top:8px;padding:8px 0 0;border-top:1px dashed var(--rule)}
+.altlist a{display:block;font-size:12px;color:var(--ink-2);text-decoration:none;padding:3px 0}
+.altlist a:hover{color:var(--accent)}
+.altlist a b{font-weight:600;color:var(--ink-3);margin-right:6px}
+
+/* ---- section cards ------------------------------------------------------- */
+.secgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-bottom:22px}
+.seccard .shead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  padding:13px 16px 9px;border-bottom:1px solid var(--rule-2)}
+.seccard .shead h3{font-size:14.5px}
+.seccard .shead small{font-weight:400;color:var(--ink-3);font-size:11.5px}
+.seccard .shead button{background:none;border:0;font:inherit;font-size:12px;color:var(--accent);
+  font-weight:600;cursor:pointer;white-space:nowrap}
+.srow{display:flex;gap:12px;padding:11px 16px;border-bottom:1px solid var(--rule-2);
+  text-decoration:none;align-items:flex-start}
+.srow>div:first-child{flex:1;min-width:0}
+.srow h4{font-size:13.8px;font-weight:600;line-height:1.34;letter-spacing:-.008em;margin-bottom:3px}
+.srow:hover h4{color:var(--accent)}
+.srow .thumb{width:72px;height:54px;border-radius:7px;overflow:hidden;background:var(--sunk);flex-shrink:0}
+.srow .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.srow .by{font-size:11px}
+/* Five rows closed; "More" opens the rest without leaving the page. */
+.seccard .srow:nth-of-type(n+6){display:none}
+.seccard.open .srow{display:flex}
+.seccard .srow:last-of-type{border-bottom:0}
+
+/* ---- the wire: the flat time-ordered grid (home foot, and all of a search) */
+.latest-h{font-family:"IBM Plex Serif",Georgia,serif;font-size:19px;font-weight:600;
+  letter-spacing:-.014em;margin:4px 0 12px}
 .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
 .story{display:flex;flex-direction:column;text-decoration:none}
 .story .thumb{width:100%;aspect-ratio:16/9;border-radius:9px;overflow:hidden;
@@ -129,47 +197,25 @@ tbody tr:hover td{background:var(--sunk)}
 .story:hover h2{color:var(--accent)}
 .story p{font-size:13px;color:var(--ink-2);line-height:1.5;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.story .by{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:11.5px;
-  color:var(--ink-3);flex-wrap:wrap}
-.story .tag{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
-  background:var(--sunk);border:1px solid var(--rule);border-radius:5px;padding:1px 6px;
-  color:var(--ink-2)}
+.story .by{margin-top:9px}
 .more{display:block;width:100%;margin:22px 0 4px;padding:11px;background:var(--card);
   border:1px solid var(--rule);border-radius:9px;font:inherit;font-size:13px;
   color:var(--ink-2);cursor:pointer}
 .more:hover{border-color:var(--accent);color:var(--accent)}
+/* display:block above would defeat the hidden attribute's display:none. */
+.more[hidden]{display:none}
 
-/* ---- right: topics, then the live feed ---------------------------------- */
-.side-r{display:flex;flex-direction:column;gap:18px;
-  position:sticky;top:calc(var(--nav-h,56px) + 16px)}
-.tsearch{position:relative;margin:0 15px 12px}
-.tsearch svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;
-  color:var(--ink-3);pointer-events:none}
-.tsearch input{width:100%;background:var(--sunk);border:1px solid var(--rule);border-radius:8px;
-  padding:8px 11px 8px 31px;font:inherit;font-size:12.5px;color:var(--ink)}
-.tsearch input::placeholder{color:var(--ink-3)}
-.tsearch input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;background:var(--card)}
-.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 15px 15px}
-.chips button{background:var(--sunk);border:1px solid var(--rule);border-radius:20px;
-  padding:4px 11px;font:inherit;font-size:12px;color:var(--ink-2);cursor:pointer}
-.chips button:hover{border-color:var(--accent);color:var(--accent)}
-.chips button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);
-  color:#fff;font-weight:500}
-/* Companies read as names, so they get the body face rather than the mono one
-   the old ticker chips used. */
-.chips button.co{font-weight:600}
-.chips .grouplabel{width:100%;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
-  color:var(--ink-3);font-weight:600;margin:8px 0 1px}
-
+/* ---- the live feed ------------------------------------------------------- */
 .feedhead{display:flex;align-items:center;gap:10px;padding:14px 15px 10px;
   border-bottom:1px solid var(--ink)}
 .feedhead .bolt{width:26px;height:26px;border-radius:50%;background:#e2694a;color:#fff;
   display:grid;place-items:center;font-size:13px;flex-shrink:0}
-.feedhead h3{letter-spacing:.09em;text-transform:uppercase;font-size:12px}
+.feedhead h3{letter-spacing:.09em;text-transform:uppercase;font-size:12px;padding:0}
 /* The feed drifts by moving its own scroll position rather than by a CSS
    transform, so a reader can grab it and scroll back to a story that has
-   already gone past. It picks the drift back up once they stop. */
-.feedwrap{height:calc(100vh - var(--nav-h,56px) - 150px);min-height:580px;
+   already gone past. It picks the drift back up once they stop. The market
+   summary sits above it now, so the feed takes what height is left. */
+.feedwrap{height:calc(100vh - var(--nav-h,56px) - 500px);min-height:320px;
   overflow-y:auto;position:relative;
   scrollbar-width:thin;scrollbar-color:var(--rule) transparent;overscroll-behavior:contain}
 .feedwrap::-webkit-scrollbar{width:8px}
@@ -181,7 +227,7 @@ tbody tr:hover td{background:var(--sunk)}
 .item h4{font-size:14.5px;font-weight:600;line-height:1.3;letter-spacing:-.01em;margin-bottom:5px}
 .item p{font-size:12.5px;color:var(--ink-2);line-height:1.45}
 .item .tag{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--accent);
-  font-weight:600}
+  font-weight:600;background:none;border:0;padding:0}
 
 .note{padding:28px 16px;color:var(--ink-3);font-size:13px;text-align:center}
 .load{display:inline-block;width:13px;height:13px;border:2px solid var(--rule);
@@ -194,34 +240,26 @@ tbody tr:hover td{background:var(--sunk)}
 }
 @media (max-width:1180px){
   .cols{grid-template-columns:minmax(0,1fr) 300px}
-  .side{display:none}
 }
 @media (max-width:900px){
   .cols{grid-template-columns:minmax(0,1fr)}
   .side-r{position:static}
   .grid{grid-template-columns:minmax(0,1fr)}
+  .secgrid{grid-template-columns:minmax(0,1fr)}
+  .topband{grid-template-columns:minmax(0,1fr)}
+  .lead{border-right:0;border-bottom:1px solid var(--rule-2)}
 }
 
-/* ---- mobile news: a headline list, search first ---------------------------
-   The three-column reading layout stacks into market summary, then topics,
-   then stories -- so the news was third on a page called News. This puts the
-   search and the stories first and turns each card into a headline with a
-   small thumbnail beside it, which is how a phone news list reads. */
+/* ---- mobile: headline lists, search first -------------------------------- */
 @media (max-width:720px){
-  /* "Latest" is what the page obviously is; the story count below it carries
-     the only information in that block. */
-  .newshead h1{display:none}
-  .cols{display:flex;flex-direction:column;gap:12px}
-  /* Stories second; the search form is moved above them in script, because it
-     lives inside the left column and CSS order cannot lift a descendant out of
-     its own parent. */
-  .news-search-top{order:0}
-  .side-l,.side-r{order:3}
-  /* The sidebar sets a fixed width on this input; at the top of a phone list
-     it should span the column. */
-  .news-search-top{width:100%}
-  .news-search-top .tsearch{display:flex;width:100%}
-  .news-search-top .tsearch input{width:100%!important;min-width:0;flex:1}
+  .newshead h1{font-size:21px}
+  .newshead{gap:10px}
+  .headtools{flex-basis:100%;justify-content:stretch}
+  .tsearch{width:100%}
+  .lead{padding:14px}
+  .lead h2{font-size:18.5px}
+  .tlist a{padding:11px 14px}
+  .seccard .srow{padding:10px 14px}
 
   .story{
     display:grid;grid-template-columns:minmax(0,1fr) 84px;
@@ -242,10 +280,41 @@ tbody tr:hover td{background:var(--sunk)}
 </head>
 <body>
 <main>
+  <div class="newshead">
+    <div>
+      <h1>News</h1>
+      <div class="meta" id="news-meta">Loading…</div>
+    </div>
+    <div class="headtools">
+      <div id="active-filter"></div>
+      <form class="tsearch" id="tsearch">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+          stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round"/></svg>
+        <input type="search" id="tq" placeholder="Search the news — a topic, a ticker, a company"
+               autocomplete="off" aria-label="Search the news">
+      </form>
+    </div>
+  </div>
+
   <div class="cols">
-    <!-- left ------------------------------------------------------------- -->
-    <aside class="side-l">
-      <div class="panel side">
+    <!-- centre ----------------------------------------------------------- -->
+    <section>
+      <nav class="secnav" id="secnav" hidden></nav>
+
+      <div id="home">
+        <div class="panel topband" id="topband" hidden></div>
+        <div class="secgrid" id="sections"></div>
+      </div>
+
+      <h2 class="latest-h" id="latest-h">Latest</h2>
+      <div class="grid" id="stories"><div class="note"><span class="load"></span></div></div>
+      <button class="more" id="more" hidden>Show more</button>
+    </section>
+
+    <!-- right: market summary, then the live feed -------------------------- -->
+    <aside class="side-r">
+      <div class="panel">
         <h3>Market Summary</h3>
         <div class="seg" id="views">
           <button data-v="market_cap" aria-pressed="true">Mkt cap</button>
@@ -255,36 +324,6 @@ tbody tr:hover td{background:var(--sunk)}
         <div class="rows" id="rows"><div class="note"><span class="load"></span></div></div>
       </div>
 
-      <div class="panel">
-        <h3 style="padding:13px 15px 9px">Topics</h3>
-        <form class="tsearch" id="tsearch">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
-            stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round"/></svg>
-          <input type="search" id="tq" placeholder="Search the news" autocomplete="off"
-                 aria-label="Search the news">
-        </form>
-        <div class="chips" id="chips"><span class="note" style="padding:0 0 12px">…</span></div>
-      </div>
-    </aside>
-
-    <!-- centre ----------------------------------------------------------- -->
-    <section>
-      <div class="newshead">
-        <div>
-          <h1>Latest</h1>
-          <div class="meta" id="news-meta">Loading…</div>
-        </div>
-        <div id="active-filter"></div>
-      </div>
-      <div class="newsscroll" id="newsscroll">
-        <div class="grid" id="stories"><div class="note"><span class="load"></span></div></div>
-        <button class="more" id="more" hidden>Show more</button>
-      </div>
-    </section>
-
-    <!-- right ------------------------------------------------------------ -->
-    <aside class="side-r">
       <div class="panel">
         <div class="feedhead"><span class="bolt">⚡</span><h3>The Feed</h3></div>
         <div class="feedwrap" id="feedwrap">
@@ -335,6 +374,16 @@ function ago(iso){
   const d = Math.round(h / 24);
   return `${d} day${d === 1 ? "" : "s"} ago`;
 }
+const agoShort = iso => ago(iso)
+  .replace(/ minutes? ago/, "m").replace(/ hours? ago/, "h").replace(/ days? ago/, "d")
+  .replace("just now", "now");
+
+/** Hours since publication, for the recency decay in the ranking. */
+function hoursOld(iso){
+  if (!iso) return 999;
+  const then = new Date(iso.replace(" ", "T") + (/[Zz+]/.test(iso) ? "" : "Z"));
+  return Math.max(0, (Date.now() - then.getTime()) / 3600000);
+}
 
 const AVATAR = ["--accent","#eb6834","#1baf7a","#eda100","#e87ba4","#4a3aa7","#2a78d6","#e34948"];
 const avatarColour = s => {
@@ -344,19 +393,24 @@ const avatarColour = s => {
 };
 
 const S = { view: "market_cap", q: null, label: null, page: 0, total: 0,
-            keywords: [], loading: false,
+            offset: 0, loading: false,
             // Cross-page memory of headlines already shown, so a wire story
             // syndicated to four publishers appears once with a count instead
             // of four times; and the reader's own symbols, for the boost.
-            seenKeys: null, mySyms: null };
-const PAGE = 12;
+            seenKeys: null, mySyms: null,
+            // The home page's working set: every deduped story of the batch,
+            // and the day's AI brief for seeding the top band.
+            batch: [], brief: null };
+const PAGE = 12;          // a filtered search pages at this size
+const HOME_PAGE = 60;     // get_news serves at most 60 a call; home fetches two
 
 /* ---- relevance ----------------------------------------------------------
-   The feed pulls plenty and fresh; what made it feel stale was volume without
-   an editor. Two mechanical editors stand in. Near-duplicate headlines are
-   collapsed to one card carrying an "also on N sources" note -- syndication is
-   most of the sameness in a finance feed. And stories naming a symbol the
-   reader holds or watches float to the top of each page, labelled with why.
+   The feed pulls plenty and fresh; what makes a front page is an editor. Two
+   mechanical ones stand in. Near-duplicate headlines are collapsed to one
+   story that remembers who else wrote it -- syndication is most of the
+   sameness in a finance feed, and the number of publishers on a story is the
+   most honest signal of how big it is. And stories naming a symbol the
+   reader holds or watches are boosted, labelled with why.
    No model anywhere: a token key and a set lookup. */
 
 /** Symbols this browser cares about: the portfolio's local mirror plus the
@@ -389,8 +443,9 @@ function newsKey(a){
   return `${a.symbol || ""}|${[...new Set(toks)].sort().slice(0, 10).join(" ")}`;
 }
 
-/** Dedupe against everything shown so far, then float the reader's symbols
-    to the top of this batch (stable: time order survives within each band). */
+/** Dedupe against everything shown so far. The first copy of a story keeps
+    the count and the other publishers' links, so the front page can say
+    "11 more sources" and actually name them. */
 function prepareBatch(arts, reset){
   if (reset || !S.seenKeys) S.seenKeys = new Map();
   const mine = mySymbols();
@@ -398,18 +453,369 @@ function prepareBatch(arts, reset){
   for (const a of arts) {
     const k = newsKey(a);
     const first = S.seenKeys.get(k);
-    if (first) { first._dupes = (first._dupes || 0) + 1; continue; }
+    if (first) {
+      first._dupes = (first._dupes || 0) + 1;
+      if ((first._alts = first._alts || []).length < 6 && a.url &&
+          a.publisher !== first.publisher) {
+        first._alts.push({ url: a.url, publisher: a.publisher, title: a.title });
+      }
+      continue;
+    }
     a._dupes = 0;
+    a._alts = [];
     if (a.symbol && mine.has(String(a.symbol).toUpperCase())) a._mine = true;
     S.seenKeys.set(k, a);
     kept.push(a);
   }
-  return kept.map((a, i) => ({ a, i }))
-    .sort((x, y) => ((y.a._mine ? 1 : 0) - (x.a._mine ? 1 : 0)) || (x.i - y.i))
-    .map(x => x.a);
+  return kept;
 }
 
-/* ---- left column --------------------------------------------------------- */
+/* ---- ranking and sections ------------------------------------------------
+   score = (1 + publishers also writing it) decayed by age. The day's Today's
+   Brief -- an AI-ranked top five written each weekday morning for the market
+   page -- seeds the top band: a story it mentions is a story an editor
+   already chose. */
+function briefMatch(a){
+  const b = S.brief;
+  if (!b) return false;
+  if (a.symbol && b.syms.has(String(a.symbol).toUpperCase())) return true;
+  const t = ` ${String(a.title || "").toLowerCase()} `;
+  return b.toks.some(set => {
+    let hit = 0;
+    for (const w of set) if (t.includes(` ${w} `)) hit++;
+    return hit >= 3;
+  });
+}
+
+function storyScore(a){
+  let s = (1 + (a._dupes || 0)) * Math.exp(-hoursOld(a.published) / 18);
+  if (briefMatch(a)) s *= 1.6;
+  if (a._mine) s *= 1.3;
+  return s;
+}
+
+/* What lands where. Order is precedence: a tariff story naming NVDA is
+   policy first, company second. The rules are the same subjects the topic
+   chips used to search for, applied to title + summary. */
+const SECTIONS = [
+  { id: "policy", name: "Policy & Politics",
+    re: /tariff|sanction|geopolit|\bwar\b|congress|senate|white house|election|antitrust|regulat|supreme court/i },
+  { id: "fed", name: "Fed & Economy",
+    re: /\bfed\b|fomc|inflation|interest rate|rate (cut|hike)|jobs report|payroll|unemployment|recession|treasur|yield|\bcpi\b|\bgdp\b|central bank/i },
+  { id: "commodities", name: "Commodities & Crypto",
+    re: /\boil\b|crude|opec|\bgold\b|silver price|copper|natural gas|bitcoin|crypto|ethereum|\bbtc\b/i },
+  { id: "tech", name: "Tech & AI",
+    re: /artificial intelligence|\ba\.?i\b|semiconductor|\bchips?\b|data ?center|cloud|software|robot/i },
+  { id: "companies", name: "Companies & Earnings",
+    re: /earnings|guidance|acquisition|merger|\bipo\b|buyback|dividend|analyst|upgrade|downgrade|forecast/i,
+    symbolCounts: true },
+];
+
+function classify(a){
+  const text = `${a.title || ""} ${a.summary || ""}`;
+  for (const s of SECTIONS) {
+    if (s.re.test(text)) return s.id;
+    if (s.symbolCounts && a.symbol) return s.id;
+  }
+  return null;
+}
+
+/* ---- home: top stories, sections, then the wire -------------------------- */
+const srcCount = a => a._dupes
+  ? `<span class="srcs">${a._dupes + 1} sources</span>` : "";
+
+function byline(a, extra){
+  return `<span class="by">
+    ${a.symbol ? `<span class="tag">${esc(a.symbol)}</span>` : ""}
+    ${a._mine ? `<span class="tag" style="background:var(--up-soft,#e3f4ec);color:var(--up,#0b7a4b)">yours</span>` : ""}
+    <span>${esc(a.publisher || "")}</span><span>·</span><span>${esc(ago(a.published))}</span>
+    ${extra ? `<span>·</span>${extra}` : ""}</span>`;
+}
+
+function renderTopband(top){
+  const host = document.getElementById("topband");
+  if (!top.length){ host.hidden = true; return; }
+  const [lead, ...rest] = top;
+  const alts = (lead._alts || []).map(x =>
+    `<a href="${esc(x.url)}" target="_blank" rel="noopener" data-ta-news="news_top"
+       ${lead.symbol ? `data-ta-ticker="${esc(lead.symbol)}"` : ""}><b>${esc(x.publisher || "…")}</b>${esc(x.title)}</a>`).join("");
+  host.innerHTML = `
+    <div class="bandhead">
+      <h3>Top Stories</h3>
+      <span class="why">ranked by how many publishers are covering it right now</span>
+    </div>
+    <div>
+      <a class="lead" href="${esc(lead.url)}" target="_blank" rel="noopener"
+         data-ta-news="news_top"${lead.symbol ? ` data-ta-ticker="${esc(lead.symbol)}"` : ""}>
+        ${lead.image ? `<span class="thumb"><img src="${esc(lead.image)}" alt="" loading="lazy"
+            onerror="this.parentNode.style.display='none'"></span>` : ""}
+        <h2>${esc(lead.title)}</h2>
+        <p>${esc(lead.summary || "")}</p>
+        ${byline(lead, srcCount(lead) && !alts ? srcCount(lead) : "")}
+      </a>
+      ${alts ? `<div style="padding:0 18px 16px"><details class="alts">
+        <summary>${srcCount(lead)}</summary>
+        <div class="altlist">${alts}</div>
+      </details></div>` : ""}
+    </div>
+    <div class="tlist">${rest.map(a => `
+      <a href="${esc(a.url)}" target="_blank" rel="noopener"
+         data-ta-news="news_top"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
+        <h4>${esc(a.title)}</h4>
+        ${byline(a, srcCount(a))}
+      </a>`).join("")}</div>`;
+  host.hidden = false;
+}
+
+function sectionRow(a){
+  return `<a class="srow" href="${esc(a.url)}" target="_blank" rel="noopener"
+      data-ta-news="news_section"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
+    <div>
+      <h4>${esc(a.title)}</h4>
+      ${byline(a, srcCount(a))}
+    </div>
+    ${a.image ? `<span class="thumb"><img src="${esc(a.image)}" alt="" loading="lazy"
+        onerror="this.parentNode.style.display='none'"></span>` : ""}
+  </a>`;
+}
+
+function renderHome(){
+  const topband = document.getElementById("topband");
+  const sections = document.getElementById("sections");
+  const nav = document.getElementById("secnav");
+  if (!S.batch.length){
+    topband.hidden = true; sections.innerHTML = ""; nav.hidden = true;
+    return;
+  }
+
+  const ranked = [...S.batch].sort((x, y) => storyScore(y) - storyScore(x));
+
+  // The lead wants an image; swap one into the front of the top five if the
+  // highest-scored story has none but a near peer does.
+  const top = ranked.slice(0, 5);
+  if (top.length && !top[0].image) {
+    const i = top.findIndex(a => a.image);
+    if (i > 0) top.unshift(...top.splice(i, 1));
+  }
+  renderTopband(top);
+  const used = new Set(top.map(a => a.url));
+
+  // Sections draw from everything the top band did not take, best first, and
+  // a section that cannot fill three rows does not print a heading over two.
+  const bySec = new Map(SECTIONS.map(s => [s.id, []]));
+  const mine = [];
+  for (const a of ranked) {
+    if (used.has(a.url)) continue;
+    if (a._mine && mine.length < 12) mine.push(a);
+    const sec = classify(a);
+    if (sec) bySec.get(sec).push(a);
+  }
+
+  const cards = [];
+  const inMine = new Set();
+  if (mine.length >= 3) {
+    cards.push({ id: "foryou", name: "For You",
+      small: "— your holdings and watchlist", rows: mine });
+    mine.forEach(a => inMine.add(a.url));
+  }
+  for (const s of SECTIONS) {
+    const rows = bySec.get(s.id).filter(a => !inMine.has(a.url));
+    if (rows.length >= 3) cards.push({ id: s.id, name: s.name, rows });
+  }
+
+  sections.innerHTML = cards.map(c => `
+    <div class="panel seccard" id="sec-${c.id}">
+      <div class="shead">
+        <h3>${esc(c.name)} ${c.small ? `<small>${esc(c.small)}</small>` : ""}</h3>
+        ${c.rows.length > 5 ? `<button type="button" data-open="sec-${c.id}">More ↓</button>` : ""}
+      </div>
+      ${c.rows.slice(0, 15).map(sectionRow).join("")}
+    </div>`).join("");
+
+  sections.querySelectorAll("[data-open]").forEach(b => b.onclick = () => {
+    const card = document.getElementById(b.dataset.open);
+    const open = card.classList.toggle("open");
+    b.textContent = open ? "Less ↑" : "More ↓";
+  });
+
+  // The nav lists what actually rendered, in page order.
+  const anchors = [["topband", "Top Stories"],
+                   ...cards.map(c => [`sec-${c.id}`, c.name]),
+                   ["latest-h", "Latest"]];
+  nav.innerHTML = anchors.map(([id, label], i) =>
+    `<a data-to="${id}" class="${i === 0 ? "on" : ""}">${esc(label)}</a>`).join("");
+  nav.hidden = false;
+  nav.querySelectorAll("a").forEach(a => a.onclick = () => {
+    nav.querySelectorAll("a").forEach(x => x.classList.toggle("on", x === a));
+    const el = document.getElementById(a.dataset.to);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+/* ---- the wire ------------------------------------------------------------ */
+function storyCard(a){
+  return `<a class="story" href="${esc(a.url)}" target="_blank" rel="noopener"
+    data-ta-news="news_feed"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
+    ${a.image ? `<span class="thumb"><img src="${esc(a.image)}" alt="" loading="lazy"
+        onerror="this.parentNode.style.display='none'"></span>` : ""}
+    <h2>${esc(a.title)}</h2>
+    <p>${esc(a.summary || "")}</p>
+    ${byline(a, a._dupes ? `<span>${a._dupes} more source${a._dupes === 1 ? "" : "s"}</span>` : "")}
+  </a>`;
+}
+
+function setMeta(newest){
+  document.getElementById("news-meta").textContent =
+    `${S.total.toLocaleString()} stories${newest ? ` · newest ${ago(newest)}` : ""}`;
+}
+
+/* ---- home load: two pages of the wire, and the day's brief --------------- */
+async function loadHome(){
+  const host = document.getElementById("stories");
+  host.innerHTML = `<div class="note"><span class="load"></span></div>`;
+  S.loading = true;
+
+  // The brief seeds the ranking but must never block or break it.
+  const briefP = rpc("get_market_brief", {}).then(b => {
+    const ins = (b && b.insights) || [];
+    if (!ins.length) return;
+    S.brief = {
+      syms: new Set(ins.flatMap(i => i.symbols || []).map(s => String(s).toUpperCase())),
+      toks: ins.map(i => String(i.headline || "").toLowerCase()
+        .replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(w => w.length >= 4)),
+    };
+  }).catch(() => {});
+
+  let pages = [];
+  try {
+    pages = await Promise.all([
+      rpc("get_news", { p_q: null, p_limit: HOME_PAGE, p_offset: 0 }),
+      rpc("get_news", { p_q: null, p_limit: HOME_PAGE, p_offset: HOME_PAGE })
+        .catch(() => null),
+    ]);
+  } catch (e) {
+    // get_news down entirely: the feed RPC still knows the last two days.
+    try {
+      const feed = await rpc("get_news_feed", { p_hours: 48, p_limit: 60 }) || [];
+      pages = [{ articles: feed, total: feed.length,
+                 newest: feed[0] && feed[0].published }];
+    } catch {
+      host.innerHTML = `<div class="note">News unavailable: ${esc(e.message)}</div>`;
+      S.loading = false;
+      return;
+    }
+  }
+  await briefP;
+
+  const arts = pages.filter(Boolean).flatMap(p => (p && p.articles) || []);
+  S.total = (pages[0] && pages[0].total) || arts.length;
+  // The tail resumes where the fetched pages actually ended, so a failed
+  // second page is retried by "Show more" rather than silently skipped.
+  S.offset = HOME_PAGE * pages.filter(Boolean).length;
+  S.batch = prepareBatch(arts, true);
+  S.loading = false;
+
+  renderHome();
+  host.innerHTML = S.batch.map(storyCard).join("")
+    || `<div class="note">No stories yet.</div>`;
+  setMeta(pages[0] && pages[0].newest);
+  document.getElementById("more").hidden = S.offset >= S.total;
+}
+
+/** More of the wire, appended below what is already read. The sections above
+    describe the freshest 120; the tail is a tail. */
+async function loadMoreHome(){
+  if (S.loading || S.q) return;
+  S.loading = true;
+  try {
+    const d = await rpc("get_news", { p_q: null, p_limit: HOME_PAGE, p_offset: S.offset });
+    S.offset += HOME_PAGE;
+    const arts = prepareBatch((d && d.articles) || [], false);
+    S.batch.push(...arts);
+    document.getElementById("stories")
+      .insertAdjacentHTML("beforeend", arts.map(storyCard).join(""));
+    S.total = (d && d.total) || S.total;
+    document.getElementById("more").hidden = S.offset >= S.total;
+  } catch {} finally {
+    S.loading = false;
+  }
+}
+
+/* ---- filtered mode: search or a ticker collapses to the flat list -------- */
+async function loadNews(reset){
+  if (reset) S.page = 0;
+  const host = document.getElementById("stories");
+  if (reset) host.innerHTML = `<div class="note"><span class="load"></span></div>`;
+
+  let d;
+  S.loading = true;
+  try {
+    d = await rpc("get_news", { p_q: S.q, p_limit: PAGE, p_offset: S.page * PAGE });
+  } catch (e) {
+    // get_news used to time out recounting every topic chip. Until that
+    // migration is applied, still show the day's stories from the feed RPC
+    // rather than leaving the centre column on an error.
+    try {
+      const feed = await rpc("get_news_feed", { p_hours: 168, p_limit: PAGE }) || [];
+      const q = (S.q || "").toLowerCase();
+      const arts = !q ? feed : feed.filter(a =>
+        (a.symbol && a.symbol.toLowerCase() === q) ||
+        (a.title && a.title.toLowerCase().includes(q)) ||
+        (a.summary && a.summary.toLowerCase().includes(q)));
+      d = { articles: arts, total: arts.length, newest: arts[0] && arts[0].published };
+    } catch {
+      host.innerHTML = `<div class="note">News unavailable: ${esc(e.message)}</div>`;
+      S.loading = false;
+      return;
+    }
+  }
+  const arts = prepareBatch((d && d.articles) || [], reset);
+  S.total = (d && d.total) || 0;
+
+  if (reset && !arts.length){
+    host.innerHTML = `<div class="note">Nothing matches ${S.q ? `“${esc(S.q)}”` : "this filter"} yet.</div>`;
+  } else {
+    const html = arts.map(storyCard).join("");
+    if (reset) host.innerHTML = html; else host.insertAdjacentHTML("beforeend", html);
+  }
+
+  setMeta(d && d.newest);
+  const shown = (S.page + 1) * PAGE;
+  document.getElementById("more").hidden = shown >= S.total;
+  S.loading = false;
+}
+
+/** One switch between the front page and the filtered list. Searching hides
+    the top band and the sections -- a filter is a question, and the answer
+    is the matching stories, not the day's layout around them. */
+function setFilter(query, label){
+  S.q = query || null;
+  S.label = S.q ? (label || query) : null;
+  document.getElementById("active-filter").innerHTML = S.q
+    ? `<span class="chip-active">${esc(S.label)}<button id="clear" aria-label="Clear filter">×</button></span>`
+    : "";
+  const c = document.getElementById("clear");
+  if (c) c.onclick = () => setFilter(null);
+  const tq = document.getElementById("tq");
+  if (tq && tq.value.trim() !== (S.q || "")) tq.value = "";
+
+  document.getElementById("home").hidden = !!S.q;
+  document.getElementById("secnav").hidden = !!S.q || !S.batch.length;
+  document.getElementById("latest-h").textContent = S.q ? "Results" : "Latest";
+
+  if (S.q) loadNews(true);
+  else if (S.batch.length) {
+    // Coming back from a search: the front page is already built.
+    document.getElementById("stories").innerHTML = S.batch.map(storyCard).join("");
+    document.getElementById("more").hidden = S.offset >= S.total;
+    renderHome();
+  } else {
+    loadHome();
+  }
+  scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/* ---- right rail: market summary ------------------------------------------ */
 async function setView(v){
   S.view = v;
   document.querySelectorAll("#views button").forEach(b =>
@@ -437,124 +843,7 @@ async function setView(v){
     tr.onclick = () => setFilter(tr.dataset.s));
 }
 
-/* ---- centre column ------------------------------------------------------- */
-function storyCard(a){
-  return `<a class="story" href="${esc(a.url)}" target="_blank" rel="noopener"
-    data-ta-news="news_feed"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
-    ${a.image ? `<span class="thumb"><img src="${esc(a.image)}" alt="" loading="lazy"
-        onerror="this.parentNode.style.display='none'"></span>` : ""}
-    <h2>${esc(a.title)}</h2>
-    <p>${esc(a.summary || "")}</p>
-    <span class="by">
-      ${a.symbol ? `<span class="tag">${esc(a.symbol)}</span>` : ""}
-      ${a._mine ? `<span class="tag" style="background:var(--up-soft,#e3f4ec);color:var(--up,#0b7a4b)">yours</span>` : ""}
-      <span>${esc(a.publisher || "")}</span><span>·</span><span>${esc(ago(a.published))}</span>
-      ${a._dupes ? `<span>·</span><span>${a._dupes} more source${a._dupes === 1 ? "" : "s"}</span>` : ""}
-    </span></a>`;
-}
-
-async function loadNews(reset){
-  if (reset) S.page = 0;
-  const host = document.getElementById("stories");
-  if (reset) host.innerHTML = `<div class="note"><span class="load"></span></div>`;
-
-  let d;
-  S.loading = true;
-  try {
-    d = await rpc("get_news", { p_q: S.q, p_limit: PAGE, p_offset: S.page * PAGE });
-  } catch (e) {
-    // get_news used to time out recounting every topic chip. Until that
-    // migration is applied, still show the day's stories from the feed RPC
-    // rather than leaving the centre column on an error.
-    try {
-      const feed = await rpc("get_news_feed", {
-        p_hours: S.q ? 168 : 48,
-        p_limit: PAGE,
-      }) || [];
-      const q = (S.q || "").toLowerCase();
-      const arts = !q ? feed : feed.filter(a =>
-        (a.symbol && a.symbol.toLowerCase() === q) ||
-        (a.title && a.title.toLowerCase().includes(q)) ||
-        (a.summary && a.summary.toLowerCase().includes(q)));
-      d = { articles: arts, total: arts.length, keywords: [], newest: arts[0] && arts[0].published };
-    } catch {
-      host.innerHTML = `<div class="note">News unavailable: ${esc(e.message)}</div>`;
-      S.loading = false;
-      return;
-    }
-  }
-  const arts = prepareBatch((d && d.articles) || [], reset);
-  S.total = (d && d.total) || 0;
-
-  if (reset && !arts.length){
-    host.innerHTML = `<div class="note">Nothing matches ${S.q ? `“${esc(S.q)}”` : "this filter"} yet.</div>`;
-  } else {
-    const html = arts.map(storyCard).join("");
-    if (reset) host.innerHTML = html; else host.insertAdjacentHTML("beforeend", html);
-  }
-
-  document.getElementById("news-meta").textContent =
-    `${S.total.toLocaleString()} stories${d && d.newest ? ` · newest ${ago(d.newest)}` : ""}`;
-  const shown = (S.page + 1) * PAGE;
-  document.getElementById("more").hidden = shown >= S.total;
-
-  if (reset && d && d.keywords && d.keywords.length && !S.keywords.length){
-    S.keywords = d.keywords;
-    renderChips();
-  }
-  S.loading = false;
-}
-
-/* ---- right column: topics ------------------------------------------------ */
-// A chip shows a subject and searches for something else -- "The Fed" searches
-// "Fed", "Nvidia" searches NVDA -- so the label and the query travel together
-// and `S.label` is what the active-filter pill displays.
-function renderChips(){
-  const host = document.getElementById("chips");
-  if (!S.keywords.length){ host.innerHTML = `<span class="note" style="padding:0">No topics yet.</span>`; return; }
-
-  // Half as many as before. The column is narrower here than the old right-hand
-  // one, and the chips are ranked by how much news is behind them, so the tail
-  // was the part nobody clicked. Every subject is still reachable through the
-  // search above them.
-  const HALF = arr => arr.slice(0, Math.max(4, Math.ceil(arr.length / 2)));
-  const group = kind => HALF(S.keywords.filter(k => k.kind === kind));
-  const chip = k =>
-    `<button data-q="${esc(k.query || k.word)}" data-l="${esc(k.word)}"
-       class="${k.kind === "company" ? "co" : ""}"
-       aria-pressed="${S.q && S.q.toLowerCase() === (k.query || k.word).toLowerCase()}"
-       title="${k.count} ${k.count === 1 ? "story" : "stories"}">${esc(k.word)}</button>`;
-
-  const companies = group("company");
-  host.innerHTML =
-    group("topic").map(chip).join("") +
-    // Anything the worker did not label stays visible rather than vanishing.
-    HALF(S.keywords.filter(k => k.kind !== "topic" && k.kind !== "company")).map(chip).join("") +
-    (companies.length
-      ? `<div class="grouplabel">Most valuable companies</div>` + companies.map(chip).join("")
-      : "");
-
-  host.querySelectorAll("button").forEach(b => b.onclick = () =>
-    setFilter(S.q && S.q.toLowerCase() === b.dataset.q.toLowerCase() ? null : b.dataset.q,
-              b.dataset.l));
-}
-
-function setFilter(query, label){
-  S.q = query || null;
-  S.label = S.q ? (label || query) : null;
-  document.getElementById("active-filter").innerHTML = S.q
-    ? `<span class="chip-active">${esc(S.label)}<button id="clear" aria-label="Clear filter">×</button></span>`
-    : "";
-  const c = document.getElementById("clear");
-  if (c) c.onclick = () => setFilter(null);
-  const tq = document.getElementById("tq");
-  if (tq && tq.value.trim() !== (S.q || "")) tq.value = "";
-  renderChips();
-  loadNews(true);
-  document.getElementById("newsscroll").scrollTo({ top: 0, behavior: "smooth" });
-}
-
-/* ---- right column: the scrolling feed ------------------------------------ */
+/* ---- right rail: the scrolling feed -------------------------------------- */
 async function loadFeed(){
   const host = document.getElementById("feed");
   let rows = [];
@@ -639,11 +928,12 @@ function startFeedDrift(){
   const t = new URLSearchParams(location.search).get("t");
   if (t) S.q = t.toUpperCase();
 
-  setFilter(S.q);
+  if (S.q) setFilter(S.q);
+  else loadHome();
   setView("market_cap");
   loadFeed();
 
-  // Free-text search, on the same filter as the chips.
+  // Free-text search, on the same filter the summary rows use.
   const tq = document.getElementById("tq");
   let typing = null;
   // Reported where the filter is actually applied, so a search is one event
@@ -663,48 +953,19 @@ function startFeedDrift(){
   });
 
   const more = document.getElementById("more");
-  more.onclick = () => { S.page++; loadNews(false); };
+  more.onclick = () => {
+    if (S.q) { S.page++; loadNews(false); }
+    else loadMoreHome();
+  };
 
-  // Reaching the bottom of the column is the same intent as pressing the
+  // Reaching the bottom of the page is the same intent as pressing the
   // button, so don't make them press it.
-  const scroller = document.getElementById("newsscroll");
-  scroller.addEventListener("scroll", () => {
+  addEventListener("scroll", () => {
     if (S.loading || more.hidden) return;
-    if (scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 240) return;
-    S.page++;
-    loadNews(false);
+    if (scrollY + innerHeight < document.body.scrollHeight - 480) return;
+    if (S.q) { S.page++; loadNews(false); }
+    else loadMoreHome();
   }, { passive: true });
-})();
-</script>
-<script>
-/* The reading layout puts the market summary and topics above the stories once
-   the three columns stack, so News opened on everything except news. The search
-   belongs at the top of a phone list, and it lives inside the left column, so it
-   is relocated rather than reordered. Reversible, because the desktop layout
-   wants it back where it was. */
-(function () {
-  var mq = matchMedia("(max-width:720px)");
-  var holder = null, home = null, form = null;
-  function apply() {
-    var cols = document.querySelector(".cols");
-    form = form || document.querySelector(".tsearch");
-    if (!cols || !form) return;
-    if (mq.matches) {
-      if (holder) return;
-      home = form.parentNode;
-      holder = document.createElement("div");
-      holder.className = "news-search-top";
-      cols.insertBefore(holder, cols.firstChild);
-      holder.appendChild(form);
-    } else if (holder) {
-      home.appendChild(form);
-      holder.remove();
-      holder = null;
-    }
-  }
-  addEventListener("DOMContentLoaded", apply);
-  mq.addEventListener("change", apply);
-  apply();
 })();
 </script>
 <script src="nav.js"></script>
