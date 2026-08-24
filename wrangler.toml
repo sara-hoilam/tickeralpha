@@ -1,0 +1,23 @@
+# Cloudflare Workers Builds — the git-connected deploy.
+#
+# The dashboard's GitHub integration runs `npx wrangler deploy` on every push;
+# this file is what tells it what that means for a repo that is a static site:
+# run the build, then upload public/ as the ticker-alpha service's assets.
+# Without it the build fails in zero seconds, before any log worth reading.
+#
+# `name` must match the Workers service exactly — deploying under another name
+# would create a second service the domain does not point at.
+
+name = "ticker-alpha"
+compatibility_date = "2026-08-24"
+
+# Custom build: wrangler runs this before uploading, on deploy and on `wrangler
+# dev` alike. It is the same command the old Pages setup ran.
+[build]
+command = "bash build.sh"
+
+# No worker script — this is an assets-only deployment. Workers static assets
+# honour the _headers file that build.sh copies into public/, so the cache
+# rules keep working.
+[assets]
+directory = "./public"
