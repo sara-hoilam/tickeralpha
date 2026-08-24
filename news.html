@@ -457,7 +457,8 @@ function prepareBatch(arts, reset){
       first._dupes = (first._dupes || 0) + 1;
       if ((first._alts = first._alts || []).length < 6 && a.url &&
           a.publisher !== first.publisher) {
-        first._alts.push({ url: a.url, publisher: a.publisher, title: a.title });
+        first._alts.push({ url: a.url, publisher: a.publisher, title: a.title,
+                           image: a.image, summary: a.summary });
       }
       continue;
     }
@@ -475,20 +476,95 @@ function prepareBatch(arts, reset){
    Brief -- an AI-ranked top five written each weekday morning for the market
    page -- seeds the top band: a story it mentions is a story an editor
    already chose. */
-function briefMatch(a){
+/** Which of the brief's insights a story matches -- 0 is the editor's top
+    pick -- or null. Order matters: the seed below sorts by it. */
+function briefRank(a){
   const b = S.brief;
-  if (!b) return false;
-  if (a.symbol && b.syms.has(String(a.symbol).toUpperCase())) return true;
+  if (!b) return null;
   const t = ` ${String(a.title || "").toLowerCase()} `;
-  return b.toks.some(set => {
+  for (let i = 0; i < b.ins.length; i++) {
+    const ins = b.ins[i];
+    if (a.symbol && ins.syms.has(String(a.symbol).toUpperCase())) return i;
     let hit = 0;
-    for (const w of set) if (t.includes(` ${w} `)) hit++;
-    return hit >= 3;
-  });
+    for (const w of ins.toks) if (t.includes(` ${w} `)) hit++;
+    if (hit >= 3) return i;
+  }
+  return null;
+}
+const briefMatch = a => briefRank(a) !== null;
+
+/* On the real wire, near-identical titles measure syndication, not
+   importance: a "So-and-so Bank Increases Holdings in NVDA" filing note is
+   reworded fifteen times by the aggregator mills, while Bloomberg, Reuters
+   and the Times each write their own headline for the story that actually
+   moves markets -- so raw cluster size ranks the filing note first. Three
+   correctives, no model anywhere:
+
+     - filing-note and listicle patterns, and the mills that churn them, are
+       marked down hard;
+     - the majors are marked up a little;
+     - stories that share a salient word with many *different* stories today
+       ("tariff", "canada") get a theme boost -- the day's big story is a
+       theme across headlines, even when no two headlines match. */
+const JUNK_RE = new RegExp([
+  /\b13f\b/, /holdings? (in|of)\b/, /(stake|position) in\b/,
+  /(boosts?|trims?|raises?|lowers?|cuts?|increases?|decreases?|acquires?|buys?|sells?) (its )?(stake|position|holdings?|shares)/,
+  /shares (bought|sold|acquired|purchased) by/,
+  /price target/, /\bpt\b (raised|lowered)/,
+  /why .{0,45}(stock|shares) (is|are|rose|fell|jumped|plunged|moved|soar|sank)/,
+  /stocks? to (buy|watch|own|sell)/, /\b(top|best) \d+\b/,
+  /should you buy/, /prediction/, /\bvs\.?\b.{0,30}which/,
+].map(r => r.source).join("|"), "i");
+
+const MILL_RE = /marketbeat|zacks|motley ?fool|fool\.com|etf daily|insider monkey|benzinga|simply wall|gurufocus|24\/7 wall|investorplace|stocknews|tipranks|thestreet/i;
+const MAJOR_RE = /bloomberg|reuters|wall street journal|\bwsj\b|financial times|\bft\b|cnbc|associated press|ap news|new york times|barron|the economist|axios|semafor|politico|washington post/i;
+
+const isJunk  = a => JUNK_RE.test(a.title || "") || MILL_RE.test(a.publisher || "");
+const isMajor = a => MAJOR_RE.test(a.publisher || "");
+
+/* How many distinct stories share each salient title word today. Recomputed
+   when the batch changes; a Map lookup afterwards. */
+const THEME_STOP = new Set(("the a an and or to of in on for as at by with from after " +
+  "before into over under amid says say said its his her their this that these those " +
+  "is are was were be been has have had will would could should may might can new news " +
+  "stock stocks shares share market markets inc corp company companies group report " +
+  "reports today week year years quarter billion million percent price prices trading " +
+  "investors wall street what when where which who why how more most up down here your " +
+  "you not now just still first last big top best does about than analyst analysts " +
+  "earnings buy sell hold rating").split(" "));
+function themeTokens(a){
+  return [...new Set(String(a.title || "").toLowerCase()
+    .replace(/'s\b/g, "").replace(/[^a-z ]+/g, " ").split(/\s+/)
+    // The crudest stemmer that works: tariffs and tariff are one subject.
+    .map(w => w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w)
+    .filter(w => w.length >= 4 && !THEME_STOP.has(w)))];
+}
+function buildThemes(){
+  const df = new Map();
+  for (const a of S.batch)
+    for (const w of themeTokens(a)) df.set(w, (df.get(w) || 0) + 1);
+  S.themeDf = df;
+}
+function themeBoost(a){
+  if (!S.themeDf) return 1;
+  let peak = 0;
+  for (const w of themeTokens(a)) peak = Math.max(peak, S.themeDf.get(w) || 0);
+  // Four distinct stories on one subject is a theme; the boost grows slowly
+  // and stops at about double so no single word can own the page.
+  return peak < 4 ? 1 : 1 + Math.min(0.9, Math.log2(peak) / 4);
 }
 
 function storyScore(a){
   let s = (1 + (a._dupes || 0)) * Math.exp(-hoursOld(a.published) / 18);
+  s *= themeBoost(a);
+  if (isJunk(a)) s *= 0.25;
+  else if (isMajor(a)) s *= 1.25;
+  // Macro stories -- no ticker, classified policy/fed/commodities -- are the
+  // ones that move the whole tape; the tape is what this site is about.
+  if (!a.symbol) {
+    const sec = classify(a);
+    if (sec === "policy" || sec === "fed" || sec === "commodities") s *= 1.2;
+  }
   if (briefMatch(a)) s *= 1.6;
   if (a._mine) s *= 1.3;
   return s;
@@ -532,38 +608,60 @@ function byline(a, extra){
     ${extra ? `<span>·</span>${extra}` : ""}</span>`;
 }
 
+/** The copy of a cluster worth showing: a major's headline and photograph
+    over a mill's, and any image over none. The dedup kept whichever copy
+    arrived first, which on the wire is usually the mill -- so the picture
+    looked random because it was a filing-note's stock photo. The copies not
+    chosen become the "more sources" list. */
+function bestCopy(a){
+  const cands = [
+    { url: a.url, title: a.title, publisher: a.publisher,
+      image: a.image, summary: a.summary },
+    ...(a._alts || []),
+  ];
+  let best = cands[0], bestScore = -1;
+  for (const c of cands) {
+    const sc = (MAJOR_RE.test(c.publisher || "") ? 2 : 0)
+             + (MILL_RE.test(c.publisher || "") ? -2 : 0)
+             + (c.image ? 1 : 0);
+    if (sc > bestScore) { best = c; bestScore = sc; }
+  }
+  return { ...best, others: cands.filter(c => c !== best) };
+}
+
 function renderTopband(top){
   const host = document.getElementById("topband");
   if (!top.length){ host.hidden = true; return; }
   const [lead, ...rest] = top;
-  const alts = (lead._alts || []).map(x =>
+  const v = bestCopy(lead);
+  const alts = v.others.slice(0, 6).map(x =>
     `<a href="${esc(x.url)}" target="_blank" rel="noopener" data-ta-news="news_top"
        ${lead.symbol ? `data-ta-ticker="${esc(lead.symbol)}"` : ""}><b>${esc(x.publisher || "…")}</b>${esc(x.title)}</a>`).join("");
   host.innerHTML = `
     <div class="bandhead">
       <h3>Top Stories</h3>
-      <span class="why">ranked by how many publishers are covering it right now</span>
+      <span class="why">the day's brief, and what most publishers are writing</span>
     </div>
     <div>
-      <a class="lead" href="${esc(lead.url)}" target="_blank" rel="noopener"
+      <a class="lead" href="${esc(v.url)}" target="_blank" rel="noopener"
          data-ta-news="news_top"${lead.symbol ? ` data-ta-ticker="${esc(lead.symbol)}"` : ""}>
-        ${lead.image ? `<span class="thumb"><img src="${esc(lead.image)}" alt="" loading="lazy"
+        ${v.image ? `<span class="thumb"><img src="${esc(v.image)}" alt="" loading="lazy"
             onerror="this.parentNode.style.display='none'"></span>` : ""}
-        <h2>${esc(lead.title)}</h2>
-        <p>${esc(lead.summary || "")}</p>
-        ${byline(lead, srcCount(lead) && !alts ? srcCount(lead) : "")}
+        <h2>${esc(v.title)}</h2>
+        <p>${esc(v.summary || lead.summary || "")}</p>
+        ${byline({ ...lead, publisher: v.publisher }, srcCount(lead) && !alts ? srcCount(lead) : "")}
       </a>
       ${alts ? `<div style="padding:0 18px 16px"><details class="alts">
         <summary>${srcCount(lead)}</summary>
         <div class="altlist">${alts}</div>
       </details></div>` : ""}
     </div>
-    <div class="tlist">${rest.map(a => `
-      <a href="${esc(a.url)}" target="_blank" rel="noopener"
+    <div class="tlist">${rest.map(a => { const c = bestCopy(a); return `
+      <a href="${esc(c.url)}" target="_blank" rel="noopener"
          data-ta-news="news_top"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
-        <h4>${esc(a.title)}</h4>
-        ${byline(a, srcCount(a))}
-      </a>`).join("")}</div>`;
+        <h4>${esc(c.title)}</h4>
+        ${byline({ ...a, publisher: c.publisher }, srcCount(a))}
+      </a>`; }).join("")}</div>`;
   host.hidden = false;
 }
 
@@ -588,13 +686,26 @@ function renderHome(){
     return;
   }
 
+  buildThemes();
   const ranked = [...S.batch].sort((x, y) => storyScore(y) - storyScore(x));
 
-  // The lead wants an image; swap one into the front of the top five if the
-  // highest-scored story has none but a near peer does.
-  const top = ranked.slice(0, 5);
-  if (top.length && !top[0].image) {
-    const i = top.findIndex(a => a.image);
+  // The band seats the day's brief first -- those stories were chosen by an
+  // editor, not a counter -- then fills by score. Filing notes and listicles
+  // never lead the page, whatever their syndication count.
+  const seed = ranked.filter(a => !isJunk(a) && briefMatch(a))
+    .sort((x, y) => briefRank(x) - briefRank(y)).slice(0, 3);
+  const top = [...seed];
+  for (const a of ranked) {
+    if (top.length >= 5) break;
+    if (!top.includes(a) && !isJunk(a)) top.push(a);
+  }
+  // A wire hour that is nothing but filing notes still gets a front page.
+  if (!top.length && ranked.length) top.push(ranked[0]);
+
+  // The lead wants an image; swap one into the front if the highest-ranked
+  // story has none but a near peer does.
+  if (top.length && !bestCopy(top[0]).image) {
+    const i = top.findIndex(a => bestCopy(a).image);
     if (i > 0) top.unshift(...top.splice(i, 1));
   }
   renderTopband(top);
@@ -679,11 +790,13 @@ async function loadHome(){
   const briefP = rpc("get_market_brief", {}).then(b => {
     const ins = (b && b.insights) || [];
     if (!ins.length) return;
-    S.brief = {
-      syms: new Set(ins.flatMap(i => i.symbols || []).map(s => String(s).toUpperCase())),
-      toks: ins.map(i => String(i.headline || "").toLowerCase()
-        .replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(w => w.length >= 4)),
-    };
+    // Kept insight by insight, in rank order: the brief is an editor's list,
+    // and its #1 should lead the page over its #2 whatever the counters say.
+    S.brief = { ins: ins.map(i => ({
+      syms: new Set((i.symbols || []).map(s => String(s).toUpperCase())),
+      toks: String(i.headline || "").toLowerCase()
+        .replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(w => w.length >= 4),
+    })) };
   }).catch(() => {});
 
   let pages = [];
