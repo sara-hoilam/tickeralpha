@@ -675,9 +675,11 @@ function bestCopy(a){
   ];
   let best = cands[0], bestScore = -1;
   for (const c of cands) {
+    // An article-scraped image is the publisher's full-size photograph;
+    // a feed image is a thumbnail. Prefer the copy that brings the former.
     const sc = (MAJOR_RE.test(c.publisher || "") ? 2 : 0)
              + (MILL_RE.test(c.publisher || "") ? -2 : 0)
-             + (artImage(c) ? 1 : 0);
+             + (artImage(c) ? (c.imageSrc === "article" ? 2 : 1) : 0);
     if (sc > bestScore) { best = c; bestScore = sc; }
   }
   // `image` leaves here already vetted: every render site prints it as-is.
@@ -701,7 +703,8 @@ function renderTopband(top){
       <a class="lead" href="${esc(v.url)}" target="_blank" rel="noopener"
          data-ta-news="news_top"${lead.symbol ? ` data-ta-ticker="${esc(lead.symbol)}"` : ""}>
         ${v.image ? `<span class="thumb"><img src="${esc(v.image)}" alt="" loading="lazy"
-            onerror="this.parentNode.style.display='none'"></span>` : ""}
+            onerror="this.parentNode.style.display='none'"
+            onload="if(this.naturalWidth&&this.naturalWidth<500)this.parentNode.style.display='none'"></span>` : ""}
         <h2>${esc(v.title)}</h2>
         <p>${esc(v.summary || lead.summary || "")}</p>
         ${byline({ ...lead, publisher: v.publisher }, srcCount(lead) && !alts ? srcCount(lead) : "")}
@@ -721,7 +724,9 @@ function renderTopband(top){
 }
 
 function sectionRow(a){
-  const img = artImage(a);
+  // The cluster's best image, not the first-arriving copy's: a mill's
+  // thumbnail loses to another copy's article-scraped photograph.
+  const img = bestCopy(a).image;
   return `<a class="srow" href="${esc(a.url)}" target="_blank" rel="noopener"
       data-ta-news="news_section"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
     <div>

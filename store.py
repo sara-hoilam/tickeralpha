@@ -256,9 +256,9 @@ def upsert_news(rows: list[dict], keywords: list[dict]) -> int:
     return rpc("upsert_news", {"p_rows": rows, "p_keywords": keywords}) or 0
 
 
-def news_image_queue(limit: int = 20) -> list[dict]:
-    """Recent articles still wanting a real photograph: wire copy whose feed
-    image is decoration, and stories with no image at all."""
+def news_image_queue(limit: int = 30) -> list[dict]:
+    """Recent articles still wanting their page's own photograph, worst-off
+    first: no image, then wire copy wearing a stock photo, then the rest."""
     return rpc("news_image_queue", {"p_limit": limit}) or []
 
 
