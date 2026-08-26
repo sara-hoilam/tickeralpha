@@ -273,6 +273,12 @@ def upsert_prices(symbol: str, bars: list[dict], quote: dict | None,
                                  "p_quote": quote, "p_as_of": as_of}) or 0
 
 
+def reports_due(symbols: list[str], hours: int = 12) -> list[str]:
+    """Which of these symbols have no report data, or data older than
+    ``hours``. Order-preserving, so the caller's priority order holds."""
+    return rpc("reports_due", {"p_symbols": symbols, "p_hours": hours}) or []
+
+
 def pending_prices(limit: int = 5) -> list[str]:
     return rpc("pending_prices", {"p_limit": limit}) or []
 
