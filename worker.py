@@ -7,6 +7,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py backfill           drain the request queue once
     python worker.py sweep [YYYY-MM-DD] ingest that day's new 10-Q/10-K
     python worker.py market             refresh prices, movers and sectors
+    python worker.py warm               pre-fetch the front tables' tickers
     python worker.py indexes            refresh SPX / IXIC / DJI quotes + holdings
     python worker.py sections           refresh heatmap, rotation and trades
     python worker.py news               refresh market news
@@ -328,6 +329,13 @@ def refresh_market() -> bool:
             store.replace_movers(kind, rows, as_of)
         except market.MarketError as exc:
             log(f"  movers {kind}: {exc}")
+
+    # Remember the mover names for the warm pool: this is the one place that
+    # already holds them, so warming them costs no extra discovery request.
+    global _mover_symbols
+    _mover_symbols = [r["symbol"] for k in ("gainer", "loser")
+                      for r in (store_movers.get(k) or [])[:WARM_MOVERS]
+                      if r.get("symbol")]
 
     # Chart series for the watchlist and for the top few movers, so every
     # view of the summary list has something to draw when it is opened --
@@ -920,6 +928,83 @@ def drain_analyst(max_items: int = 5) -> int:
     return sum(1 for sym in pending if fetch_analyst(sym))
 
 
+# ---------------------------------------------------------------------------
+# Pre-warming the front tables
+# ---------------------------------------------------------------------------
+# The Markets Today tables (market cap, gainers, losers) are the front door:
+# most first clicks land on one of their tickers, and left to the request
+# queue alone, the first visitor of the day waits out a full on-demand fetch.
+# So the worker keeps those names warm itself. Every market cycle rebuilds the
+# candidate pool -- the largest companies by market cap plus both mover
+# lists -- and between visitor requests a small batch of whichever names have
+# gone stale is fetched through the same fetch_prices path a visit would use.
+# The staleness threshold matches the page's own (get_prices marks 12 hours),
+# so a warmed name never shows the slow path.
+
+WARM_TOP_CAP = int(os.environ.get("WARM_TOP_CAP", "50"))
+WARM_MOVERS = int(os.environ.get("WARM_MOVERS", "25"))
+WARM_BATCH = int(os.environ.get("WARM_BATCH", "4"))
+WARM_STALE_HOURS = int(os.environ.get("WARM_STALE_HOURS", "12"))
+
+_mover_symbols: list[str] = []      # written by refresh_market
+_warm_pool: list[str] = []          # rebuilt each market cycle
+_warm_idle_until = 0.0              # everything fresh: stop asking for a while
+
+
+def rebuild_warm_pool() -> None:
+    """The names worth keeping warm, largest caps first.
+
+    top_by_cap rides the screener call the mover filter already makes (and
+    caches), so rebuilding the pool costs nothing extra. Order matters: the
+    due-list preserves it, and the batch fetched first is the front of it --
+    a stale NVDA beats a stale 48th-largest name.
+    """
+    global _warm_pool
+    pool: list[str] = []
+    try:
+        pool += [t for t, _name in market.top_by_cap(WARM_TOP_CAP)]
+    except market.MarketError as exc:
+        log(f"  warm pool: screener unavailable ({exc})")
+    pool += _mover_symbols
+    _warm_pool = list(dict.fromkeys(s.upper() for s in pool if s))
+
+
+def warm_reports(batch: int = WARM_BATCH) -> int:
+    """Fetch report data for stale front-table names, a few per pass.
+
+    Visitor requests always drain first; this fills the quiet between them.
+    reports_due is the resumable memory: the database says which names still
+    need today's fetch, so a worker restart resumes rather than starting the
+    whole pool over.
+    """
+    global _warm_idle_until
+    if not _warm_pool or not market.configured():
+        return 0
+    if time.time() < _FMP_PAUSED_UNTIL or time.time() < _warm_idle_until:
+        return 0
+    try:
+        due = store.reports_due(_warm_pool, WARM_STALE_HOURS)
+    except store.StoreError as exc:
+        log(f"  warm queue unavailable (apply 0069_report_warm.sql): {exc}")
+        return 0
+    if not due:
+        # Names go stale one at a time over hours; once everything is fresh
+        # there is no reason to re-ask every poll. The pool rebuild cadence
+        # is the natural recheck.
+        _warm_idle_until = time.time() + 900
+        return 0
+    done = 0
+    for sym in due[:max(0, batch)]:
+        if fetch_prices(sym):
+            done += 1
+        if time.time() < _FMP_PAUSED_UNTIL:
+            break                   # the account just got refused; stop
+    if done:
+        log(f"warm: {done} fetched, {len(due) - done} still due "
+            f"of {len(_warm_pool)} front-table names")
+    return done
+
+
 def refresh_sections(do_trades: bool = True) -> bool:
     """Heatmap, sector rotation, insider and congressional trades.
 
@@ -1236,6 +1321,10 @@ def run() -> None:
                 except market.MarketError as exc:
                     log(f"market refresh failed (continuing): {exc}")
                 try:
+                    rebuild_warm_pool()
+                except Exception as exc:
+                    log(f"warm pool rebuild failed (continuing): {exc}")
+                try:
                     refresh_news()
                 except market.MarketError as exc:
                     log(f"news refresh failed (continuing): {exc}")
@@ -1293,6 +1382,13 @@ def run() -> None:
                 continue
             if drain_analyst():
                 continue
+
+            # Nobody waiting: spend the quiet keeping the front tables warm,
+            # so the first click of the day lands on data already there.
+            try:
+                warm_reports()
+            except store.StoreError as exc:
+                log(f"warm pass failed (continuing): {exc}")
 
             today = dt.date.today()
             if last_sweep_day != today and dt.datetime.now().hour >= 22:
@@ -1361,6 +1457,15 @@ def main(argv: list[str]) -> int:
     elif cmd == "market":
         log("market refreshed" if refresh_market()
             else "FMP_API_KEY not set; nothing to do")
+    elif cmd == "warm":
+        # One full pass by hand: everything due, not just a loop batch.
+        if not refresh_market():
+            log("FMP_API_KEY not set; nothing to do")
+        else:
+            rebuild_warm_pool()
+            n = warm_reports(len(_warm_pool))
+            log(f"warm: {n} name(s) fetched"
+                if n else "warm: everything already fresh")
     elif cmd == "indexes":
         log("indexes refreshed" if refresh_indexes(holdings=True)
             else "FMP_API_KEY not set; nothing to do")
