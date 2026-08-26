@@ -4116,6 +4116,19 @@ function toast(msg){
 
 /* ---- Discover (filtered to portfolio / watchlist tickers) ---------------- */
 const DISC = { items: [], page: 0, per: 3, wired: false };
+
+/** An image worth printing, or null — same trust rules as the News page.
+    The article page's own photograph (imageSrc "article", scraped by the
+    worker) is always trusted; a feed image is a thumbnail pasted on by the
+    aggregator, trusted only when no wire service sent the story. */
+const WIRE_RE = /newswire|business ?wire|accesswire|newsfile|prweb|press release/i;
+function newsImage(a){
+  if (!a || !a.image) return null;
+  if (a.imageSrc === "article") return a.image;
+  if (WIRE_RE.test(a.publisher || "")) return null;
+  return a.image;
+}
+
 const AVATAR = ["--accent","#eb6834","#1baf7a","#eda100","#e87ba4","#4a3aa7","#2a78d6","#e34948"];
 const avatarColour = s => {
   let h = 0; for (const ch of String(s || "")) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -4204,7 +4217,7 @@ async function loadPortfolioDiscover(){
   }));
 
   const rows = [...byUrl.values()].sort((a, b) => {
-    const ai = a.image ? 0 : 1, bi = b.image ? 0 : 1;
+    const ai = newsImage(a) ? 0 : 1, bi = newsImage(b) ? 0 : 1;
     if (ai !== bi) return ai - bi;
     return (b.published || "").localeCompare(a.published || "");
   }).slice(0, 12);
@@ -4233,9 +4246,11 @@ function renderDiscover(articles, emptyMsg){
   track.innerHTML = DISC.items.map(a => {
     const pub = a.publisher || "Source";
     const initial = (pub.replace(/^the\s+/i, "").trim()[0] || "?").toUpperCase();
-    const img = a.image
-      ? `<span class="ph"><img src="${esc(a.image)}" alt="" loading="lazy"
-           onerror="this.parentNode.classList.add('blank');this.remove()"></span>`
+    const pic = newsImage(a);
+    const img = pic
+      ? `<span class="ph"><img src="${esc(pic)}" alt="" loading="lazy"
+           onerror="this.parentNode.classList.add('blank');this.remove()"
+           onload="if(this.naturalWidth&&this.naturalWidth<240){this.parentNode.classList.add('blank');this.remove()}"></span>`
       : `<span class="ph blank">Market</span>`;
     return `<a class="disc-card" href="${esc(a.url)}" target="_blank" rel="noopener"
         data-ta-news="portfolio_feed"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
