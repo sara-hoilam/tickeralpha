@@ -256,6 +256,17 @@ def upsert_news(rows: list[dict], keywords: list[dict]) -> int:
     return rpc("upsert_news", {"p_rows": rows, "p_keywords": keywords}) or 0
 
 
+def news_image_queue(limit: int = 20) -> list[dict]:
+    """Recent articles still wanting a real photograph: wire copy whose feed
+    image is decoration, and stories with no image at all."""
+    return rpc("news_image_queue", {"p_limit": limit}) or []
+
+
+def set_news_images(rows: list[dict]) -> int:
+    """Record one scrape attempt per row ({url, image}); image may be None."""
+    return rpc("set_news_images", {"p_rows": rows}) or 0
+
+
 def upsert_prices(symbol: str, bars: list[dict], quote: dict | None,
                   as_of: str | None) -> int:
     return rpc("upsert_prices", {"p_symbol": symbol, "p_bars": bars,

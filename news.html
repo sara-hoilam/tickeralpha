@@ -422,7 +422,7 @@ const avatarColour = s => {
 };
 
 const S = { view: "market_cap", q: null, label: null, page: 0, total: 0,
-            offset: 0, loading: false,
+            loading: false,
             // Cross-page memory of headlines already shown, so a wire story
             // syndicated to four publishers appears once with a count instead
             // of four times; and the reader's own symbols, for the boost.
@@ -432,7 +432,9 @@ const S = { view: "market_cap", q: null, label: null, page: 0, total: 0,
             // the front page is open ("top" or a section id).
             batch: [], brief: null, htab: "top" };
 const PAGE = 12;          // a filtered search pages at this size
-const HOME_PAGE = 60;     // get_news serves at most 60 a call; home fetches two
+const HOME_PAGE = 60;     // the fallback's page size: get_news caps at 60
+const HOME_HOURS = 24;    // the front page is a day, not the newest N rows
+const HOME_LIMIT = 500;   // get_news_home's cap on that day
 
 /* ---- relevance ----------------------------------------------------------
    The feed pulls plenty and fresh; what makes a front page is an editor. Two
@@ -478,6 +480,12 @@ function newsKey(a){
     "11 more sources" and actually name them. */
 function prepareBatch(arts, reset){
   if (reset || !S.seenKeys) S.seenKeys = new Map();
+  // How often each image URL appears in what was fetched, duplicates and
+  // all — a photo shared by many stories is decoration, and artImage()
+  // refuses to print it.
+  if (reset || !S.imgFreq) S.imgFreq = new Map();
+  for (const a of arts)
+    if (a.image) S.imgFreq.set(a.image, (S.imgFreq.get(a.image) || 0) + 1);
   const mine = mySymbols();
   const kept = [];
   for (const a of arts) {
@@ -488,7 +496,8 @@ function prepareBatch(arts, reset){
       if ((first._alts = first._alts || []).length < 6 && a.url &&
           a.publisher !== first.publisher) {
         first._alts.push({ url: a.url, publisher: a.publisher, title: a.title,
-                           image: a.image, summary: a.summary });
+                           image: a.image, imageSrc: a.imageSrc,
+                           summary: a.summary });
       }
       continue;
     }
@@ -548,9 +557,24 @@ const JUNK_RE = new RegExp([
 
 const MILL_RE = /marketbeat|zacks|motley ?fool|fool\.com|etf daily|insider monkey|benzinga|simply wall|gurufocus|24\/7 wall|investorplace|stocknews|tipranks|thestreet/i;
 const MAJOR_RE = /bloomberg|reuters|wall street journal|\bwsj\b|financial times|\bft\b|cnbc|associated press|ap news|new york times|barron|the economist|axios|semafor|politico|washington post/i;
+const WIRE_RE = /newswire|business ?wire|accesswire|newsfile|prweb|press release/i;
 
 const isJunk  = a => JUNK_RE.test(a.title || "") || MILL_RE.test(a.publisher || "");
 const isMajor = a => MAJOR_RE.test(a.publisher || "");
+
+/** An image worth printing, or null. The feed decorates wire copy with
+    generic "Press Release" stock photos, so a wire story's image is only
+    trusted once the worker has read it off the article page itself
+    (imageSrc "article"). And any one photo pasted on three or more stories
+    of the batch is a banner, not the story's picture, whoever sent it. */
+function artImage(c){
+  const img = c && c.image;
+  if (!img) return null;
+  if (c.imageSrc === "article") return img;
+  if (WIRE_RE.test(c.publisher || "")) return null;
+  if (S.imgFreq && (S.imgFreq.get(img) || 0) >= 3) return null;
+  return img;
+}
 
 /* How many distinct stories share each salient title word today. Recomputed
    when the batch changes; a Map lookup afterwards. */
@@ -646,17 +670,18 @@ function byline(a, extra){
 function bestCopy(a){
   const cands = [
     { url: a.url, title: a.title, publisher: a.publisher,
-      image: a.image, summary: a.summary },
+      image: a.image, imageSrc: a.imageSrc, summary: a.summary },
     ...(a._alts || []),
   ];
   let best = cands[0], bestScore = -1;
   for (const c of cands) {
     const sc = (MAJOR_RE.test(c.publisher || "") ? 2 : 0)
              + (MILL_RE.test(c.publisher || "") ? -2 : 0)
-             + (c.image ? 1 : 0);
+             + (artImage(c) ? 1 : 0);
     if (sc > bestScore) { best = c; bestScore = sc; }
   }
-  return { ...best, others: cands.filter(c => c !== best) };
+  // `image` leaves here already vetted: every render site prints it as-is.
+  return { ...best, image: artImage(best), others: cands.filter(c => c !== best) };
 }
 
 function renderTopband(top){
@@ -696,13 +721,14 @@ function renderTopband(top){
 }
 
 function sectionRow(a){
+  const img = artImage(a);
   return `<a class="srow" href="${esc(a.url)}" target="_blank" rel="noopener"
       data-ta-news="news_section"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
     <div>
       <h4>${esc(a.title)}</h4>
       ${byline(a, srcCount(a))}
     </div>
-    ${a.image ? `<span class="thumb"><img src="${esc(a.image)}" alt="" loading="lazy"
+    ${img ? `<span class="thumb"><img src="${esc(img)}" alt="" loading="lazy"
         onerror="this.parentNode.style.display='none'"></span>` : ""}
   </a>`;
 }
@@ -718,7 +744,10 @@ function renderHome(){
   }
 
   buildThemes();
-  const ranked = [...S.batch].sort((x, y) => storyScore(y) - storyScore(x));
+  // Scored once each, not once per comparison: a day's batch runs to five
+  // hundred stories, and the score does regex work.
+  const score = new Map(S.batch.map(a => [a, storyScore(a)]));
+  const ranked = [...S.batch].sort((x, y) => score.get(y) - score.get(x));
 
   // The band seats the day's brief first -- those stories were chosen by an
   // editor, not a counter -- then fills by score. Filing notes and listicles
@@ -822,9 +851,10 @@ function renderHome(){
 
 /* ---- the wire ------------------------------------------------------------ */
 function storyCard(a){
+  const img = artImage(a);
   return `<a class="story" href="${esc(a.url)}" target="_blank" rel="noopener"
     data-ta-news="news_feed"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
-    ${a.image ? `<span class="thumb"><img src="${esc(a.image)}" alt="" loading="lazy"
+    ${img ? `<span class="thumb"><img src="${esc(img)}" alt="" loading="lazy"
         onerror="this.parentNode.style.display='none'"></span>` : ""}
     <h2>${esc(a.title)}</h2>
     <p>${esc(a.summary || "")}</p>
@@ -832,9 +862,10 @@ function storyCard(a){
   </a>`;
 }
 
-function setMeta(newest){
+function setMeta(newest, windowed){
   document.getElementById("news-meta").textContent =
-    `${S.total.toLocaleString()} stories${newest ? ` · newest ${ago(newest)}` : ""}`;
+    `${S.total.toLocaleString()} stories${windowed ? ` in the last ${HOME_HOURS} hours` : ""}` +
+    `${newest ? ` · newest ${ago(newest)}` : ""}`;
 }
 
 /* ---- home load: two pages of the wire, and the day's brief --------------- */
@@ -856,37 +887,46 @@ async function loadHome(){
     })) };
   }).catch(() => {});
 
-  let pages = [];
+  // The whole day in one call. get_news_home seats newsroom stories ahead of
+  // wire copy when the day overflows its cap; until that migration is
+  // applied it 404s, and the old two-pages-of-newest fetch stands in.
+  let day = null;
   try {
-    pages = await Promise.all([
-      rpc("get_news", { p_q: null, p_limit: HOME_PAGE, p_offset: 0 }),
-      rpc("get_news", { p_q: null, p_limit: HOME_PAGE, p_offset: HOME_PAGE })
-        .catch(() => null),
-    ]);
-  } catch (e) {
-    // get_news down entirely: the feed RPC still knows the last two days.
+    day = await rpc("get_news_home", { p_hours: HOME_HOURS, p_limit: HOME_LIMIT });
+  } catch {}
+
+  let pages = [];
+  if (day && Array.isArray(day.articles) && day.articles.length) {
+    pages = [day];
+  } else {
     try {
-      const feed = await rpc("get_news_feed", { p_hours: 48, p_limit: 60 }) || [];
-      pages = [{ articles: feed, total: feed.length,
-                 newest: feed[0] && feed[0].published }];
-    } catch {
-      host.innerHTML = `<div class="note">News unavailable: ${esc(e.message)}</div>`;
-      S.loading = false;
-      return;
+      pages = await Promise.all([
+        rpc("get_news", { p_q: null, p_limit: HOME_PAGE, p_offset: 0 }),
+        rpc("get_news", { p_q: null, p_limit: HOME_PAGE, p_offset: HOME_PAGE })
+          .catch(() => null),
+      ]);
+    } catch (e) {
+      // get_news down too: the feed RPC still knows the last two days.
+      try {
+        const feed = await rpc("get_news_feed", { p_hours: 48, p_limit: 60 }) || [];
+        pages = [{ articles: feed, total: feed.length,
+                   newest: feed[0] && feed[0].published }];
+      } catch {
+        host.innerHTML = `<div class="note">News unavailable: ${esc(e.message)}</div>`;
+        S.loading = false;
+        return;
+      }
     }
   }
   await briefP;
 
   const arts = pages.filter(Boolean).flatMap(p => (p && p.articles) || []);
   S.total = (pages[0] && pages[0].total) || arts.length;
-  // The tail resumes where the fetched pages actually ended, so a failed
-  // second page is retried by "Show more" rather than silently skipped.
-  S.offset = HOME_PAGE * pages.filter(Boolean).length;
   S.batch = prepareBatch(arts, true);
   S.loading = false;
 
   renderHome();
-  setMeta(pages[0] && pages[0].newest);
+  setMeta(pages[0] && pages[0].newest, !!day);
 }
 
 /* ---- filtered mode: search or a ticker collapses to the flat list -------- */

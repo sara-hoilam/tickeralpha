@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import base64
 import datetime as dt
+import html as html_text
 import json
 import os
 import re
@@ -2151,6 +2152,66 @@ def news(limit: int = 120) -> tuple[list[dict], list[dict]]:
     except MarketError:
         companies = []
     return uniq[:limit * 2], _topics(companies)
+
+
+# The photograph an article page declares for itself, in the order pages
+# declare it. Attribute order varies by site, so each tag is matched both
+# ways round.
+_ARTICLE_IMAGE_RES = [
+    re.compile(r'<meta[^>]+(?:property|name)\s*=\s*["\']'
+               r'(?:og:image(?::secure_url)?|twitter:image(?::src)?)["\']'
+               r'[^>]*?content\s*=\s*["\']([^"\']+)', re.I),
+    re.compile(r'<meta[^>]+content\s*=\s*["\']([^"\']+)["\']'
+               r'[^>]*?(?:property|name)\s*=\s*["\']'
+               r'(?:og:image(?::secure_url)?|twitter:image(?::src)?)["\']', re.I),
+    re.compile(r'<link[^>]+rel\s*=\s*["\']image_src["\']'
+               r'[^>]*?href\s*=\s*["\']([^"\']+)', re.I),
+]
+
+
+def article_image(url: str | None, *, timeout: int = 6) -> str | None:
+    """The article page's own photograph — its og:image — or None.
+
+    The news feed decorates press releases with generic stock photos; the
+    page the story links to almost always names its real image in a meta
+    tag. Best-effort by design: paywalls and bot walls return None, and the
+    caller records the attempt either way so nothing is fetched twice.
+    """
+    if not url or not str(url).lower().startswith(("http://", "https://")):
+        return None
+    req = urllib.request.Request(url, headers={
+        # A browser-ish UA: several newsrooms serve urllib's default an
+        # empty shell or a 403, and all we want is the <head>.
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1",
+        "Accept-Language": "en",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+            if ctype and "html" not in ctype and "xml" not in ctype:
+                return None
+            # The meta tags live in <head>; half a megabyte is generous.
+            page = resp.read(512 * 1024).decode("utf-8", "replace")
+    except Exception:
+        return None
+
+    for pat in _ARTICLE_IMAGE_RES:
+        m = pat.search(page)
+        if not m:
+            continue
+        img = html_text.unescape(m.group(1)).strip()
+        if img.startswith("//"):
+            img = "https:" + img
+        elif img.startswith("/"):
+            img = urllib.parse.urljoin(url, img)
+        if not img.lower().startswith(("http://", "https://")):
+            continue
+        if len(img) > 1000 or img.lower().startswith("data:"):
+            continue
+        return img
+    return None
 
 
 # ---------------------------------------------------------------------------
