@@ -530,12 +530,13 @@ def refresh_news() -> bool:
     n = store.upsert_news(rows, keywords)
     log(f"news: {len(rows)} articles ({n} written), {len(keywords)} keywords")
 
-    # The feed pastes generic stock photos on press releases, so for those
-    # stories (and any with no image at all) read the article page's own
-    # og:image instead. A bounded batch per cycle; each URL is attempted
-    # exactly once, and a page with nothing to give is not asked again.
+    # Read each article page's own og:image: the feed's images are small
+    # thumbnails that blur in the lead slot, and on press releases they are
+    # pasted-on stock photos besides. Thirty per cycle outruns the wire's
+    # arrival rate; each URL is attempted exactly once, and a page with
+    # nothing to give is not asked again.
     try:
-        queue = store.news_image_queue(20)
+        queue = store.news_image_queue(30)
     except store.StoreError as exc:
         log(f"news image queue failed (continuing): {exc}")
         queue = []
