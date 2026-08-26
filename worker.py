@@ -521,6 +521,26 @@ def refresh_news() -> bool:
         return False
     n = store.upsert_news(rows, keywords)
     log(f"news: {len(rows)} articles ({n} written), {len(keywords)} keywords")
+
+    # The feed pastes generic stock photos on press releases, so for those
+    # stories (and any with no image at all) read the article page's own
+    # og:image instead. A bounded batch per cycle; each URL is attempted
+    # exactly once, and a page with nothing to give is not asked again.
+    try:
+        queue = store.news_image_queue(20)
+    except store.StoreError as exc:
+        log(f"news image queue failed (continuing): {exc}")
+        queue = []
+    if queue:
+        results = [{"url": q.get("url"),
+                    "image": market.article_image(q.get("url"))}
+                   for q in queue if q.get("url")]
+        try:
+            store.set_news_images(results)
+            found = sum(1 for r in results if r["image"])
+            log(f"news images: {found}/{len(results)} taken from article pages")
+        except store.StoreError as exc:
+            log(f"news images failed (continuing): {exc}")
     return True
 
 
