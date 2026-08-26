@@ -98,16 +98,10 @@ h2.sect:first-of-type{margin-top:8px}
   font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
 .party.pD{background:#1e4fbf}.party.pR{background:#c0392e}.party.pI,.party.pX{background:#78889a}
 
-/* ---- congress: pickers in a row, profile full width beneath -------------- */
-.pstrip{display:flex;gap:14px;align-items:stretch;margin-bottom:16px}
-.pstrip .psearch{flex:0 0 300px;margin-bottom:0;align-self:flex-start}
-.people{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;min-width:0;
-  scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
-.people::-webkit-scrollbar{height:8px}
-.people::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
-.people .pcard{flex:0 0 148px}
-.people .note{align-self:center;padding:14px}
-.profile{margin-bottom:8px}
+/* ---- congress: cards left, profile right -------------------------------- */
+.congress{display:grid;grid-template-columns:minmax(300px,430px) minmax(0,1fr);
+  gap:20px;align-items:start}
+.people{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .pcard{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;
   background:var(--card);border:1px solid var(--rule);border-radius:12px;
   box-shadow:var(--shadow);padding:15px 10px 12px;cursor:pointer;
@@ -274,8 +268,8 @@ tr.dfoot a:hover{text-decoration:underline}
 tr[aria-expanded=true] .caret{transform:rotate(180deg)}
 
 @media (max-width:1000px){
-  .pstrip{flex-direction:column;gap:12px}
-  .pstrip .psearch{flex:none;width:100%;max-width:none}
+  .congress{grid-template-columns:minmax(0,1fr)}
+  .people{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
   .ins-grid{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:720px){
@@ -294,26 +288,6 @@ tr[aria-expanded=true] .caret{transform:rotate(180deg)}
        a member and you get a full year of their filings. Straight from the
        disclosure feeds, updated through the day.</p>
   </div>
-
-  <h2 class="sect">Politicians</h2>
-  <!-- Search and the pinned members in one row: the pickers of the section,
-       laid across the top; whatever they pick opens in the full-width panel
-       beneath, and the by-company pair after that. -->
-  <div class="pstrip">
-    <div class="psearch">
-      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
-        stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
-        stroke-width="2" stroke-linecap="round"/></svg>
-      <input type="text" id="p-q" placeholder="Search a politician…" autocomplete="off"
-             role="combobox" aria-expanded="false" aria-controls="p-ac">
-      <div class="pac" id="p-ac" role="listbox"></div>
-    </div>
-    <div class="people" id="people"><div class="note"><span class="load"></span></div></div>
-  </div>
-
-  <section class="panel profile" id="profile">
-    <div class="note"><span class="load"></span></div>
-  </section>
 
   <h2 class="sect">Where Congress is trading</h2>
   <p class="sect-sub" id="cg-sub">Every member's STOCK Act disclosures folded by
@@ -387,6 +361,23 @@ tr[aria-expanded=true] .caret{transform:rotate(180deg)}
                aria-label="Search insider filings by ticker">
       </div>
       <div class="ttable" id="ins-table"><div class="note"><span class="load"></span></div></div>
+    </section>
+  </div>
+
+  <h2 class="sect">Politicians</h2>
+  <div class="psearch">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+      stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round"/></svg>
+    <input type="text" id="p-q" placeholder="Search a politician…" autocomplete="off"
+           role="combobox" aria-expanded="false" aria-controls="p-ac">
+    <div class="pac" id="p-ac" role="listbox"></div>
+  </div>
+
+  <div class="congress">
+    <div class="people" id="people"><div class="note" style="grid-column:1/-1"><span class="load"></span></div></div>
+    <section class="panel profile" id="profile">
+      <div class="note"><span class="load"></span></div>
     </section>
   </div>
 </main>
