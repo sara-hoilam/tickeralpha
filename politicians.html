@@ -98,10 +98,16 @@ h2.sect:first-of-type{margin-top:8px}
   font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
 .party.pD{background:#1e4fbf}.party.pR{background:#c0392e}.party.pI,.party.pX{background:#78889a}
 
-/* ---- congress: cards left, profile right -------------------------------- */
-.congress{display:grid;grid-template-columns:minmax(300px,430px) minmax(0,1fr);
-  gap:20px;align-items:start}
-.people{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* ---- congress: pickers in a row, profile full width beneath -------------- */
+.pstrip{display:flex;gap:14px;align-items:stretch;margin-bottom:16px}
+.pstrip .psearch{flex:0 0 300px;margin-bottom:0;align-self:flex-start}
+.people{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;min-width:0;
+  scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
+.people::-webkit-scrollbar{height:8px}
+.people::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
+.people .pcard{flex:0 0 148px}
+.people .note{align-self:center;padding:14px}
+.profile{margin-bottom:8px}
 .pcard{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;
   background:var(--card);border:1px solid var(--rule);border-radius:12px;
   box-shadow:var(--shadow);padding:15px 10px 12px;cursor:pointer;
@@ -211,8 +217,8 @@ td.who{text-align:left;font-family:"IBM Plex Sans",sans-serif;font-size:12.5px;
 /* Ten rows, then scroll. Sized in rows rather than vh because a row is what a
    reader counts, and the sticky header keeps the column names in view.
    Measured: 33px header + 10 x 58px row. */
-#ins-table{max-height:613px;overflow-y:auto;scrollbar-gutter:stable}
-#ins-table thead th{position:sticky;top:0;z-index:1;background:var(--card);
+#ins-table,#cg-table{max-height:613px;overflow-y:auto;scrollbar-gutter:stable}
+#ins-table thead th,#cg-table thead th{position:sticky;top:0;z-index:1;background:var(--card);
   box-shadow:0 1px 0 var(--rule)}
 
 /* Chart header: the two filters sit top right of the bars they govern. */
@@ -268,8 +274,8 @@ tr.dfoot a:hover{text-decoration:underline}
 tr[aria-expanded=true] .caret{transform:rotate(180deg)}
 
 @media (max-width:1000px){
-  .congress{grid-template-columns:minmax(0,1fr)}
-  .people{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .pstrip{flex-direction:column;gap:12px}
+  .pstrip .psearch{flex:none;width:100%;max-width:none}
   .ins-grid{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:720px){
@@ -290,19 +296,60 @@ tr[aria-expanded=true] .caret{transform:rotate(180deg)}
   </div>
 
   <h2 class="sect">Politicians</h2>
-  <div class="psearch">
-    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
-      stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
-      stroke-width="2" stroke-linecap="round"/></svg>
-    <input type="text" id="p-q" placeholder="Search a politician…" autocomplete="off"
-           role="combobox" aria-expanded="false" aria-controls="p-ac">
-    <div class="pac" id="p-ac" role="listbox"></div>
+  <!-- Search and the pinned members in one row: the pickers of the section,
+       laid across the top; whatever they pick opens in the full-width panel
+       beneath, and the by-company pair after that. -->
+  <div class="pstrip">
+    <div class="psearch">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+        stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round"/></svg>
+      <input type="text" id="p-q" placeholder="Search a politician…" autocomplete="off"
+             role="combobox" aria-expanded="false" aria-controls="p-ac">
+      <div class="pac" id="p-ac" role="listbox"></div>
+    </div>
+    <div class="people" id="people"><div class="note"><span class="load"></span></div></div>
   </div>
 
-  <div class="congress">
-    <div class="people" id="people"><div class="note" style="grid-column:1/-1"><span class="load"></span></div></div>
-    <section class="panel profile" id="profile">
-      <div class="note"><span class="load"></span></div>
+  <section class="panel profile" id="profile">
+    <div class="note"><span class="load"></span></div>
+  </section>
+
+  <h2 class="sect">Where Congress is trading</h2>
+  <p class="sect-sub" id="cg-sub">Every member's STOCK Act disclosures folded by
+     company. Members report a range, not a figure, so amounts are the midpoints
+     of the reported bands — an estimate, read it as one. Click a company for
+     who was buying and selling.</p>
+  <div class="ins-grid">
+    <section class="panel">
+      <div class="ihead">
+        <h3>By company</h3>
+        <div class="iseg" id="cg-flow" role="group" aria-label="Trade direction">
+          <button type="button" data-flow="all" aria-pressed="true">All</button>
+          <button type="button" data-flow="out" aria-pressed="false">Outflow</button>
+          <button type="button" data-flow="in" aria-pressed="false">Inflow</button>
+        </div>
+        <div class="iseg" id="cg-days" role="group" aria-label="Period">
+          <button type="button" data-days="7" aria-pressed="false">7D</button>
+          <button type="button" data-days="15" aria-pressed="false">15D</button>
+          <button type="button" data-days="30" aria-pressed="false">30D</button>
+          <button type="button" data-days="60" aria-pressed="false">60D</button>
+          <button type="button" data-days="90" aria-pressed="true">90D</button>
+        </div>
+      </div>
+      <div class="ibars" id="cg-chart"><div class="note"><span class="load"></span></div></div>
+      <div class="legend"><span><i style="background:var(--up)"></i>Congress buying</span>
+        <span><i style="background:var(--down)"></i>Congress selling</span></div>
+    </section>
+    <section class="panel">
+      <div class="isearch">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+          stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round"/></svg>
+        <input type="search" id="cg-q" placeholder="Search a ticker…" autocomplete="off"
+               aria-label="Search congressional disclosures by ticker">
+      </div>
+      <div class="ttable" id="cg-table"><div class="note"><span class="load"></span></div></div>
     </section>
   </div>
 
@@ -488,6 +535,11 @@ const S = {
   // ticker outside the leaders — searching should reach the whole window, not
   // just the thirty rows that happened to rank.
   insQ: "", insExtra: new Map(), insSearching: false,
+  // The congress mirror of the insider pair. One window's disclosures are
+  // fetched whole and folded by symbol here; per-member detail comes from the
+  // same rows, so opening a company costs nothing.
+  cgByDays: new Map(), cgFlow: "all", cgDays: 90, cgQ: "", cgOpen: null,
+  cgTruncated: false,
 };
 
 /* ---- data --------------------------------------------------------------- */
@@ -1283,12 +1335,258 @@ function paintInsiders(){
   }
 }
 
+/* ---- congress by company -------------------------------------------------
+   The insider pair, for the other feed. Congress files a range, not a figure,
+   so the dollars here are band midpoints -- estimates, labelled as such --
+   and there is no price column because disclosures carry no share counts.
+   One window is fetched whole and folded by symbol; the expansion under a row
+   is folded per member from the same rows, so it costs no second trip. */
+const CG_BARS = INS_BARS || 12;
+const CG_FETCH = 600;               // pages of 100; the take says if it capped
+
+const cgSide = side => {
+  const l = String(side || "").toLowerCase();
+  if (/^(buy|purchase|receive)/.test(l) || l.includes("purchase") || l.includes("receive"))
+    return "buy";
+  if (/^(sell|sale)/.test(l) || l.includes("sale") || l.includes("sell") || l.includes("exchange"))
+    return "sell";
+  return null;
+};
+
+async function loadCongressWindow(days){
+  if (S.cgByDays.has(days)) return S.cgByDays.get(days);
+  let rows = [];
+  try { rows = await pageTrades("congress", CG_FETCH, null, days); } catch {}
+  const by = new Map();
+  rows.forEach(r => {
+    if (!r.symbol) return;
+    const cur = by.get(r.symbol) || { symbol: r.symbol, name: r.name, filings: 0,
+      buyAmt: 0, sellAmt: 0, members: new Set(), lastFiled: null, rows: [] };
+    const mid = band(r.amount).mid;
+    const side = cgSide(r.side);
+    if (side === "buy") cur.buyAmt += mid;
+    else if (side === "sell") cur.sellAmt += mid;
+    cur.filings++;
+    if (r.person) cur.members.add(r.person);
+    const d = r.disclosed || r.traded;
+    if (d && (!cur.lastFiled || d > cur.lastFiled)) cur.lastFiled = d;
+    if (!cur.name && r.name) cur.name = r.name;
+    cur.rows.push(r);
+    by.set(r.symbol, cur);
+  });
+  const agg = [...by.values()].map(c => ({ ...c, people: c.members.size }));
+  const out = { agg, truncated: rows.length >= CG_FETCH };
+  S.cgByDays.set(days, out);
+  return out;
+}
+
+async function loadCongress(){
+  const d = await loadCongressWindow(S.cgDays);
+  S.cgTruncated = d.truncated;
+  paintCongress();
+}
+
+function wireCgFilters(){
+  const flow = document.getElementById("cg-flow");
+  const days = document.getElementById("cg-days");
+  const press = (group, attr, value) => group.querySelectorAll("button")
+    .forEach(b => b.setAttribute("aria-pressed", String(b.dataset[attr] === String(value))));
+  if (flow) flow.querySelectorAll("button").forEach(b => b.onclick = () => {
+    if (S.cgFlow === b.dataset.flow) return;
+    S.cgFlow = b.dataset.flow;
+    press(flow, "flow", S.cgFlow);
+    paintCongress();
+  });
+  if (days) days.querySelectorAll("button").forEach(b => b.onclick = async () => {
+    const v = +b.dataset.days;
+    if (S.cgDays === v) return;
+    S.cgDays = v;
+    press(days, "days", v);
+    if (!S.cgByDays.has(v)) {
+      document.getElementById("cg-chart").innerHTML =
+        document.getElementById("cg-table").innerHTML =
+          `<div class="note"><span class="load"></span></div>`;
+    }
+    const d = await loadCongressWindow(v);
+    if (S.cgDays !== v) return;         // a faster click won
+    S.cgTruncated = d.truncated;
+    S.cgOpen = null;
+    paintCongress();
+  });
+}
+
+function wireCgSearch(){
+  const q = document.getElementById("cg-q");
+  if (!q) return;
+  q.addEventListener("input", () => { S.cgQ = q.value; paintCongress(); });
+}
+
+/* Same shape as insFiltered: ranked and filtered by whichever side is shown,
+   so an Inflow view never leads with a company nobody bought. */
+function cgFiltered(){
+  const d = S.cgByDays.get(S.cgDays);
+  if (!d) return [];
+  const weight = r => S.cgFlow === "in" ? (r.buyAmt || 0)
+                    : S.cgFlow === "out" ? (r.sellAmt || 0)
+                    : (r.buyAmt || 0) + (r.sellAmt || 0);
+  const q = S.cgQ.trim().toUpperCase();
+  return d.agg
+    .filter(r => !q || r.symbol.toUpperCase().includes(q)
+                    || String(r.name || "").toUpperCase().includes(q))
+    .filter(r => weight(r) > 0)
+    .sort((a, b) => weight(b) - weight(a));
+}
+
+/* One company's rows folded per member. A member's name opens their profile
+   above -- the strip and this table are two doors into the same people. */
+function cgMembers(symbol){
+  const d = S.cgByDays.get(S.cgDays);
+  const rows = d && d.agg.find(r => r.symbol === symbol);
+  if (!rows) return [];
+  const by = new Map();
+  rows.rows.forEach(r => {
+    const k = r.person || "—";
+    const cur = by.get(k) || { person: k, chamber: r.chamber, filings: 0,
+                               buy: 0, sell: 0, last: null };
+    const mid = band(r.amount).mid;
+    const side = cgSide(r.side);
+    if (side === "buy") cur.buy += mid; else if (side === "sell") cur.sell += mid;
+    cur.filings++;
+    const dd = r.disclosed || r.traded;
+    if (dd && (!cur.last || dd > cur.last)) cur.last = dd;
+    if (!cur.chamber && r.chamber) cur.chamber = r.chamber;
+    by.set(k, cur);
+  });
+  return [...by.values()].sort((a, b) => (b.buy + b.sell) - (a.buy + a.sell)).slice(0, 8);
+}
+
+function paintCongress(){
+  const rows = cgFiltered();
+  const chart = document.getElementById("cg-chart");
+  const table = document.getElementById("cg-table");
+  if (!chart || !table) return;
+  if (!rows.length) {
+    const q = S.cgQ.trim().toUpperCase();
+    const msg = q ? `No congressional disclosures for “${esc(q)}” in the last ${S.cgDays} days${
+                      S.cgFlow === "all" ? "" : " on this side"}.`
+      : S.cgByDays.get(S.cgDays) && S.cgByDays.get(S.cgDays).agg.length
+        ? `No congressional ${S.cgFlow === "in" ? "buying" : S.cgFlow === "out" ? "selling" : "disclosures"}
+           in the last ${S.cgDays} days.`
+        : "No congressional disclosures stored yet.";
+    chart.innerHTML = table.innerHTML = `<div class="note">${msg}</div>`;
+    return;
+  }
+
+  const top = rows.slice(0, CG_BARS);
+  const showSell = S.cgFlow !== "in";
+  const showBuy  = S.cgFlow !== "out";
+  const max = Math.max(...top.map(r => Math.max(
+    showSell ? (r.sellAmt || 0) : 0, showBuy ? (r.buyAmt || 0) : 0)), 1);
+  const pc = v => Math.max(v > 0 ? 2 : 0, Math.round((v / max) * 88));
+
+  const tBuy = rows.reduce((sum, r) => sum + (r.buyAmt || 0), 0);
+  const tSell = rows.reduce((sum, r) => sum + (r.sellAmt || 0), 0);
+  const lead = top[0];
+  const leanSell = tSell >= tBuy;
+  const oneSided = S.cgFlow !== "all";
+  const shown = S.cgFlow === "in" ? tBuy : S.cgFlow === "out" ? tSell
+    : leanSell ? tSell : tBuy;
+  const verb = S.cgFlow === "in" ? "bought" : S.cgFlow === "out" ? "sold"
+    : leanSell ? "sold" : "bought";
+  const leadAmt = S.cgFlow === "in" ? (lead && lead.buyAmt)
+    : S.cgFlow === "out" ? (lead && lead.sellAmt)
+    : lead && (lead.buyAmt || 0) + (lead.sellAmt || 0);
+  const take = `<div class="ins-take">Congress reported ~<b>${kfmt(shown)}</b>
+    ${verb}${oneSided ? "" : ` against ~${kfmt(leanSell ? tBuy : tSell)}
+    ${leanSell ? "bought" : "sold"}`} over the last ${S.cgDays} days${lead
+      ? ` — heaviest at <b>${esc(lead.symbol)}</b> (~${kfmt(leadAmt)}${
+          lead.people ? `, ${lead.people} member${lead.people === 1 ? "" : "s"}` : ""})` : ""}.${
+    S.cgTruncated ? ` Counting the ${CG_FETCH} most recent filings.` : ""}</div>`;
+
+  chart.innerHTML = take + top.map(r => `
+    <div class="ibar">
+      <span class="co" data-s="${esc(r.symbol)}" role="link" tabindex="0">
+        <span class="dot" data-logo="${esc(r.symbol)}" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>
+        <span class="t"><span class="sym">${esc(r.symbol)}</span></span>
+      </span>
+      <span class="cell sell">
+        ${showSell && r.sellAmt ? `<span class="v">${kfmt(r.sellAmt)}</span><span class="bar" style="width:${pc(r.sellAmt)}%"></span>` : ""}
+      </span>
+      <span class="cell buy">
+        ${showBuy && r.buyAmt ? `<span class="bar" style="width:${pc(r.buyAmt)}%"></span><span class="v">${kfmt(r.buyAmt)}</span>` : ""}
+      </span>
+    </div>`).join("");
+  chart.querySelectorAll(".co[data-s]").forEach(el => {
+    const go = () => location.href = `company.html?t=${encodeURIComponent(el.dataset.s)}&src=congress_page`;
+    el.onclick = go;
+    el.onkeydown = e => { if (e.key === "Enter") go(); };
+  });
+
+  const detailRows = sym => {
+    const members = cgMembers(sym);
+    return `${members.length ? members.map(m => `
+      <tr class="dperson">
+        <td><span class="filer"><b class="cg-person" data-p="${esc(m.person)}" role="link"
+            tabindex="0">${esc(m.person)}</b>${m.chamber ? `<span>${esc(m.chamber)}</span>` : ""}</span></td>
+        <td>${m.filings}</td>
+        <td>—</td>
+        <td class="up">${m.buy ? `~${kfmt(m.buy)}` : "—"}</td>
+        <td class="down">${m.sell ? `~${kfmt(m.sell)}` : "—"}</td>
+        <td>${day(m.last)}</td>
+      </tr>`).join("")
+      : `<tr class="detail"><td colspan="6">
+          <div class="note" style="padding:10px">No member detail for ${esc(sym)}.</div>
+         </td></tr>`}
+      <tr class="dfoot"><td colspan="6">
+        <a href="company.html?t=${encodeURIComponent(sym)}&src=congress_page">Open ${esc(sym)} →</a>
+      </td></tr>`;
+  };
+
+  table.innerHTML = `<table><thead><tr>
+      <th>Company</th><th>Filings</th><th>Members</th>
+      <th>Est. bought</th><th>Est. sold</th><th>Last</th>
+    </tr></thead><tbody>${rows.map(r => `
+      <tr class="rowlink" data-s="${esc(r.symbol)}" aria-expanded="${S.cgOpen === r.symbol}">
+        <td><span class="co">
+          <span class="dot" data-logo="${esc(r.symbol)}" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>
+          <span class="t"><span class="sym">${esc(r.symbol)}<span class="caret">▾</span></span>
+            ${r.name ? `<span class="nm">${esc(r.name)}</span>` : ""}</span>
+        </span></td>
+        <td>${r.filings}</td>
+        <td>${r.people || "—"}</td>
+        <td class="up">${r.buyAmt ? `~${kfmt(r.buyAmt)}` : "—"}</td>
+        <td class="down">${r.sellAmt ? `~${kfmt(r.sellAmt)}` : "—"}</td>
+        <td>${day(r.lastFiled)}</td>
+      </tr>
+      ${S.cgOpen === r.symbol ? detailRows(r.symbol) : ""}`).join("")}</tbody></table>`;
+
+  table.querySelectorAll("tr.rowlink").forEach(tr => tr.onclick = () => {
+    S.cgOpen = S.cgOpen === tr.dataset.s ? null : tr.dataset.s;
+    paintCongress();
+  });
+  // A member's name in the breakdown opens their profile above -- the strip
+  // and this table are two doors to the same person.
+  table.querySelectorAll(".cg-person").forEach(el => {
+    const go = e => { e.stopPropagation(); openProfile(el.dataset.p);
+      document.getElementById("profile").scrollIntoView({ behavior: "smooth", block: "start" }); };
+    el.onclick = go;
+    el.onkeydown = e => { if (e.key === "Enter") go(e); };
+  });
+  if (window.TickerLogos) {
+    window.TickerLogos.hydrate(rows.map(r => r.symbol), table);
+    window.TickerLogos.hydrate(top.map(r => r.symbol), chart);
+  }
+}
+
 /* ---- boot --------------------------------------------------------------- */
 (async function boot(){
   wireSearch();
   wireInsFilters();
   wireInsSearch();
+  wireCgFilters();
+  wireCgSearch();
   loadInsiders();
+  loadCongress();
   // The panel's own fetch does not wait on the cards beside it.
   openAll({ quiet: true });
   await loadPeople();
