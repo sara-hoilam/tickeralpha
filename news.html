@@ -54,6 +54,10 @@
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.8);
 }
 *{box-sizing:border-box;margin:0;padding:0}
+/* The hidden attribute must always win: several containers here carry their
+   own display:grid/flex, which outranks the UA's [hidden]{display:none} and
+   once left a "hidden" panel sitting visibly on the page. */
+[hidden]{display:none!important}
 body{font-family:"IBM Plex Sans",system-ui,sans-serif;background:var(--ground);
   color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
 main{max-width:var(--page,1680px);margin:0 auto;padding:20px 28px 72px}
@@ -179,10 +183,34 @@ tbody tr:hover td{background:var(--sunk)}
 .srow .thumb{width:72px;height:54px;border-radius:7px;overflow:hidden;background:var(--sunk);flex-shrink:0}
 .srow .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .srow .by{font-size:11px}
-/* Five rows closed; "More" opens the rest without leaving the page. */
+/* Five rows on the Top Stories tab; "More" opens the section's own tab. */
 .seccard .srow:nth-of-type(n+6){display:none}
-.seccard.open .srow{display:flex}
 .seccard .srow:last-of-type{border-bottom:0}
+
+/* ---- a section as its own tab: full-width rows, the article's photograph
+   on the right. The story with no photograph simply has none -- an unrelated
+   placeholder is worse than blank space. */
+.secrow{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:24px;
+  padding:20px 22px;border-bottom:1px solid var(--rule-2);text-decoration:none;
+  align-items:start}
+.secrow.noimg{grid-template-columns:minmax(0,1fr)}
+.secrow:last-child{border-bottom:0}
+.secrow .pub{font-size:12px;font-weight:600;color:var(--ink-2);margin-bottom:5px}
+.secrow h3{font-size:19px;font-weight:600;line-height:1.32;letter-spacing:-.012em;
+  padding:0}
+.secrow:hover h3{color:var(--accent)}
+.secrow p{font-size:13px;color:var(--ink-2);line-height:1.5;margin-top:6px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.secrow .by{margin-top:9px}
+.secrow .thumb{width:220px;height:124px;border-radius:12px;overflow:hidden;
+  background:var(--sunk)}
+.secrow .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+@media (max-width:720px){
+  .secrow{grid-template-columns:minmax(0,1fr) 96px;gap:12px;padding:14px 14px}
+  .secrow .thumb{width:96px;height:96px;border-radius:9px}
+  .secrow h3{font-size:15.5px}
+  .secrow p{display:none}
+}
 
 /* ---- the wire: the flat time-ordered grid (home foot, and all of a search) */
 .latest-h{font-family:"IBM Plex Serif",Georgia,serif;font-size:19px;font-weight:600;
@@ -305,10 +333,11 @@ tbody tr:hover td{background:var(--sunk)}
       <div id="home">
         <div class="panel topband" id="topband" hidden></div>
         <div class="secgrid" id="sections"></div>
+        <div class="panel secpage" id="secpage" hidden></div>
       </div>
 
-      <h2 class="latest-h" id="latest-h">Latest</h2>
-      <div class="grid" id="stories"><div class="note"><span class="load"></span></div></div>
+      <h2 class="latest-h" id="latest-h" hidden>Results</h2>
+      <div class="grid" id="stories" hidden><div class="note"><span class="load"></span></div></div>
       <button class="more" id="more" hidden>Show more</button>
     </section>
 
@@ -399,8 +428,9 @@ const S = { view: "market_cap", q: null, label: null, page: 0, total: 0,
             // of four times; and the reader's own symbols, for the boost.
             seenKeys: null, mySyms: null,
             // The home page's working set: every deduped story of the batch,
-            // and the day's AI brief for seeding the top band.
-            batch: [], brief: null };
+            // the day's AI brief for seeding the top band, and which tab of
+            // the front page is open ("top" or a section id).
+            batch: [], brief: null, htab: "top" };
 const PAGE = 12;          // a filtered search pages at this size
 const HOME_PAGE = 60;     // get_news serves at most 60 a call; home fetches two
 
@@ -682,7 +712,8 @@ function renderHome(){
   const sections = document.getElementById("sections");
   const nav = document.getElementById("secnav");
   if (!S.batch.length){
-    topband.hidden = true; sections.innerHTML = ""; nav.hidden = true;
+    topband.hidden = true; nav.hidden = true;
+    sections.innerHTML = `<div class="note" style="grid-column:1/-1">No stories yet.</div>`;
     return;
   }
 
@@ -709,6 +740,7 @@ function renderHome(){
     if (i > 0) top.unshift(...top.splice(i, 1));
   }
   renderTopband(top);
+  if (S.htab !== "top") document.getElementById("topband").hidden = true;
   const used = new Set(top.map(a => a.url));
 
   // Sections draw from everything the top band did not take, best first, and
@@ -734,32 +766,57 @@ function renderHome(){
     if (rows.length >= 3) cards.push({ id: s.id, name: s.name, rows });
   }
 
-  sections.innerHTML = cards.map(c => `
+  // The nav is tabs now, not anchors: a section opens as a page of its own,
+  // the way Top Stories does, rather than a scroll position. A tab that no
+  // longer exists after a refetch falls back to the front.
+  const secpage = document.getElementById("secpage");
+  if (S.htab !== "top" && !cards.some(c => c.id === S.htab)) S.htab = "top";
+  const onTop = S.htab === "top";
+
+  sections.innerHTML = onTop ? cards.map(c => `
     <div class="panel seccard" id="sec-${c.id}">
       <div class="shead">
         <h3>${esc(c.name)} ${c.small ? `<small>${esc(c.small)}</small>` : ""}</h3>
-        ${c.rows.length > 5 ? `<button type="button" data-open="sec-${c.id}">More ↓</button>` : ""}
+        ${c.rows.length > 5 ? `<button type="button" data-tab="${c.id}">More →</button>` : ""}
       </div>
-      ${c.rows.slice(0, 15).map(sectionRow).join("")}
-    </div>`).join("");
+      ${c.rows.slice(0, 5).map(sectionRow).join("")}
+    </div>`).join("") : "";
 
-  sections.querySelectorAll("[data-open]").forEach(b => b.onclick = () => {
-    const card = document.getElementById(b.dataset.open);
-    const open = card.classList.toggle("open");
-    b.textContent = open ? "Less ↑" : "More ↓";
+  sections.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => {
+    S.htab = b.dataset.tab;
+    renderHome();
+    scrollTo({ top: 0, behavior: "auto" });
   });
 
-  // The nav lists what actually rendered, in page order.
-  const anchors = [["topband", "Top Stories"],
-                   ...cards.map(c => [`sec-${c.id}`, c.name]),
-                   ["latest-h", "Latest"]];
-  nav.innerHTML = anchors.map(([id, label], i) =>
-    `<a data-to="${id}" class="${i === 0 ? "on" : ""}">${esc(label)}</a>`).join("");
+  /* One section, the whole of it: full-width rows in the reading order the
+     ranking chose, each with the article's own photograph when it has one. */
+  const active = cards.find(c => c.id === S.htab);
+  secpage.hidden = onTop || !active;
+  secpage.innerHTML = !onTop && active ? active.rows.slice(0, 40).map(a => {
+    const c = bestCopy(a);
+    return `<a class="secrow${c.image ? "" : " noimg"}" href="${esc(c.url)}"
+       target="_blank" rel="noopener" data-ta-news="news_section"${
+       a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
+      <span>
+        <span class="pub">${esc(c.publisher || "")}</span>
+        <h3>${esc(c.title)}</h3>
+        ${c.summary || a.summary ? `<p>${esc(c.summary || a.summary)}</p>` : ""}
+        ${byline(a, srcCount(a))}
+      </span>
+      ${c.image ? `<span class="thumb"><img src="${esc(c.image)}" alt="" loading="lazy"
+          onerror="this.closest('.secrow').classList.add('noimg');this.parentNode.remove()"></span>` : ""}
+    </a>`;
+  }).join("") : "";
+
+  const tabs = [["top", "Top Stories"], ...cards.map(c => [c.id, c.name])];
+  nav.innerHTML = tabs.map(([id, label]) =>
+    `<a data-tab="${id}" class="${id === S.htab ? "on" : ""}">${esc(label)}</a>`).join("");
   nav.hidden = false;
   nav.querySelectorAll("a").forEach(a => a.onclick = () => {
-    nav.querySelectorAll("a").forEach(x => x.classList.toggle("on", x === a));
-    const el = document.getElementById(a.dataset.to);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (S.htab === a.dataset.tab) return;
+    S.htab = a.dataset.tab;
+    renderHome();
+    scrollTo({ top: 0, behavior: "auto" });
   });
 }
 
@@ -782,8 +839,8 @@ function setMeta(newest){
 
 /* ---- home load: two pages of the wire, and the day's brief --------------- */
 async function loadHome(){
-  const host = document.getElementById("stories");
-  host.innerHTML = `<div class="note"><span class="load"></span></div>`;
+  const host = document.getElementById("sections");
+  host.innerHTML = `<div class="note" style="grid-column:1/-1"><span class="load"></span></div>`;
   S.loading = true;
 
   // The brief seeds the ranking but must never block or break it.
@@ -829,29 +886,7 @@ async function loadHome(){
   S.loading = false;
 
   renderHome();
-  host.innerHTML = S.batch.map(storyCard).join("")
-    || `<div class="note">No stories yet.</div>`;
   setMeta(pages[0] && pages[0].newest);
-  document.getElementById("more").hidden = S.offset >= S.total;
-}
-
-/** More of the wire, appended below what is already read. The sections above
-    describe the freshest 120; the tail is a tail. */
-async function loadMoreHome(){
-  if (S.loading || S.q) return;
-  S.loading = true;
-  try {
-    const d = await rpc("get_news", { p_q: null, p_limit: HOME_PAGE, p_offset: S.offset });
-    S.offset += HOME_PAGE;
-    const arts = prepareBatch((d && d.articles) || [], false);
-    S.batch.push(...arts);
-    document.getElementById("stories")
-      .insertAdjacentHTML("beforeend", arts.map(storyCard).join(""));
-    S.total = (d && d.total) || S.total;
-    document.getElementById("more").hidden = S.offset >= S.total;
-  } catch {} finally {
-    S.loading = false;
-  }
 }
 
 /* ---- filtered mode: search or a ticker collapses to the flat list -------- */
@@ -914,17 +949,13 @@ function setFilter(query, label){
 
   document.getElementById("home").hidden = !!S.q;
   document.getElementById("secnav").hidden = !!S.q || !S.batch.length;
-  document.getElementById("latest-h").textContent = S.q ? "Results" : "Latest";
+  document.getElementById("latest-h").hidden = !S.q;
+  document.getElementById("stories").hidden = !S.q;
+  if (!S.q) document.getElementById("more").hidden = true;
 
   if (S.q) loadNews(true);
-  else if (S.batch.length) {
-    // Coming back from a search: the front page is already built.
-    document.getElementById("stories").innerHTML = S.batch.map(storyCard).join("");
-    document.getElementById("more").hidden = S.offset >= S.total;
-    renderHome();
-  } else {
-    loadHome();
-  }
+  else if (S.batch.length) renderHome();
+  else loadHome();
   scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -1066,18 +1097,16 @@ function startFeedDrift(){
   });
 
   const more = document.getElementById("more");
-  more.onclick = () => {
-    if (S.q) { S.page++; loadNews(false); }
-    else loadMoreHome();
-  };
+  more.onclick = () => { if (S.q) { S.page++; loadNews(false); } };
 
-  // Reaching the bottom of the page is the same intent as pressing the
-  // button, so don't make them press it.
+  // Reaching the bottom of the results is the same intent as pressing the
+  // button, so don't make them press it. Search results only -- the front
+  // page's tabs are each a bounded read.
   addEventListener("scroll", () => {
-    if (S.loading || more.hidden) return;
+    if (!S.q || S.loading || more.hidden) return;
     if (scrollY + innerHeight < document.body.scrollHeight - 480) return;
-    if (S.q) { S.page++; loadNews(false); }
-    else loadMoreHome();
+    S.page++;
+    loadNews(false);
   }, { passive: true });
 })();
 </script>
