@@ -307,6 +307,13 @@ tr.on td{background:var(--accent-soft)}
 }
 .info-tip:hover .tip,.info-tip:focus .tip,.info-tip .tip.on{display:block}
 .wl-bar{padding:10px 14px;border-bottom:1px solid var(--rule)}
+/* With holdings on screen the bar carries both the asset tabs and the
+   add-search: tabs left, search right, and the search takes its own line
+   when the row runs out of room rather than crushing the tabs. */
+.wl-bar .bar-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.wl-bar .bar-row .asset-tabs{margin:0;flex:1 1 auto;min-width:0}
+.pf-add{flex:0 1 250px;min-width:190px;margin-left:auto}
+.pf-add input{font-size:12.5px}
 .wl-search{
   position:relative;display:flex;align-items:center;gap:8px;
   background:var(--sunk);border:1px solid var(--rule);border-radius:8px;padding:0 10px
@@ -992,6 +999,7 @@ tr.on td{background:var(--accent-soft)}
 .asset-tabs .at-short{display:none}
 @media (max-width:720px){
   .asset-tabs{margin-bottom:8px}
+  .pf-add{flex-basis:100%;margin-left:0}
   .asset-tabs button{padding:5px 10px; font-size:12px}
   .asset-tabs .at-long{display:none}
   .asset-tabs .at-short{display:inline}
@@ -2596,7 +2604,8 @@ async function renderList(){
       window.TickerLogos.hydrate(items.map(r => r.symbol), host);
     }
   } else {
-    searchHost.innerHTML = `
+    if (!hasHoldings()) {
+      searchHost.innerHTML = `
       <form class="wl-search" id="wl-search">
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
           stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
@@ -2604,9 +2613,7 @@ async function renderList(){
         <input type="text" id="wl-q" placeholder="Quick-add a ticker…" autocomplete="off">
         <div class="wl-ac" id="wl-ac"></div>
       </form>`;
-    wireTickerSearch("wl-q", "wl-ac", "wl-search", sym => openAddModal(sym));
-
-    if (!hasHoldings()) {
+      wireTickerSearch("wl-q", "wl-ac", "wl-search", sym => openAddModal(sym));
       host.innerHTML = `<div class="pf-empty">
         <h3>Add your first holding</h3>
         <p>Quick-add a ticker, or search above — enter quantity and average buy price to start tracking.</p>
@@ -2686,14 +2693,25 @@ async function renderList(){
 
     // The strip goes in the bar *above* #rows, not inside it: #rows scrolls,
     // and tabs that scroll out from over their own table are unreachable.
+    // The add-search sits on the same row: without it, the only way to add
+    // a ticker after the first one was the Buy button on a row you already
+    // hold — a new name had no door.
     if (searchHost) {
-      searchHost.innerHTML = `<span class="pf-scope">All Account</span>
+      searchHost.innerHTML = `<div class="bar-row"><span class="pf-scope">All Account</span>
         <div class="asset-tabs" id="asset-tabs" role="tablist">${
         ASSET_TABS.map(t => `<button type="button" role="tab" data-at="${t.id}"
           aria-selected="${S.assetTab === t.id}"><span class="at-long">${esc(t.label)}</span
           ><span class="at-short">${esc(t.short || t.label)}</span
           ><span class="at-n">${counts[t.id]}</span></button>`).join("")
-      }</div>`;
+      }</div>
+        <form class="wl-search pf-add" id="wl-search">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+            stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round"/></svg>
+          <input type="text" id="wl-q" placeholder="Add to portfolio" autocomplete="off">
+          <div class="wl-ac" id="wl-ac"></div>
+        </form></div>`;
+      wireTickerSearch("wl-q", "wl-ac", "wl-search", sym => openAddModal(sym));
     }
     const wireAssetTabs = () => {
       document.querySelectorAll("#asset-tabs [data-at]").forEach(btn => {
