@@ -139,10 +139,22 @@ tbody tr:hover td{background:var(--sunk)}
   gap:12px;padding:13px 18px 11px;border-bottom:1px solid var(--rule-2)}
 .bandhead h3{color:var(--accent);font-size:15px}
 .bandhead .why{font-size:11.5px;color:var(--ink-3)}
-.lead{padding:18px;border-right:1px solid var(--rule-2);text-decoration:none;display:block}
-.lead .thumb{width:100%;aspect-ratio:16/8.4;border-radius:9px;overflow:hidden;background:var(--sunk);
-  margin-bottom:13px}
-.lead .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+/* The lead and the headline list are two halves of one band, and the picture
+   decides whether they end level. At a fixed ratio it grew with the column --
+   on a wide screen a 1100px-wide lead meant a 600px-tall photograph, and the
+   list beside it stopped a third of a screen short. So the column is a flex
+   stack and the picture takes what the headline, summary and byline leave.
+   The image is positioned out of flow so it contributes no intrinsic height
+   of its own to that sum; the floor keeps it a photograph when the list is
+   short, the ceiling keeps it from swallowing the band when the list is long. */
+.leadcol{display:flex;flex-direction:column;min-width:0;
+  border-right:1px solid var(--rule-2)}
+.lead{padding:18px;text-decoration:none;display:flex;flex-direction:column;
+  flex:1 1 auto;min-height:0}
+.lead .thumb{position:relative;width:100%;flex:1 1 auto;min-height:220px;max-height:420px;
+  border-radius:9px;overflow:hidden;background:var(--sunk);margin-bottom:13px}
+.lead .thumb img{position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;display:block}
 .lead h2{font-family:"IBM Plex Serif",Georgia,serif;font-size:23px;font-weight:600;line-height:1.25;
   letter-spacing:-.015em;margin-bottom:8px}
 .lead:hover h2{color:var(--accent)}
@@ -153,7 +165,11 @@ tbody tr:hover td{background:var(--sunk)}
   border:1px solid var(--rule);border-radius:5px;padding:1px 6px;color:var(--ink-2)}
 .srcs{color:var(--accent);font-weight:600}
 .tlist{display:flex;flex-direction:column;min-width:0}
-.tlist a{display:block;text-decoration:none;padding:13px 18px;border-bottom:1px solid var(--rule-2)}
+/* The two halves meet in the middle: the picture gives up height down to its
+   floor, and past that the headline rows share out what is left, so neither
+   side ends on a band of white. */
+.tlist a{display:block;text-decoration:none;padding:13px 18px;border-bottom:1px solid var(--rule-2);
+  flex:1 1 auto}
 .tlist a:last-child{border-bottom:0}
 .tlist h4{font-size:15px;font-weight:600;line-height:1.32;letter-spacing:-.01em;margin-bottom:4px}
 .tlist a:hover h4{color:var(--accent)}
@@ -275,7 +291,10 @@ tbody tr:hover td{background:var(--sunk)}
   .grid{grid-template-columns:minmax(0,1fr)}
   .secgrid{grid-template-columns:minmax(0,1fr)}
   .topband{grid-template-columns:minmax(0,1fr)}
-  .lead{border-right:0;border-bottom:1px solid var(--rule-2)}
+  .leadcol{border-right:0;border-bottom:1px solid var(--rule-2)}
+  /* Stacked, there is nothing to match a height with: the picture goes back
+     to a shape of its own. */
+  .lead .thumb{flex:0 0 auto;aspect-ratio:16/9;min-height:0;max-height:none}
 }
 
 /* ---- mobile: headline lists, search first -------------------------------- */
@@ -699,7 +718,7 @@ function renderTopband(top){
       <h3>Top Stories</h3>
       <span class="why">the day's brief, and what most publishers are writing</span>
     </div>
-    <div>
+    <div class="leadcol">
       <a class="lead" href="${esc(v.url)}" target="_blank" rel="noopener"
          data-ta-news="news_top"${lead.symbol ? ` data-ta-ticker="${esc(lead.symbol)}"` : ""}>
         ${v.image ? `<span class="thumb"><img src="${esc(v.image)}" alt="" loading="lazy"
