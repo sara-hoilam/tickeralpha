@@ -245,6 +245,14 @@ def replace_symbol_earnings(symbol: str, rows: list[dict]) -> int:
     }) or 0
 
 
+def replace_symbol_ownership(symbol: str, rows: list[dict]) -> int:
+    """Rewrite one symbol's quarterly institutional-ownership history."""
+    return rpc("replace_symbol_ownership", {
+        "p_symbol": symbol,
+        "p_rows": rows,
+    }) or 0
+
+
 def replace_symbol_holders(symbol: str, rows: list[dict]) -> int:
     return rpc("replace_symbol_holders", {
         "p_symbol": symbol,
