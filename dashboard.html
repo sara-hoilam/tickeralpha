@@ -351,6 +351,9 @@ tbody tr:hover td{background:var(--sunk)}
 .pchart .ax.mid{text-anchor:middle}
 
 .ranges{display:flex;gap:4px;flex-shrink:0}
+/* The ownership chart's cadence is a fact, not a control: 13F is quarterly. */
+.ownhist-cadence{font-size:10.5px;color:var(--ink-3);letter-spacing:.06em;
+  text-transform:uppercase;white-space:nowrap}
 .ranges button{background:var(--sunk);border:1px solid var(--rule);border-radius:6px;
   padding:4px 10px;font-size:11.5px;font-weight:500;color:var(--ink-2);cursor:pointer;
   min-height:0}
@@ -1294,6 +1297,10 @@ const API = {
   holders: symbol => HOSTED
     ? rpc("get_symbol_holders", { p_symbol: symbol, p_limit: 25 })
     : Promise.resolve(null),
+
+  ownership: symbol => HOSTED
+    ? rpc("get_symbol_ownership", { p_symbol: symbol })
+    : Promise.resolve(null),
 };
 
 /* ===========================================================================
@@ -1451,6 +1458,7 @@ const HELP = {
   news:      "Recent stories mentioning this company or its industry, newest first.",
   beats:     "What the company reported against what the analysts covering it expected, quarter by quarter. The bar is the figure it reported; the notch across it is the estimate it was measured against. A bar that clears its notch is a beat. Estimates are the consensus at the time of the report, from Financial Modeling Prep.",
   nextrep:   "The next scheduled announcement and the consensus going into it. Companies confirm dates a few weeks ahead, so a date further out than that can still move.",
+  ownhist:   "Total institutional position through time, from quarterly 13F filings: each bar is every filed position added up at that quarter end, and the line is the share of the company those positions amount to, against shares outstanding. 13F is a quarterly filing with up to a 45-day lag, so this chart has one point per quarter — there is no daily series to show. Quarters where the feed leaves the percentage blank are computed against today's share count, which drifts a little for companies that buy back or issue heavily.",
   holders:   "Institutions holding the stock, from their quarterly 13F filings with the SEC, largest position first. Funds managing over $100M must file within 45 days of each quarter end, so the picture is accurate as of the reporting date rather than today. A percentage is the position measured against shares outstanding.",
   insiders:  "Form 4 filings by officers, directors and 10% owners of this company over the last 90 days. Only filings worth more than $1M, or more than 1% of shares outstanding, are listed -- the routine grants and tax withholdings below that line would bury the rest.",
   congress:  "Trades in this ticker disclosed by members of Congress under the STOCK Act, over the last 90 days. Members report a band rather than a figure, and may file up to 45 days after the trade, so the disclosure date is not the trade date.",
@@ -2516,11 +2524,33 @@ async function loadEarnings(){
    this one symbol. */
 const OWN = { symbol: null, insiders: null, congress: null, loading: false };
 const HELD = { symbol: null, data: null, loading: false, failed: false };
+const OWNH = { symbol: null, data: null, loading: false, failed: false, range: "5Y" };
+// 13F is filed quarterly, so the only honest period is a quarter; the picker
+// chooses how many of them. "Max" is whatever history the feed keeps (~10y).
+const OWNH_RANGES = { "3Y": 12, "5Y": 20, "Max": Infinity };
 
 /** The panel bodies. Built as one string because all three renders drop it
     into a tab panel and nothing else varies between them. */
 function ownershipMarkup(){
   return `
+    <section class="card panel">
+      <div class="phead"><div>
+        <h2>Institutional ownership ${helpIcon("ownhist")}</h2>
+        <p id="ownhist-scope">Total 13F position by quarter, and the share of the
+           company it adds up to.</p>
+      </div>
+      <div class="phead-tools">
+        <span class="ownhist-cadence">Quarterly · 13F</span>
+        <div class="ranges" id="ownhist-range" role="group" aria-label="Ownership chart range">${
+          Object.keys(OWNH_RANGES).map(r =>
+            `<button type="button" data-r="${r}" aria-pressed="${r === OWNH.range}">${r}</button>`).join("")
+        }</div>
+      </div></div>
+      <div class="scroll" id="ownhist-chart"><div class="note">
+        <span class="load"></span> &nbsp;Loading ownership history…</div></div>
+      <div class="legend" id="ownhist-legend"></div>
+    </section>
+
     <section class="card panel">
       <div class="phead"><div>
         <h2>Institutional holders ${helpIcon("holders")}</h2>
@@ -2703,6 +2733,176 @@ async function loadHolders(){
   } finally {
     HELD.loading = false;
     if (HELD.symbol === sym) drawHolders();
+  }
+}
+
+/* ---- Institutional ownership through time --------------------------------
+   Bars for the total 13F position at each quarter end, a line on its own
+   right axis for the percent of the company that position amounts to. One
+   point per quarter because 13F is a quarterly filing — the range picker
+   chooses how many quarters, not a finer period that does not exist. */
+
+function wireOwnhistRange(){
+  document.querySelectorAll("#ownhist-range [data-r]").forEach(b => b.onclick = () => {
+    if (OWNH.range === b.dataset.r) return;
+    OWNH.range = b.dataset.r;
+    document.querySelectorAll("#ownhist-range [data-r]").forEach(x =>
+      x.setAttribute("aria-pressed", String(x.dataset.r === OWNH.range)));
+    drawOwnershipHistory();
+  });
+}
+
+function ownhistState(msg, busy){
+  const host = document.getElementById("ownhist-chart");
+  if (host) host.innerHTML = `<div class="note">`
+    + `${busy ? `<span class="load"></span> &nbsp;` : ""}${esc(msg)}</div>`;
+  const legend = document.getElementById("ownhist-legend");
+  if (legend) legend.innerHTML = "";
+}
+
+function drawOwnershipHistory(){
+  const host = document.getElementById("ownhist-chart");
+  if (!host) return;
+  wireOwnhistRange();
+  const d = OWNH.data;
+  const points = d && d.points;
+  const sym = OWNH.symbol || "this ticker";
+  if (!points) {
+    return ownhistState(OWNH.failed
+      ? `Ownership history for ${sym} is unavailable.`
+      : `Ownership history for ${sym} arrives with the next price refresh.`);
+  }
+  const all = points.filter(p => p && p.shares != null);
+  if (!all.length) {
+    return ownhistState(`No institution files a 13F position in ${sym}.`);
+  }
+
+  const out = d.sharesOut;
+  // The feed's own percentage when it filed one; otherwise the position
+  // against today's share count — close enough for the line's shape.
+  const pctOf = p => p.ownershipPct != null && p.ownershipPct > 0
+    ? p.ownershipPct
+    : (out && p.shares != null ? p.shares / out * 100 : null);
+
+  const scope = document.getElementById("ownhist-scope");
+  if (scope) {
+    const last = all[all.length - 1];
+    const lp = pctOf(last);
+    scope.innerHTML = `${last.investors != null
+        ? `${last.investors.toLocaleString()} institutions hold ` : `Institutions hold `}` +
+      `<b>${esc(compact(last.shares))}</b> shares` +
+      `${lp != null ? ` — <b>${lp.toFixed(1)}%</b> of shares outstanding` : ""}` +
+      ` · as of ${esc(shortDate(last.date))}`;
+  }
+
+  const keep = OWNH_RANGES[OWNH.range] || Infinity;
+  const rows = Number.isFinite(keep) ? all.slice(-keep) : all;
+
+  const wide = !MOBILE_MQ.matches;
+  const W = wide ? 1180 : 560, H = wide ? 320 : 290;
+  const ml = 64, mr = 50, mt = 18, mb = 46;
+  const pw = W - ml - mr, ph = H - mt - mb;
+
+  // Shares on the left, from zero: the bar's whole height is the position.
+  const maxS = Math.max(...rows.map(r => r.shares)) || 1;
+  const topS = maxS * 1.08;
+  const yS = v => mt + ph - v / topS * ph;
+  const rawStep = topS / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep || 1)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(v => v >= rawStep) || mag * 10;
+  const grid = [];
+  for (let t = 0; t <= topS; t += step) grid.push(`
+    <line x1="${ml}" y1="${yS(t).toFixed(1)}" x2="${W - mr}" y2="${yS(t).toFixed(1)}"
+      stroke="var(--rule-2)"></line>
+    <text x="${ml - 8}" y="${(yS(t) + 4).toFixed(1)}" text-anchor="end" font-size="10.5"
+      class="tnum" fill="var(--ink-3)">${t === 0 ? "0" : compact(t)}</text>`);
+
+  // Percent on the right, its own scale, labelled in the line's colour so the
+  // two axes cannot be read as one.
+  const pcts = rows.map(pctOf);
+  const havePct = pcts.some(v => v != null);
+  const topP = havePct ? Math.max(...pcts.filter(v => v != null)) * 1.15 || 1 : 1;
+  const yP = v => mt + ph - v / topP * ph;
+  const rTicks = havePct ? [1, 2, 3].map(i => topP * i / 4) : [];
+  const rAxis = rTicks.map(t => `
+    <text x="${W - mr + 8}" y="${(yP(t) + 4).toFixed(1)}" text-anchor="start" font-size="10.5"
+      class="tnum" fill="var(--accent)">${t.toFixed(t < 10 ? 1 : 0)}%</text>`).join("");
+
+  const bw = Math.min(wide ? 42 : 24, Math.max(4, pw / rows.length - (wide ? 8 : 5)));
+  const labelStep = Math.ceil(rows.length / (wide ? 10 : 6));
+  const bars = rows.map((r, i) => {
+    const cx = ml + pw * (i + 0.5) / rows.length;
+    const p = pcts[i];
+    const label = i % labelStep === 0 ? `
+      <text x="${cx.toFixed(1)}" y="${H - 26}" text-anchor="middle" font-size="10.5"
+        class="tnum" fill="var(--ink-3)">${esc(shortDate(r.date).slice(0, 6))}</text>
+      <text x="${cx.toFixed(1)}" y="${H - 12}" text-anchor="middle" font-size="10.5"
+        class="tnum" fill="var(--ink-3)">'${esc(String(r.date).slice(2, 4))}</text>` : "";
+    return `<g>
+      <title>${esc(shortDate(r.date))} — ${esc(compact(r.shares))} shares${
+        r.investors != null ? ` across ${r.investors.toLocaleString()} institutions` : ""}${
+        p != null ? `, ${p.toFixed(1)}% of shares outstanding` : ""}</title>
+      <rect x="${(cx - bw / 2).toFixed(1)}" y="${yS(r.shares).toFixed(1)}"
+        width="${bw.toFixed(1)}" height="${Math.max(1, mt + ph - yS(r.shares)).toFixed(1)}"
+        fill="var(--accent)" fill-opacity="0.42" rx="2"></rect>
+      ${label}
+    </g>`;
+  }).join("");
+
+  // The percent line lifts the pen over quarters with no percentage rather
+  // than drawing a bridge through them.
+  let path = "", pen = false;
+  const dots = [];
+  rows.forEach((r, i) => {
+    const p = pcts[i];
+    if (p == null) { pen = false; return; }
+    const cx = ml + pw * (i + 0.5) / rows.length;
+    path += `${pen ? "L" : "M"}${cx.toFixed(1)} ${yP(p).toFixed(1)} `;
+    pen = true;
+    dots.push(`<circle cx="${cx.toFixed(1)}" cy="${yP(p).toFixed(1)}" r="2.4"
+      fill="var(--accent)"></circle>`);
+  });
+
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img"
+    aria-label="Institutional ownership by quarter">
+    ${grid.join("")}
+    ${rAxis}
+    ${bars}
+    ${havePct ? `<path d="${path.trim()}" fill="none" stroke="var(--accent)"
+      stroke-width="2" stroke-linejoin="round"></path>${dots.join("")}` : ""}
+  </svg>`;
+
+  const legend = document.getElementById("ownhist-legend");
+  if (legend) legend.innerHTML =
+    `<div><i style="background:var(--accent);opacity:.42"></i>Shares held (all 13F filers)</div>` +
+    (havePct
+      ? `<div><i style="background:var(--accent);height:3px;border-radius:2px"></i>% of shares outstanding (right axis)</div>`
+      : `<div>Share count on record; percent needs shares outstanding.</div>`);
+  wireHelp();
+}
+
+/** Fetched when the tab is first opened, and once per company. */
+async function loadOwnershipHistory(){
+  const sym = S.company && S.company.ticker;
+  if (!sym || !HOSTED || !document.getElementById("ownhist-chart")) return;
+  if (OWNH.symbol === sym && !OWNH.loading) return drawOwnershipHistory();
+  if (OWNH.loading) return;
+  OWNH.symbol = sym;
+  OWNH.loading = true;
+  OWNH.data = null;
+  OWNH.failed = false;
+  ownhistState(`Loading ownership history for ${sym}…`, true);
+  try {
+    const d = await API.ownership(sym);
+    if (OWNH.symbol !== sym) return;             // another company was opened
+    OWNH.data = d || { points: null };
+  } catch {
+    if (OWNH.symbol !== sym) return;
+    OWNH.failed = true;
+    OWNH.data = { points: null };
+  } finally {
+    OWNH.loading = false;
+    if (OWNH.symbol === sym) drawOwnershipHistory();
   }
 }
 
@@ -5896,6 +6096,7 @@ function selectTab(id, opts){
     loadAnalyst();
     loadOwnershipTrades();
     loadHolders();
+    loadOwnershipHistory();
     // The holdings scrollport is sized from measured row heights, which are
     // zero while the panel is hidden.
     if (document.getElementById("idx-holdings")) requestAnimationFrame(fitHoldingsRows);

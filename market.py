@@ -29,6 +29,7 @@ import urllib.request
 BASE = "https://financialmodelingprep.com/stable"
 # A couple of endpoints never made it onto /stable; those calls pass this in.
 V3_BASE = "https://financialmodelingprep.com/api/v3"
+V4_BASE = "https://financialmodelingprep.com/api/v4"
 KEY = os.environ.get("FMP_API_KEY", "")
 
 # FMP bills per request and rate-limits per minute. Nothing here is urgent, so
@@ -1909,6 +1910,71 @@ def institutional_holders(symbol: str, limit: int = 60) -> list[dict]:
 
     raise MarketError(
         f"institutional holders for {symbol}: no endpoint answered"
+        + (f" ({last_error})" if last_error else ""))
+
+
+# The quarterly 13F aggregate for one symbol — total shares held, how many
+# institutions hold them, and the percent of the company that adds up to.
+# Same defence as the holders list: FMP has served this under more than one
+# path and key spelling, so both are tried and the first that answers with
+# dated rows wins.
+_OWNERSHIP_ENDPOINTS = (
+    ("institutional-ownership/symbol-ownership", None),
+    ("institutional-ownership/symbol-ownership", V4_BASE),
+)
+
+_OWNERSHIP_KEYS = {
+    "date": ("date", "reportDate", "quarterEnd"),
+    "investors": ("investorsHolding", "numberOfInvestors", "investors",
+                  "holdersCount"),
+    "shares": ("numberOf13Fshares", "numberOf13FShares", "totalSharesHeld",
+               "sharesHeld", "shares"),
+    "value": ("totalInvested", "marketValue", "totalMarketValue", "value"),
+    "pct": ("ownershipPercent", "totalOwnershipPercent", "ownership",
+            "institutionalOwnershipPercentage"),
+}
+
+
+def institutional_ownership(symbol: str, quarters: int = 40) -> list[dict]:
+    """Quarterly institutional ownership history, oldest first.
+
+    Rows are shaped for ``replace_symbol_ownership``. Raises MarketError when
+    no spelling answers — like the holders list, this is an addition to the
+    page, not a precondition, and the caller only logs it.
+    """
+    last_error = None
+    for path, base in _OWNERSHIP_ENDPOINTS:
+        try:
+            rows = _get(path, _base=base, symbol=symbol,
+                        includeCurrentQuarter="true") or []
+        except MarketError as exc:
+            last_error = exc
+            continue
+        if not isinstance(rows, list) or not rows:
+            continue
+
+        out = []
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            date = str(_first(r, _OWNERSHIP_KEYS["date"]) or "")[:10]
+            shares = _as_float(_first(r, _OWNERSHIP_KEYS["shares"]))
+            if not date or shares is None:
+                continue
+            investors = _as_float(_first(r, _OWNERSHIP_KEYS["investors"]))
+            out.append({
+                "date": date,
+                "investors": int(investors) if investors is not None else None,
+                "shares": shares,
+                "value": _as_float(_first(r, _OWNERSHIP_KEYS["value"])),
+                "ownershipPct": _as_float(_first(r, _OWNERSHIP_KEYS["pct"])),
+            })
+        if out:
+            out.sort(key=lambda x: x["date"])
+            return out[-quarters:]
+
+    raise MarketError(
+        f"institutional ownership for {symbol}: no endpoint answered"
         + (f" ({last_error})" if last_error else ""))
 
 

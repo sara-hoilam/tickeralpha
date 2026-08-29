@@ -717,6 +717,19 @@ def fetch_prices(symbol: str) -> bool:
     except store.StoreError as exc:
         log(f"  holders {sym}: {exc}")
 
+    # The quarterly ownership history behind the Ownership tab's chart. Same
+    # plan caveat as the holders list — 13F data sits above the entry tiers —
+    # which is why it only logs.
+    try:
+        own = market.institutional_ownership(sym)
+        n_own = store.replace_symbol_ownership(sym, own)
+        if own:
+            extras += f", {n_own} ownership quarters"
+    except market.MarketError as exc:
+        log(f"  ownership {sym}: {exc}")
+    except store.StoreError as exc:
+        log(f"  ownership {sym}: {exc}")
+
     log(f"prices {sym}: {len(bars)} bars{', quote' if q else ', no quote'}{extras}")
     return True
 
