@@ -1235,7 +1235,14 @@ _NUM_TOKEN = re.compile(
 )
 _CAPS_TOKEN = re.compile(r"\b[A-Z][A-Z.\-]{1,5}\b")
 _ABBREV = ("U.S.", "U.K.", "E.U.", "Inc.", "Corp.", "Co.", "Ltd.", "Jr.",
-           "vs.", "approx.", "St.", "Dr.", "a.m.", "p.m.")
+           "vs.", "approx.", "St.", "Dr.", "a.m.", "p.m.",
+           # Dated announcements are everywhere in news bodies, and "Aug. 28"
+           # once cost a whole run: every retry wrote the date the natural
+           # way, and every retry was counted as three sentences.
+           "Jan.", "Feb.", "Mar.", "Apr.", "Jun.", "Jul.", "Aug.",
+           "Sept.", "Sep.", "Oct.", "Nov.", "Dec.",
+           "Mr.", "Mrs.", "Ms.", "Prof.", "Sen.", "Rep.", "Gov.",
+           "Dept.", "No.")
 
 
 def _sentence_count(body: str) -> int:
@@ -1245,6 +1252,9 @@ def _sentence_count(body: str) -> int:
         masked = masked.replace(a, "_" * len(a))
     # A decimal point sits between two digits; a sentence end does not.
     masked = re.sub(r"(?<=\d)\.(?=\d)", "_", masked)
+    # An initial — "J. Powell", "Michelle W. Bowman" — is a capital letter
+    # alone before another capitalised word, not the end of anything.
+    masked = re.sub(r"\b[A-Z]\.(?=\s+[A-Z])", "__", masked)
     return len(re.findall(r"[.!?](?=\s|$)", masked.strip()))
 
 
