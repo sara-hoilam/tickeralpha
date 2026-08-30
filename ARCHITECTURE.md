@@ -235,14 +235,14 @@ rising count is the signal that a filer has changed how it renders its tables.
 
 The market page opens with **Today's Brief**: three to five short paragraphs
 on what is scheduled for the day and why it matters. Those are written by
-Claude, once each weekday morning, by `.github/workflows/insights.yml`.
+Claude, once each morning, by `.github/workflows/insights.yml`.
 
 It is worth being precise about where that sits, because it is the only part
 of the product that is not deterministic:
 
 ```
-GitHub Actions, 10:30 UTC ──▶ insights.py
-   (weekdays only)              │  reads the same public RPCs a visitor calls
+GitHub Actions, 10:07 UTC ──▶ insights.py
+   (daily; 13:23 catch-up)      │  reads the same public RPCs a visitor calls
                                 │  finds themes, movers, runs, milestones,
                                 │    the most-covered names, and the
                                 │    headline behind each move

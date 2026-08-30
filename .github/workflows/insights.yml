@@ -1,19 +1,32 @@
 name: market brief
 
-# Writes the market page's "Today's Brief" insights once each weekday
-# morning, before the US open. The job talks to Supabase only -- it never
-# commits to this repository.
+# Writes the market page's "Today's Brief" insights once each morning,
+# before the US open. The job talks to Supabase only -- it never commits to
+# this repository.
 #
-# 10:30 UTC is 06:30 in New York on eastern daylight time and 05:30 on
+# ~10:00 UTC is 06:00 in New York on eastern daylight time and 05:00 on
 # eastern standard time. GitHub's cron is UTC year-round while the market
 # keeps wall-clock hours, so the gap to the 09:30 open shifts by an hour
 # across the DST boundary; either way the brief is up hours before anyone
-# reads it. insights.py resolves the trading day in Eastern itself and
-# exits quietly on weekends and market holidays.
+# reads it.
+#
+# Every day, not just weekdays: on a weekend there is no session to report,
+# but there is a weekend's news and a Friday close to carry it, and that is
+# the reading someone opening the page on a Sunday wants. insights.py dates
+# every price fact to the session it came from, so nothing calls Friday's
+# close "today".
+#
+# :07 rather than :30. GitHub queues scheduled runs and drops or delays them
+# under load, and the hour and the half-hour are the most congested minutes
+# on it -- two runs on ":30" landed more than ten hours late, which put the
+# brief on the page after the close it was meant to precede. The second cron
+# is a catch-up for a morning that was delayed or rejected; it writes only
+# when the day still has no brief, so a good one is never overwritten.
 
 on:
   schedule:
-    - cron: "30 10 * * 1-5"
+    - cron: "7 10 * * *"
+    - cron: "23 13 * * *"
   workflow_dispatch:
 
 # Two runs writing the same day would race on the same rows. The second
@@ -53,4 +66,9 @@ jobs:
             echo "::error::missing repository secrets:$missing"
             exit 1
           fi
-          python insights.py
+          # A scheduled run never overwrites a brief the day already has:
+          # the second cron is a safety net, not a rewrite, and a first cron
+          # arriving late must not replace what the catch-up already wrote.
+          # A hand-started run is someone asking for a fresh one, so it
+          # always writes.
+          python insights.py ${{ github.event_name == 'schedule' && '--only-if-missing' || '' }}

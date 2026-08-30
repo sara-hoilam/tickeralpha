@@ -1,8 +1,9 @@
 """
 insights.py -- writes the market page's "Today's Brief" insights.
 
-Run once each weekday morning by .github/workflows/insights.yml, before the
-US open. Reads through the same public RPCs a visitor's browser calls, works
+Run each morning by .github/workflows/insights.yml, before the US open, on
+every day of the week -- on a weekend the prices are the last session's and
+every fact says so. Reads through the same public RPCs a visitor's browser calls, works
 out what actually moved -- industries running together, names clearing
 prices they have never closed above, runs weeks in the making -- alongside
 the day's schedule and news, asks Claude to pick the three to five worth
@@ -127,6 +128,28 @@ US_MARKET_HOLIDAYS = {
 
 def is_trading_day(day: dt.date) -> bool:
     return day.weekday() < 5 and day.isoformat() not in US_MARKET_HOLIDAYS
+
+
+def last_session(day: dt.date) -> dt.date:
+    """The most recent trading day on or before `day`."""
+    d = day
+    for _ in range(10):
+        if is_trading_day(d):
+            return d
+        d -= dt.timedelta(days=1)
+    return d
+
+
+def session_phrase(day: dt.date) -> str:
+    """How to date a price move in the facts.
+
+    On a trading day the quotes are today's. On a weekend or a holiday they
+    are the last session's close, and calling that "today" would be a plain
+    untruth in every fact built from it -- so the facts name the session,
+    and the brief written from them inherits the wording.
+    """
+    s = last_session(day)
+    return "today" if s == day else f"on {s:%A}"
 
 
 def long_day(day: dt.date) -> str:
@@ -566,7 +589,8 @@ def find_news_clusters(news: list, taken_queries: set[str]) -> list[dict]:
 
 
 def build_topic_candidates(topics: list, news: list, brief: dict,
-                           moves_by_symbol: dict) -> list[dict]:
+                           moves_by_symbol: dict,
+                           session: str = "today") -> list[dict]:
     """The macro conversation: curated subjects with spiking story counts.
 
     This is how politics, policy and geopolitics enter the brief -- a tariff
@@ -621,7 +645,7 @@ def build_topic_candidates(topics: list, news: list, brief: dict,
         for sym in syms[:3]:
             move = moves_by_symbol.get(sym) or {}
             if move.get("changePct") is not None:
-                facts.append(f"{sym} {fmt_pct(move['changePct'])} today")
+                facts.append(f"{sym} {fmt_pct(move['changePct'])} {session}")
                 evidence = True
         # A release on the same subject landing today turns talk into a time.
         resolves = False
@@ -658,7 +682,8 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
                      news: list, sectors: dict,
                      industries: list | None = None,
                      stories: dict | None = None,
-                     topics: list | None = None) -> list[dict]:
+                     topics: list | None = None,
+                     session: str = "today") -> list[dict]:
     """Everything eligible, scored, best first.
 
     The order the model receives is the curator's ranking: attention times
@@ -686,7 +711,7 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
     # The macro conversation first -- curated topics with spiking story
     # counts, then breaking subjects no list anticipated.
     topic_cands = build_topic_candidates(topics or [], news, brief,
-                                         moves_by_symbol)
+                                         moves_by_symbol, session)
     out += topic_cands
     taken = {str(t.get("query") or t.get("word") or "").lower()
              for t in (topics or [])}
@@ -696,7 +721,7 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
     # stocks are ripping" case. Breadth is what qualifies it; the headlines
     # attached are what let the brief say why.
     for i, t in enumerate(find_themes(industries or [])[:3]):
-        facts = [f"{t['industry']} {fmt_pct(t['weighted'])} today",
+        facts = [f"{t['industry']} {fmt_pct(t['weighted'])} {session}",
                  f"{t['n']} names in the industry moved more than "
                  f"{THEME_MEMBER_MOVE:.0f}%"]
         syms = []
@@ -761,7 +786,7 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
     for i, row in enumerate(standouts):
         sym = str(row.get("symbol"))
         n_stories = len(by_sym.get(sym, []))
-        facts = [f"{sym} {fmt_pct(row.get('changePct'))} today"]
+        facts = [f"{sym} {fmt_pct(row.get('changePct'))} {session}"]
         price = fmt_money(row.get("price"))
         if price:
             facts.append(f"trading at {price}")
@@ -806,7 +831,7 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
         facts = [f"{sym} is drawing repeated coverage in the last two days"]
         move = moves_by_symbol.get(sym) or {}
         if move.get("changePct") is not None:
-            facts.append(f"{sym} {fmt_pct(move['changePct'])} today")
+            facts.append(f"{sym} {fmt_pct(move['changePct'])} {session}")
         price = fmt_money(move.get("price"))
         if price:
             facts.append(f"trading at {price}")
@@ -872,10 +897,10 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
         actual = fmt_money(e.get("epsActual"))
         if actual:
             facts.append(f"EPS actual {actual}")
-        session = {"bmo": "before the open", "amc": "after the close"}.get(
+        bell = {"bmo": "before the open", "amc": "after the close"}.get(
             str(e.get("time") or "").lower())
-        if session:
-            facts.append(f"reports {session}")
+        if bell:
+            facts.append(f"reports {bell}")
         esym = str(e.get("symbol") or "").upper()
         score, parts = curation_score(
             "earnings", e.get("marketCap"), len(by_sym.get(esym, [])),
@@ -1166,8 +1191,12 @@ def user_message(day: dt.date, candidates: list[dict], complaint: str = "") -> s
     # what stops "today" and "tomorrow" sliding by a day.
     payload = [{k: v for k, v in c.items()
                 if k not in ("score", "score_parts")} for c in candidates]
+    shut = not is_trading_day(day)
     parts = [
-        f"Date: {long_day(day)} (US market open 09:30 ET)",
+        f"Date: {long_day(day)} (US market open 09:30 ET)" if not shut else
+        f"Date: {long_day(day)} -- the US market is closed today. Every price "
+        f"move below is from {last_session(day):%A}'s session and the facts "
+        f"date it that way; write it that way too, never as today's move.",
         "",
         "Candidates, in the curator's ranked order (best first):",
         json.dumps(payload, indent=1),
@@ -1568,16 +1597,33 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true",
                     help="print the candidates and the result, write nothing")
     ap.add_argument("--day", help="YYYY-MM-DD; defaults to today in Eastern")
+    ap.add_argument("--only-if-missing", action="store_true",
+                    help="exit without writing when the day already has a "
+                         "brief; for the catch-up run")
     args = ap.parse_args()
 
     day = (dt.date.fromisoformat(args.day) if args.day
            else _eastern_now().date())
 
-    if not is_trading_day(day):
-        print(f"[insights] {day} is not a US trading day; nothing to write.")
-        return 0
+    # The brief runs every day. On a weekend or a holiday there is no session
+    # to report, but there is a weekend's news and a Friday close to carry it,
+    # which is the reading anyone opening the page on a Sunday wants. What
+    # changes is the wording: session_phrase dates every price fact to the
+    # session it came from, so nothing calls Friday's close "today".
+    session = session_phrase(day)
+    if session != "today":
+        print(f"[insights] {day}: US market closed; prices are from "
+              f"{last_session(day)} and the facts say so.")
 
     brief = read_rpc("get_market_brief", {"p_day": day.isoformat()}) or {}
+
+    # The catch-up run is a safety net for a first attempt that was delayed
+    # or rejected, not a rewrite: a brief already written for this day stands.
+    # get_market_brief falls back to the most recent day it has, so the check
+    # is on insightsDay -- "insights is non-empty" would be true every day.
+    if args.only_if_missing and brief.get("insightsDay") == day.isoformat():
+        print(f"[insights] {day} already has a brief; nothing to do.")
+        return 0
     caps = read_rpc("get_market_summary",
                     {"p_view": "market_cap", "p_limit": 10}) or []
     gainers = read_rpc("get_market_summary",
@@ -1619,7 +1665,7 @@ def main() -> int:
 
     by_symbol_counts = {s: len(v) for s, v in news_index(news).items()}
     candidates = build_candidates(brief, caps, gainers, losers, news, sectors,
-                                  industries, stories, topics)
+                                  industries, stories, topics, session)
     print(f"[insights] {day}: {len(candidates)} candidates from "
           f"{len(industries)} industries, {len(news)} stories, "
           f"{len(topics)} topics; price history for "
