@@ -2186,6 +2186,25 @@ const RISK_SHORT_NAME = {
   "Basic Materials": "Materials",
 };
 
+/** Tick values a reader would have chosen, and the decimals they need.
+
+    Dividing a padded range into four equal parts printed "0.2%, 0.1%, 0.1%,
+    0.0%, 0.0%, -0.0%" down the return axis: two pairs that render identically
+    and a signed zero, because the step between ticks was finer than the label
+    that described it. Steps are 1, 2 or 5 times a power of ten -- 2.5 is
+    excluded so the decimals are always derivable from the step itself. */
+function niceScale(lo, hi, want){
+  const span = (hi - lo) || Math.abs(hi) || 1;
+  const raw = span / Math.max(1, want);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 5, 10].map(m => m * mag).find(v => v >= raw) || mag * 10;
+  const decimals = Math.max(0, Math.ceil(-Math.log10(step) - 1e-9));
+  const out = [];
+  for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + step * 1e-6; v += step)
+    out.push(+v.toFixed(10));
+  return { values: out, decimals };
+}
+
 /** The cell for the current selection, or null where the window is too short
     to hold enough whole intervals to measure. */
 const riskCell = s =>
@@ -2261,22 +2280,27 @@ function renderRisk(payload){
   const capMax = Math.max(...caps, 1);
   const R = c => 7 + 20 * Math.sqrt((c || 0) / capMax);
 
-  const parts = [];
-  const ticks = 4;
-  for (let i = 0; i <= ticks; i++){
-    const v = y0 + (y1 - y0) * i / ticks;
-    parts.push(`<line x1="${ml}" y1="${Y(v)}" x2="${W-mr}" y2="${Y(v)}"
-      stroke="var(--rule-2)" ${Math.abs(v) < 1e-9 ? '' : 'stroke-dasharray="3 4"'}></line>
-      <text x="${ml-8}" y="${Y(v)+3.2}" text-anchor="end" font-size="9" class="tnum"
-        fill="var(--ink-3)">${(v*100).toFixed(v === 0 ? 0 : 1)}%</text>`);
-  }
-  for (let i = 0; i <= ticks; i++){
-    const v = x0 + (x1 - x0) * i / ticks;
-    parts.push(`<text x="${X(v)}" y="${H-mb+15}" text-anchor="middle" font-size="9"
-      class="tnum" fill="var(--ink-3)">${(v*100).toFixed(1)}%</text>`);
-  }
+  // The plot's own rectangle, so the trend line cannot run out of the frame.
+  const parts = [`<clipPath id="riskplot"><rect x="${ml}" y="${mt}"
+    width="${pw}" height="${ph}"></rect></clipPath>`];
 
-  // Break-even, drawn solid so it reads as the reference the dashes are not.
+  // Gridlines are hairlines one step off the surface, and solid: a dash reads
+  // as a threshold or a projection, and a grid is neither.
+  const yt = niceScale(y0 * 100, y1 * 100, 4);
+  yt.values.forEach(v => {
+    const y = Y(v / 100);
+    parts.push(`<line x1="${ml}" y1="${y}" x2="${W-mr}" y2="${y}"
+      stroke="var(--rule-2)"></line>
+      <text x="${ml-8}" y="${y+3.2}" text-anchor="end" font-size="9" class="tnum"
+        fill="var(--ink-3)">${v.toFixed(yt.decimals)}%</text>`);
+  });
+  const xt = niceScale(x0 * 100, x1 * 100, 4);
+  xt.values.forEach(v => {
+    parts.push(`<text x="${X(v / 100)}" y="${H-mb+15}" text-anchor="middle" font-size="9"
+      class="tnum" fill="var(--ink-3)">${v.toFixed(xt.decimals)}%</text>`);
+  });
+
+  // Break-even, a shade darker than the grid so it reads as the reference.
   if (y0 < 0 && y1 > 0)
     parts.push(`<line x1="${ml}" y1="${Y(0)}" x2="${W-mr}" y2="${Y(0)}" stroke="var(--rule)"></line>`);
 
@@ -2290,8 +2314,12 @@ function renderRisk(payload){
     if (den){
       const m = num/den, b = my - m*mx;
       const ya = m*x0 + b, yb = m*x1 + b;
+      // Clipped to the plot: the fitted line leaves the axis range whenever
+      // the cloud sits off-centre, and it used to carry on past the corner
+      // and out of the panel.
       parts.push(`<line x1="${X(x0)}" y1="${Y(ya)}" x2="${X(x1)}" y2="${Y(yb)}"
-        stroke="var(--ink-3)" stroke-width="1.4" opacity=".55"></line>`);
+        clip-path="url(#riskplot)"
+        stroke="var(--ink-3)" stroke-width="1.25" opacity=".38"></line>`);
     }
   }
 
@@ -2313,8 +2341,18 @@ function renderRisk(payload){
   // looks for.
   const FS = 9.5, CW = 5.05;                 // char width at this size
   const boxes = [];
-  const clear = b => boxes.every(o =>
-    b.x1 < o.x0 || b.x0 > o.x1 || b.y1 < o.y0 || b.y0 > o.y1);
+  // The bubbles are obstacles too, not just the labels already placed. With
+  // only labels in the way a name would find a "clear" slot lying across the
+  // mark it names -- readable, thanks to the halo, but it buried the very
+  // thing the reader is looking at. A small inset lets a label tuck against
+  // a bubble's edge without being pushed a whole radius away.
+  const marks = ordered.map(p => {
+    const cx = X(p.c.vol), cy = Y(p.c.ret), r = R(p.s.cap) - 2.5;
+    return { x0: cx - r, x1: cx + r, y0: cy - r, y1: cy + r };
+  });
+  const hits = (b, o) =>
+    !(b.x1 < o.x0 || b.x0 > o.x1 || b.y1 < o.y0 || b.y0 > o.y1);
+  const clear = b => boxes.every(o => !hits(b, o)) && marks.every(o => !hits(b, o));
 
   ordered.forEach(p => {
     const cx = X(p.c.vol), cy = Y(p.c.ret), r = R(p.s.cap);
@@ -2348,16 +2386,39 @@ function renderRisk(payload){
       // can separate their labels. Walk one outwards until it is clear.
       const base = cands.find(inFrame) || cands[0];
       pick = base;
-      for (let dy = 4; dy <= 72; dy += 4) {
+      for (let dy = 4; dy <= 108; dy += 4) {
         const up = shift(base, -dy), down = shift(base, dy);
         if (inFrame(up) && clear(up)) { pick = up; break; }
         if (inFrame(down) && clear(down)) { pick = down; break; }
       }
     }
     boxes.push(pick);
+
+    // A label pushed clear of the pile can end up nearer a neighbour's bubble
+    // than its own, so where it has travelled far enough to be ambiguous a
+    // hairline in the sector's own colour ties it back. Drawn from the
+    // bubble's edge to the label's, in that order, so it tucks under the text.
+    const lx = (pick.x0 + pick.x1) / 2, ly = (pick.y0 + pick.y1) / 2;
+    const dx = lx - cx, dy = ly - cy, dist = Math.hypot(dx, dy);
+    if (dist > r + 9) {
+      const hw = (pick.x1 - pick.x0) / 2 + 2, hh = (pick.y1 - pick.y0) / 2 + 2;
+      const t = Math.min(hw / (Math.abs(dx) || 1e-6), hh / (Math.abs(dy) || 1e-6));
+      const ex = lx - dx * t, ey = ly - dy * t;
+      const sx = cx + dx / dist * (r + 1), sy = cy + dy / dist * (r + 1);
+      if (Math.hypot(ex - sx, ey - sy) > 3)
+        parts.push(`<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}"
+          x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${sectorColour(p.i)}"
+          stroke-width="1" opacity=".5"></line>`);
+    }
+
+    // A halo in the surface colour, painted under the glyphs: eleven labels
+    // in one frame will sometimes have to sit over a bubble, and dark text on
+    // a saturated fill is unreadable without it.
     parts.push(`<text class="rlab" data-k="${esc(p.s.sector)}" x="${pick.x.toFixed(1)}"
       y="${pick.y.toFixed(1)}" text-anchor="${pick.anchor}" font-size="${FS}"
-      font-weight="600" fill="var(--ink-2)" style="cursor:pointer;pointer-events:auto"
+      font-weight="600" fill="var(--ink)" stroke="var(--card)" stroke-width="3.2"
+      stroke-linejoin="round" paint-order="stroke"
+      style="cursor:pointer;pointer-events:auto"
       >${esc(text)}</text>`);
   });
 
@@ -2567,29 +2628,61 @@ function renderSectorPerf(history){
   if (sub) sub.textContent =
     `Cumulative performance per sector over the last ${PERF.days} days.`;
   if (!rows.length){ host.innerHTML = `<div class="note">No sector data yet.</div>`; return; }
-  // The left margin has to clear the longest sector name -- "Communication
-  // Services" is the one that sets it -- and the height is chosen so the bars
+  // Names are the short forms the scatter beside this uses, so one sector
+  // reads the same in both halves of the row -- and so the gutter can be a
+  // third narrower than the one "Communication Services" demanded. The names
+  // also came down from 15.5px: they were larger than the figures they
+  // labelled, which inverted the hierarchy. Between them the two changes give
+  // the plot back a third of the panel's width. Height is chosen so the bars
   // fill the panel rather than sitting in its top third.
-  const W = 570, H = 380, ml = 198, mr = 18, mt = 10, mb = 16;
+  const W = 570, H = 380, ml = 126, mr = 14, mt = 10, mb = 16;
   const pw = W - ml - mr, ph = H - mt - mb;
-  const max = Math.max(...rows.map(r => Math.abs(r.changePct)), 0.5);
-  const zero = ml + pw / 2;
-  // The longest bar stops short of the edge so its value label has room.
-  const scale = v => (v / max) * (pw / 2) * 0.68;
-  const bh = Math.min(24, ph / rows.length - 8);
+  // A fixed gutter for the value at the tip, rather than shrinking every bar
+  // by an arbitrary factor to leave room for it: the bars were stubs in the
+  // middle of a wide panel because two thirds of each half was being held
+  // back for a label 40px wide.
+  const GUTTER = 44;
+  const plot = Math.max(40, pw - GUTTER * 2);
+  // Zero sits where the day puts it, not at the midpoint. One scale still
+  // governs both directions -- a percent is the same width whichever way it
+  // points, which is the whole claim a diverging bar makes -- but splitting
+  // the width by the two extremes instead of in half stops a lopsided day
+  // (-7.46% against +3.06%) from leaving a third of the panel empty.
+  const maxUp = Math.max(0, ...rows.map(r => r.changePct));
+  const maxDn = Math.max(0, ...rows.map(r => -r.changePct));
+  const span = (maxUp + maxDn) || 1;
+  const zero = ml + GUTTER + plot * (maxDn / span);
+  const scale = v => (v / span) * plot;
+  // Capped, never filling the slot: the leftover in each band is the air that
+  // separates one bar from the next.
+  const band = ph / rows.length;
+  const bh = Math.min(22, band - 9);
 
-  const parts = [`<line x1="${zero}" y1="${mt}" x2="${zero}" y2="${mt+ph}" stroke="var(--rule)"></line>`];
+  /** A bar with its data-end rounded and its baseline end square, so the zero
+      rule reads as the single line every bar grows from. */
+  const barPath = (x, y, w, h, up) => {
+    const r = Math.min(4, Math.abs(w), h / 2);
+    if (Math.abs(w) < 0.6) return "";
+    return up
+      ? `M${x} ${y} H${x + w - r} A${r} ${r} 0 0 1 ${x + w} ${y + r} `
+        + `V${y + h - r} A${r} ${r} 0 0 1 ${x + w - r} ${y + h} H${x} Z`
+      : `M${x} ${y} H${x - Math.abs(w) + r} A${r} ${r} 0 0 0 ${x - Math.abs(w)} ${y + r} `
+        + `V${y + h - r} A${r} ${r} 0 0 0 ${x - Math.abs(w) + r} ${y + h} H${x} Z`;
+  };
+
+  const parts = [`<line x1="${zero}" y1="${mt}" x2="${zero}" y2="${mt+ph}"
+    stroke="var(--rule)"></line>`];
   rows.forEach((r, i) => {
-    const cy = mt + (ph * (i + 0.5)) / rows.length;
+    const cy = mt + band * (i + 0.5);
     const w = scale(r.changePct);
     const up = r.changePct >= 0;
-    parts.push(`<rect x="${up ? zero : zero + w}" y="${cy - bh/2}" width="${Math.abs(w)}"
-        height="${bh}" rx="3" fill="var(${up ? "--up" : "--down"})"
-        data-s="${esc(r.sector)}" data-v="${r.changePct}" style="cursor:pointer"></rect>
-      <text x="${ml-10}" y="${cy+5}" text-anchor="end" font-size="15.5"
-        data-s="${esc(r.sector)}" style="cursor:pointer"
-        fill="var(--ink-2)">${esc(r.sector)}</text>
-      <text x="${up ? zero + w + 6 : zero + w - 6}" y="${cy+5}"
+    const d = barPath(zero, cy - bh / 2, w, bh, up);
+    parts.push(`${d ? `<path d="${d}" fill="var(${up ? "--up" : "--down"})"
+        data-s="${esc(r.sector)}" data-v="${r.changePct}" style="cursor:pointer"></path>` : ""}
+      <text x="${ml-12}" y="${cy+4.5}" text-anchor="end" font-size="13"
+        data-s="${esc(r.sector)}" style="cursor:pointer" fill="var(--ink-2)"
+        >${esc(RISK_SHORT_NAME[r.sector] || r.sector)}</text>
+      <text x="${up ? zero + w + 7 : zero + w - 7}" y="${cy+4.5}"
         text-anchor="${up ? "start" : "end"}" font-size="12.5" class="tnum"
         fill="var(${up ? "--up" : "--down"})" font-weight="600">${esc(pct(r.changePct))}</text>`);
   });
@@ -2597,7 +2690,7 @@ function renderSectorPerf(history){
     aria-label="Sector performance">${parts.join("")}</svg>`;
 
   const asOf = (S.movement && S.movement.asOf) || "";
-  host.querySelectorAll("rect[data-s]").forEach(el => {
+  host.querySelectorAll("path[data-s]").forEach(el => {
     el.addEventListener("mousemove", ev => showTip(ev, el.dataset.s,
       [[`${PERF.days}d cumulative`, asOf ? `as of ${asOf}` : ""],
        ["Change", pct(+el.dataset.v)]]));
