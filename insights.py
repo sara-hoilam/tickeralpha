@@ -1402,15 +1402,28 @@ def validate(payload, candidates: list[dict]) -> list[dict]:
                 raise Rejected(f"symbol: '{s}' is not one of "
                                f"{r['source_id']}'s symbols")
         for tok in _CAPS_TOKEN.findall(r["body"]):
+            # The token runs to a word boundary, so a hyphenated compound
+            # hands over the joining hyphen with it: "a US-backed venture"
+            # arrives as "US-", "U.S.-based" as "U.S.-", "AI-driven" as
+            # "AI-". No ticker begins or ends in a joiner, and each of those
+            # spellings is a word already known not to be one -- but only
+            # once the joiner is off. Two runs of a good brief were thrown
+            # away for "US-" before this stripped it.
+            #
+            # Only the outside is stripped: BRK.B and BF-B carry theirs in
+            # the middle, and those are real symbols.
+            core = tok.strip(".-")
+            if not core:
+                continue
             # "U.S." arrives as "U.S"; dotted abbreviations are the same
             # words as their undotted forms, not tickers.
-            if tok.replace(".", "") in NOT_TICKERS:
+            if core in NOT_TICKERS or core.replace(".", "") in NOT_TICKERS:
                 continue
-            if tok in NOT_TICKERS or tok.upper() in allowed:
+            if core.upper() in allowed or tok.upper() in allowed:
                 continue
             # Headlines carry tickers of their own, and quoting one back is
             # sourced -- from the cited candidate or any sibling.
-            if tok in hay or tok in global_hay:
+            if tok in hay or tok in global_hay or core in hay or core in global_hay:
                 continue
             raise Rejected(f"symbol: '{tok}' in {r['source_id']} is not a "
                            f"ticker from that candidate")
