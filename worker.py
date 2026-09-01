@@ -19,6 +19,8 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py intraday TICKER    refresh one chart series
     python worker.py funds             refresh the mutual / money market fund list
     python worker.py long-closes [T...] 10y closes for the correlation heatmap
+    python worker.py alpha [DATE] [--force]  run the Alpha of the Day scan
+    python worker.py alpha-results      backfill past picks' next-day returns
     python worker.py stats              coverage summary
     python worker.py run                the long-running loop (this is what
                                         Render runs)
@@ -40,6 +42,7 @@ import traceback
 
 import envload  # noqa: F401  -- must precede edgar/store
 
+import alpha
 import edgar
 import market
 import store
@@ -1315,6 +1318,9 @@ def run() -> None:
     # -- and still four refreshes through each trading day.
     last_trades = 0.0
     trades_every = int(os.environ.get("TRADES_REFRESH_SECONDS", "21600"))
+    # Alpha of the Day: one scan per trading day, retried hourly on failure.
+    last_alpha_day: dt.date | None = None
+    last_alpha_try = 0.0
     # Pace Logo.dev: a small batch each cycle until the priority set is warm.
     logos_every = int(os.environ.get("LOGOS_REFRESH_SECONDS", "3600"))
     # Larger priority set (indexes + common stocks + crypto) — 50/hour warms
@@ -1408,6 +1414,28 @@ def run() -> None:
             if last_sweep_day != today and dt.datetime.now().hour >= 22:
                 sweep(today)
                 last_sweep_day = today
+
+            # Alpha of the Day: one scan per trading day, pre-open (>=10:10
+            # UTC). A failed attempt retries hourly; run_scan itself refuses
+            # to double-write a day, so a restart mid-morning is harmless.
+            hm = dt.datetime.now()
+            if (last_alpha_day != today
+                    and hm.hour * 60 + hm.minute >= 10 * 60 + 10
+                    and now - last_alpha_try > 3600):
+                last_alpha_try = now
+                if not alpha.is_trading_day(today):
+                    last_alpha_day = today
+                else:
+                    try:
+                        if alpha.run_scan(today):
+                            last_alpha_day = today
+                        elif store.rpc("alpha_latest_day") == today.isoformat():
+                            last_alpha_day = today
+                    except store.StoreError as exc:
+                        log(f"alpha scan failed (will retry): {exc}")
+                    except Exception as exc:
+                        log(f"alpha scan failed (will retry): "
+                            f"{type(exc).__name__}: {exc}")
 
             refresh_stale(5)
 
@@ -1550,6 +1578,20 @@ def main(argv: list[str]) -> int:
                 if not n:
                     break
             log(f"long closes: {total} symbols filled")
+    elif cmd == "alpha":
+        # Run the Alpha of the Day scan by hand. `--force` re-scores a day
+        # that is already stored (or a weekend, for a dry run on live data).
+        force = "--force" in argv[1:]
+        day = None
+        for a in argv[1:]:
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", a):
+                day = dt.date.fromisoformat(a)
+        log("alpha scan stored" if alpha.run_scan(day, force=force)
+            else "alpha scan: nothing stored (see log above)")
+    elif cmd == "alpha-results":
+        n = alpha.resolve_results()
+        log(f"alpha results: {n} pick(s) resolved" if n
+            else "alpha results: nothing unresolved")
     elif cmd == "stats":
         for k, v in (store.stats() or {}).items():
             print(f"  {k:<24} {v}")

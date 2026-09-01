@@ -113,6 +113,7 @@
         <a href="reports.html" class="${here("reports.html") || here("company.html") ? "on" : ""}">Company Report</a>
         <a href="portfolio.html" class="${here("portfolio.html") ? "on" : ""}">Portfolio</a>
         <a href="politicians.html" class="${here("politicians.html") ? "on" : ""}">Insider &amp; Congress</a>
+        <a href="alpha.html" class="${here("alpha.html") ? "on" : ""}">Alpha of the Day</a>
       </div>
 
       <div class="nav-search">
@@ -151,6 +152,7 @@
         <a href="reports.html" class="${here("reports.html") || here("company.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8l4 4V20a.5.5 0 0 1-.5.5h-11A.5.5 0 0 1 6 20z"/><path d="M14 3.5V8h4"/><path d="M9 13h6M9 16.5h4"/></svg><span>Reports</span></a>
         <a href="portfolio.html" class="${here("portfolio.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5h17V19a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/><path d="M9 8.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2.5"/><path d="M3.5 13h17"/></svg><span>Portfolio</span></a>
         <a href="politicians.html" class="${here("politicians.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20.5h16"/><path d="M5.5 17.5h13"/><path d="M6.5 10.5v7M10 10.5v7M14 10.5v7M17.5 10.5v7"/><path d="M4 10.5h16L12 4z"/></svg><span>Congress</span></a>
+        <a href="alpha.html" class="${here("alpha.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 5 13.5h6L11 21l8-10.5h-6z"/></svg><span>Alpha</span></a>
     </nav>
   `);
 
@@ -1072,6 +1074,7 @@
           <a href="company.html">Company Report</a>
           <a href="portfolio.html">Portfolio</a>
           <a href="politicians.html">Insider &amp; Congress</a>
+          <a href="alpha.html">Alpha of the Day</a>
         </span>
       </footer>`);
 
