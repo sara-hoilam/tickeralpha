@@ -43,7 +43,6 @@ cp news.html      public/news.html
 cp earnings.html  public/earnings.html
 cp portfolio.html public/portfolio.html
 cp politicians.html public/politicians.html
-cp alpha.html      public/alpha.html
 cp privacy.html   public/privacy.html
 cp reports.html   public/reports.html
 # The report is a finished artefact -- its own stylesheet, its own fonts, its
