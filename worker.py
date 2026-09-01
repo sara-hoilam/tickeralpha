@@ -19,6 +19,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py intraday TICKER    refresh one chart series
     python worker.py funds             refresh the mutual / money market fund list
     python worker.py long-closes [T...] 10y closes for the correlation heatmap
+    python worker.py ownership TICKER   why an Ownership tab is empty
     python worker.py alpha [DATE] [--force]  run the Alpha of the Day scan
     python worker.py alpha-results      backfill past picks' next-day returns
     python worker.py stats              coverage summary
@@ -735,6 +736,42 @@ def fetch_prices(symbol: str) -> bool:
 
     log(f"prices {sym}: {len(bars)} bars{', quote' if q else ', no quote'}{extras}")
     return True
+
+
+def check_ownership(symbol: str) -> None:
+    """Say why an Ownership tab is empty, for one symbol.
+
+    Prints what each 13F endpoint answered, then runs the same fetch and
+    write the price refresh does, so the outcome is visible rather than
+    buried in a log line the page never shows.
+    """
+    sym = symbol.upper()
+    if not market.configured():
+        log("FMP_API_KEY is not set; nothing to ask")
+        return
+    log(f"{sym}: asking each 13F endpoint")
+    for r in market.ownership_probe(sym):
+        detail = (f"{r['rows']} rows" if "rows" in r else f"ERROR {r.get('error')}")
+        log(f"  [{r['kind']:9}] {r['base']}/{r['path']}: {detail}")
+        if r.get("keys"):
+            log(f"              first row keys: {', '.join(r['keys'])}")
+
+    for label, fetch, write in (
+            ("holders", market.institutional_holders, store.replace_symbol_holders),
+            ("ownership", market.institutional_ownership, store.replace_symbol_ownership)):
+        try:
+            rows = fetch(sym)
+        except market.MarketError as exc:
+            log(f"{sym} {label}: no endpoint answered -- {exc}")
+            continue
+        try:
+            n = write(sym, rows)
+        except store.StoreError as exc:
+            log(f"{sym} {label}: fetched {len(rows)} but the write failed -- {exc}")
+            log("       (apply 0067_institutional_holders.sql / "
+                "0072_institutional_ownership_history.sql if the function is missing)")
+            continue
+        log(f"{sym} {label}: {len(rows)} fetched, {n} stored")
 
 
 def fill_company_profile(symbol: str) -> bool:
@@ -1578,6 +1615,13 @@ def main(argv: list[str]) -> int:
                 if not n:
                     break
             log(f"long closes: {total} symbols filled")
+    elif cmd == "ownership":
+        if len(argv) < 2:
+            print("usage: python worker.py ownership TICKER [TICKER ...]")
+            return 2
+        for t in argv[1:]:
+            check_ownership(t)
+
     elif cmd == "alpha":
         # Run the Alpha of the Day scan by hand. `--force` re-scores a day
         # that is already stored (or a weekend, for a dry run on live data).

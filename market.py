@@ -1870,6 +1870,36 @@ def _as_float(v):
         return None
 
 
+def ownership_probe(symbol: str) -> list[dict]:
+    """Ask every spelling of the two 13F endpoints and report what each said.
+
+    The company page cannot tell "nobody has fetched this yet" from "the plan
+    does not carry 13F data" -- both leave the panel empty, and the worker
+    only logs the difference in passing. This reports it directly, so one
+    command answers which it is.
+    """
+    out = []
+    for kind, endpoints, extra in (
+            ("holders", _HOLDER_ENDPOINTS, {"limit": 60}),
+            ("ownership", _OWNERSHIP_ENDPOINTS, {"includeCurrentQuarter": "true"})):
+        for path, base in endpoints:
+            row = {"kind": kind, "path": path,
+                   "base": (base or BASE).rsplit("/", 1)[-1]}
+            try:
+                rows = _get(path, _base=base, symbol=symbol, **extra)
+            except MarketError as exc:
+                row["error"] = str(exc)[:160]
+            else:
+                if isinstance(rows, list):
+                    row["rows"] = len(rows)
+                    if rows and isinstance(rows[0], dict):
+                        row["keys"] = sorted(rows[0])[:12]
+                else:
+                    row["error"] = f"not a list: {type(rows).__name__}"
+            out.append(row)
+    return out
+
+
 def institutional_holders(symbol: str, limit: int = 60) -> list[dict]:
     """Institutions holding one ticker, largest position first.
 
