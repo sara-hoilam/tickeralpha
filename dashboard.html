@@ -2530,36 +2530,14 @@ const OWNH = { symbol: null, data: null, loading: false, failed: false, range: "
 const OWNH_RANGES = { "3Y": 12, "5Y": 20, "Max": Infinity };
 
 /** The panel bodies. Built as one string because all three renders drop it
-    into a tab panel and nothing else varies between them. */
+    into a tab panel and nothing else varies between them.
+
+    The institutional-ownership and institutional-holders panels are withheld:
+    the data plan does not include 13F endpoints, so both charts would render
+    only their empty state. Their renderers below stay wired — restoring the
+    two sections here brings the panels back the day the data does. */
 function ownershipMarkup(){
   return `
-    <section class="card panel">
-      <div class="phead"><div>
-        <h2>Institutional ownership ${helpIcon("ownhist")}</h2>
-        <p id="ownhist-scope">Total 13F position by quarter, and the share of the
-           company it adds up to.</p>
-      </div>
-      <div class="phead-tools">
-        <span class="ownhist-cadence">Quarterly · 13F</span>
-        <div class="ranges" id="ownhist-range" role="group" aria-label="Ownership chart range">${
-          Object.keys(OWNH_RANGES).map(r =>
-            `<button type="button" data-r="${r}" aria-pressed="${r === OWNH.range}">${r}</button>`).join("")
-        }</div>
-      </div></div>
-      <div class="scroll" id="ownhist-chart"><div class="note">
-        <span class="load"></span> &nbsp;Loading ownership history…</div></div>
-      <div class="legend" id="ownhist-legend"></div>
-    </section>
-
-    <section class="card panel">
-      <div class="phead"><div>
-        <h2>Institutional holders ${helpIcon("holders")}</h2>
-        <p id="holders-scope">From the latest 13F filings.</p>
-      </div></div>
-      <div class="scroll own-scroll" id="own-holders"><div class="note">
-        <span class="load"></span> &nbsp;Loading institutional holders…</div></div>
-    </section>
-
     <div class="pairrow">
       <section class="card panel">
         <div class="phead"><div>
@@ -6094,8 +6072,6 @@ function selectTab(id, opts){
   if (id === "ownership") {
     loadAnalyst();
     loadOwnershipTrades();
-    loadHolders();
-    loadOwnershipHistory();
     // The holdings scrollport is sized from measured row heights, which are
     // zero while the panel is hidden.
     if (document.getElementById("idx-holdings")) requestAnimationFrame(fitHoldingsRows);
