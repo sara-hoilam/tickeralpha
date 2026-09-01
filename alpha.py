@@ -874,9 +874,12 @@ def run_scan(day: dt.date | None = None, force: bool = False) -> bool:
         d = scored[sym][0]
         scored[sym] = (d, score(d, ctx))
 
+    # Today's own stored pick must not cool itself down: a --force re-run of
+    # the same day should be free to reach the same conclusion.
     cooldown = {p["symbol"] for p in
                 (store.rpc("get_alpha_track_record",
-                           {"p_days": COOLDOWN_DAYS}) or [])}
+                           {"p_days": COOLDOWN_DAYS}) or [])
+                if p.get("day") != day.isoformat()}
 
     best_buy = None
     for d, s in sorted(scored.values(), key=lambda x: -x[1]["buy"]):
