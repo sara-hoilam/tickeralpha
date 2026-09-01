@@ -3432,6 +3432,68 @@ function drawdownChart(series, tone){
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Drawdown from the ten-year high">${s}</svg>`;
 }
 
+/** Price against its 50- and 200-day averages — the chart for a name whose
+    story is a test of long-term support rather than a deep drawdown. */
+function maChart(series, tone){
+  const pts = (series || []).filter(p => p && p.c != null);
+  if (pts.length < 20) return null;
+  const W = 470, H = 168, ml = 8, mr = 46, mt = 22, mb = 20;
+  const vals = pts.flatMap(p => [p.c, p.m50, p.m200].filter(v => v != null));
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = (hi - lo) * 0.06 || hi * 0.05;
+  const y0 = lo - pad, y1 = hi + pad;
+  const X = i => ml + (W - ml - mr) * i / (pts.length - 1);
+  const Y = v => mt + (H - mt - mb) * (1 - (v - y0) / (y1 - y0));
+  const col = tone === "down" ? "var(--down)" : "var(--accent)";
+  let s = "";
+  const yt = niceScale(lo, hi, 3);
+  const last = pts[pts.length - 1];
+  const endY = Y(last.c), ma200Y = last.m200 != null ? Y(last.m200) : null;
+  for (const v of yt.values){
+    if (v < y0 || v > y1) continue;
+    s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`;
+    if (Math.abs(Y(v) - endY) > 12 && (ma200Y == null || Math.abs(Y(v) - ma200Y) > 12))
+      s += `<text x="${W-mr+5}" y="${(Y(v)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">$${v.toFixed(yt.decimals)}</text>`;
+  }
+  let lastYear = "";
+  pts.forEach((p, i) => {
+    const y = p.d.slice(0, 4);
+    if (y !== lastYear && i > 0){
+      lastYear = y;
+      s += `<text x="${X(i).toFixed(1)}" y="${H-6}" font-size="9.5" fill="var(--ink-3)" text-anchor="middle" font-family="IBM Plex Mono,monospace">${y}</text>`;
+    } else if (i === 0) lastYear = y;
+  });
+  // the averages sit under the price line
+  const path = key => {
+    let d = "", open = false;
+    pts.forEach((p, i) => {
+      const v = p[key];
+      if (v == null){ open = false; return; }
+      d += `${open ? "L" : "M"}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`;
+      open = true;
+    });
+    return d;
+  };
+  const d200 = path("m200"), d50 = path("m50");
+  if (d200) s += `<path d="${d200}" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linejoin="round" opacity=".85"></path>`;
+  if (d50) s += `<path d="${d50}" fill="none" stroke="var(--up)" stroke-width="2" stroke-linejoin="round" opacity=".6"></path>`;
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(p.c).toFixed(1)}`).join(" ");
+  s += `<path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"></path>`;
+  if (ma200Y != null)
+    s += `<text x="${W-mr+5}" y="${(ma200Y+3.2).toFixed(1)}" font-size="9.5" font-weight="600" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">200d</text>`;
+  s += `<circle cx="${X(pts.length-1).toFixed(1)}" cy="${endY.toFixed(1)}" r="3.5" fill="${col}" stroke="var(--sunk)" stroke-width="2"></circle>`
+     + `<text x="${W-mr+5}" y="${(endY+3.2).toFixed(1)}" font-size="9.5" font-weight="600" fill="${col}" font-family="IBM Plex Mono,monospace">$${last.c.toFixed(0)}</text>`;
+  // three lines on one chart need naming
+  s += `<g font-size="9.5" fill="var(--ink-3)">
+    <line x1="${ml}" x2="${ml+13}" y1="9" y2="9" stroke="${col}" stroke-width="2"></line>
+    <text x="${ml+17}" y="12.2">Price</text>
+    <line x1="${ml+58}" x2="${ml+71}" y1="9" y2="9" stroke="var(--up)" stroke-width="2" opacity=".6"></line>
+    <text x="${ml+75}" y="12.2">50-day</text>
+    <line x1="${ml+126}" x2="${ml+139}" y1="9" y2="9" stroke="var(--ink-3)" stroke-width="2" opacity=".85"></line>
+    <text x="${ml+143}" y="12.2">200-day</text></g>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Price against its 50- and 200-day averages">${s}</svg>`;
+}
+
 /** Average return by calendar month across the stored decade. */
 function seasonalityChart(season, month){
   const rows = (season || []).filter(x => x && x.r != null);
@@ -3642,14 +3704,27 @@ function slide(idea, idx, total){
   const marks = ev.marks || (ev.congress || []).map(m => ({ d: m.d, s: "buy",
     l: `${(m.person || "Congress").split(" ").slice(-1)[0]} ~${money(m.amt || 0)}` }));
   const price = priceChart(ev.priceSeries, marks, toneKey);
-  // The second chart follows the strongest family with data behind it.
+  // The chart backs the sentence: the scan names it when its headline made a
+  // specific claim. Otherwise fall to the strongest family with data — which
+  // is also what days stored before `lead` existed still do. Smart money is
+  // skipped here because the price chart beside it already carries the flags.
   const famsRanked = Object.entries(idea.families || {})
-    .filter(([f]) => !(ev.thin || []).includes(f)).sort((a, b) => b[1] - a[1]);
-  const lead = famsRanked.length ? famsRanked[0][0] : "val";
+    .filter(([f]) => !(ev.thin || []).includes(f) && f !== "smart")
+    .sort((a, b) => b[1] - a[1]);
+  const named = { drawdown: "hist", ma: "hist-ma", seasonality: "mom",
+                  targets: "street", revenue: "fund", pe: "val" }[ev.lead];
+  const lead = named || (famsRanked.length ? famsRanked[0][0] : "val");
   let second = null, secondTitle = "";
-  if (lead === "hist"){
+  if (lead === "hist-ma"){
+    second = maChart(ev.maSeries, toneKey);
+    secondTitle = "Price vs 50- &amp; 200-day";
+  } else if (lead === "hist"){
     second = drawdownChart(ev.ddSeries, toneKey);
     secondTitle = "Drawdown from 10-year high";
+    if (!second){                       // too little history to argue rarity
+      second = maChart(ev.maSeries, toneKey);
+      secondTitle = "Price vs 50- &amp; 200-day";
+    }
   } else if (lead === "mom"){
     second = seasonalityChart(ev.seasonality, MONTH);
     secondTitle = "Avg return by month, 10 years";

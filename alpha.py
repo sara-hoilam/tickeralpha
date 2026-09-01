@@ -96,6 +96,11 @@ SHORTLIST = 30              # names per side that get the decade-history pass
 LONG_FETCH_BUDGET = 25      # FMP decade-closes fetches per night
 RATIOS_FETCH_BUDGET = 80    # FMP ratios-ttm fetches per night (P/E backfill)
 QUOTE_STALE_HOURS = 20
+# 'cheaper on only 3% of days' is only a fact worth stating when there are
+# enough days behind it. GE Vernova listed in 2024: over its two years the
+# same sentence described a pullback from an all-time high.
+RARITY_MIN_YEARS = 5
+MA_TOUCH_BAND = 0.06        # within 6% of the 200-day counts as 'at' it
 
 
 # ---------------------------------------------------------------------------
@@ -414,7 +419,7 @@ def score(d: dict, ctx: dict) -> dict:
 
     # Price vs own history. Stage 1 ranks the 1-year drawdown against the
     # universe; stage 2 replaces that with the decade rarity number.
-    if d.get("dd_stats"):
+    if d.get("dd_stats") and d["dd_stats"]["years"] >= RARITY_MIN_YEARS:
         hist = 0.75 * d["dd_stats"]["rarity"] + 0.25 * (
             100 - d["pe_own_pct"] if d.get("pe_own_pct") is not None else 50)
     elif d.get("dd_1y") is not None:
@@ -647,6 +652,42 @@ def _seasonality(monthly: list) -> list[dict] | None:
     return out
 
 
+def _ma_series(closes: list, years: float = 3.0) -> list[dict] | None:
+    """Weekly closes with their 50- and 200-day averages, over `years`.
+
+    The averages are rolled over the *daily* series and then sampled weekly,
+    so a 200-day line means 200 sessions rather than 200 of the sampled
+    points. Needs a year of daily closes before the 200-day has any value.
+    """
+    pts = [(c.get("d"), c.get("c")) for c in (closes or [])
+           if c.get("d") and c.get("c")]
+    pts.sort()
+    if len(pts) < 260:
+        return None
+    out_daily, run50, run200 = [], 0.0, 0.0
+    vals = [c for _, c in pts]
+    for i, (d, c) in enumerate(pts):
+        run50 += c - (vals[i - 50] if i >= 50 else 0.0)
+        run200 += c - (vals[i - 200] if i >= 200 else 0.0)
+        out_daily.append((d, c,
+                          run50 / 50 if i >= 49 else None,
+                          run200 / 200 if i >= 199 else None))
+    cut = (dt.date.today() - dt.timedelta(days=int(365.25 * years))).isoformat()
+    by_week: dict[str, tuple] = {}
+    for row in out_daily:
+        if row[0] < cut:
+            continue
+        y, w, _ = dt.date.fromisoformat(row[0]).isocalendar()
+        by_week[f"{y}-{w:02d}"] = row
+    rows = [by_week[k] for k in sorted(by_week)]
+    if len(rows) < 20:
+        return None
+    return [{"d": d, "c": round(c, 2),
+             "m50": round(m50, 2) if m50 else None,
+             "m200": round(m200, 2) if m200 else None}
+            for d, c, m50, m200 in rows]
+
+
 # ---------------------------------------------------------------------------
 # The story: chips, headline, gates for the page
 # ---------------------------------------------------------------------------
@@ -702,7 +743,11 @@ def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
         chips.append({"t": "down", "l": "Bearish stories 7d",
                       "v": str(d["neg7"])})
 
-    headline = _headline(d, s, side)
+    ma_series = _ma_series(closes) if closes else None
+    headline, lead_chart = _headline(d, s, side, has_ma=bool(ma_series))
+    # A drawdown chart with two years behind it argues nothing; when the
+    # sentence could not use the rarity, the chart should not imply it.
+    dd_ok = bool(dds and dds["years"] >= RARITY_MIN_YEARS)
 
     gates = ([
         {"l": (f"{d['neg7']} bearish stor{'y' if d['neg7'] == 1 else 'ies'} "
@@ -735,7 +780,7 @@ def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
     evidence = {
         "chips": chips[:6],
         "marks": marks[:3],
-        "ddSeries": _dd_series(closes) if closes else None,
+        "ddSeries": (_dd_series(closes) if closes and dd_ok else None),
         "seasonality": _seasonality(d.get("monthly_raw")),
         "revSeries": [{"e": q["e"], "r": q["r"]}
                       for q in (d.get("rev_q") or [])
@@ -758,7 +803,11 @@ def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
                      for m in d["cg_marks"]],
         "insiderBuyers": d["ins_buyers"], "insiderBuyAmt": d["ins_buy_amt"],
         "insiderSellers": d["ins_sellers"],
+        "lead": lead_chart,
         "priceSeries": _weekly(closes or [], 3.0) or None,
+        "maSeries": ma_series,
+        "avg200": d.get("avg200"),
+        "extPct": round(d["ext_pct"] * 100, 1) if d.get("ext_pct") is not None else None,
         "peHistory": ([{"d": p["d"], "pe": round(p["pe"], 1)}
                        for p in d.get("pe_hist", [])
                        if p.get("d") and p.get("pe")][-40:] or None),
@@ -774,52 +823,76 @@ def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
     }
 
 
-def _headline(d: dict, s: dict, side: str) -> str:
+def _headline(d: dict, s: dict, side: str, has_ma: bool = False
+              ) -> tuple[str, str | None]:
+    """The sentence, and the chart that proves it.
+
+    The two used to be decided separately -- the sentence by this ladder, the
+    chart by whichever family scored highest -- so a name could argue its
+    drawdown in words while showing its revenue. Whatever the sentence leads
+    with now names the chart beside it; `None` means nothing in particular,
+    and the page falls back to ranking the families.
+    """
     name = d["name"]
     dds = d.get("dd_stats")
+    at_ma = (has_ma and d.get("ext_pct") is not None
+             and abs(d["ext_pct"]) <= MA_TOUCH_BAND)
     if side == "BUY":
+        # A trade the price chart already flags leads to no second chart of
+        # its own; the flags are on the chart beside it.
         if d["cg_amt"] >= 1e6 and d["ins_cluster_buy"]:
-            lead = (f"Congress and company insiders both bought {name} "
-                    f"inside a month")
+            lead, chart = (f"Congress and company insiders both bought {name} "
+                           f"inside a month"), None
         elif d["cg_amt"] >= 1e6:
-            lead = (f"Members of Congress disclosed ~{_fmt_musd(d['cg_amt'])} "
-                    f"of {name} purchases")
+            lead, chart = (f"Members of Congress disclosed "
+                           f"~{_fmt_musd(d['cg_amt'])} of {name} purchases"), None
         elif d["ins_cluster_buy"]:
-            lead = (f"{d['ins_buyers']} {name} insiders bought their own "
-                    f"stock inside a month")
-        elif dds and dds["rarity"] >= 90:
+            lead, chart = (f"{d['ins_buyers']} {name} insiders bought their "
+                           f"own stock inside a month"), None
+        elif dds and dds["rarity"] >= 90 and dds["years"] >= RARITY_MIN_YEARS:
             pct = 100 - dds["rarity"]
             share = (f"only {pct:.0f}%" if pct >= 1 else "fewer than 1%")
             lead = (f"{name} has been this far below its high on {share} "
                     f"of days in {dds['years']:.0f} years")
+            chart = "drawdown"
+        elif at_ma:
+            # Let the tail state the drawdown, from the same source the chip
+            # uses -- saying it here too printed two different numbers.
+            lead = f"{name} has pulled back to its 200-day average"
+            chart = "ma"
         else:
-            lead = f"{name} screens cheap on several families at once"
+            lead, chart = f"{name} screens cheap on several families at once", None
         tail = []
         if d.get("pe") and d.get("peer_pe") and d["pe"] < d["peer_pe"] * 0.8:
             tail.append(f"it trades at {d['pe']:.0f}× earnings against "
                         f"peers at {d['peer_pe']:.0f}×")
-        elif dds and "below its high" not in lead:
+        elif dds and "its high" not in lead:
             tail.append(f"the stock sits {dds['dd'] * 100:.0f}% off its high")
         if d["rev_up"] is not None and d["rev_up"] >= d["rev_comps"] - 2:
             tail.append(f"revenue is up in {d['rev_up']} of the last "
                         f"{d['rev_comps']} quarters")
-        return lead + (" — " + ", and ".join(tail[:2]) if tail else "") + "."
+        return (lead + (" — " + ", and ".join(tail[:2]) if tail else "") + ".",
+                chart)
     # SELL
     if (d.get("pe_own_pct") or 0) >= 88:
         lead = (f"{name} is priced near the top of its own record — a P/E "
                 f"in its {d['pe_own_pct']:.0f}th percentile")
+        chart = "pe"
     elif d["ins_cluster_sell"]:
         lead = (f"{d['ins_sellers']} {name} insiders each sold more than "
                 f"$500K of stock inside a month")
+        chart = None
     else:
         lead = f"{name} carries {d['neg7']} bearish stories this week"
+        chart = None
     tail = []
     if d.get("ext_pct") and d["ext_pct"] > 0.08:
         tail.append(f"{d['ext_pct'] * 100:.0f}% above its 200-day average")
     if d.get("pe") and d.get("peer_pe") and d["pe"] > d["peer_pe"] * 1.2:
         tail.append(f"{d['pe']:.0f}× earnings against peers at "
                     f"{d['peer_pe']:.0f}×")
-    return lead + (" — " + ", and ".join(tail[:2]) if tail else "") + "."
+    return (lead + (" — " + ", and ".join(tail[:2]) if tail else "") + ".",
+            chart)
 
 
 # ---------------------------------------------------------------------------
