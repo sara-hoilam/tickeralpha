@@ -65,12 +65,21 @@ a{color:inherit;text-decoration:none}
 
 /* ---- hero carousel ------------------------------------------------------ */
 .hero{position:relative}
-.slides-clip{overflow:hidden}
-.slides{display:flex;transition:transform .32s ease}
-@media (prefers-reduced-motion:reduce){.slides{transition:none}}
+/* The clip is sized to the slide on screen, not to the tallest of the nine —
+   the pick carries three gate rows the candidates do not, and letting it set
+   the height left every other slide with dead space under its chips. */
+.slides-clip{overflow:hidden;transition:height .28s ease}
+.slides{display:flex;align-items:flex-start;transition:transform .32s ease}
+@media (prefers-reduced-motion:reduce){
+  .slides{transition:none}.slides-clip{transition:none}
+}
 .slide{flex:0 0 100%;min-width:0}
-.pick{display:grid;grid-template-columns:minmax(0,1fr) 270px;min-height:100%}
-.pick-main{padding:16px 24px 18px;border-right:1px solid var(--rule-2);min-width:0}
+.pick{display:grid;grid-template-columns:minmax(0,1fr) 270px}
+.pick-main{padding:16px 24px 18px;border-right:1px solid var(--rule-2);min-width:0;
+  display:flex;flex-direction:column}
+/* Whatever slack the score rail leaves goes to the charts, so the evidence
+   grows into the space instead of stranding it under the chips. */
+.pick-main .charts{flex:1 0 auto}
 .eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
   margin-bottom:10px}
 .eyebrow.today{color:var(--accent)}
@@ -100,11 +109,6 @@ a{color:inherit;text-decoration:none}
   font-size:11.5px;white-space:nowrap}
 .ch svg{width:100%;height:auto;display:block}
 .ch .empty{color:var(--ink-3);font-size:12px;padding:26px 0;text-align:center}
-.cmp{display:flex;gap:18px;align-items:flex-end;padding:18px 6px 10px}
-.cmp .bar{flex:1;text-align:center}
-.cmp .bar i{display:block;margin:0 auto;width:44px;border-radius:5px 5px 0 0}
-.cmp .bar b{font-family:"IBM Plex Mono",monospace;font-size:13px;display:block;margin-top:5px}
-.cmp .bar span{font-size:10.5px;color:var(--ink-3)}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
 .chip{display:inline-flex;align-items:center;gap:7px;background:var(--sunk);
   border:1px solid var(--rule-2);border-radius:8px;padding:6px 11px;font-size:12px;
@@ -360,19 +364,50 @@ function priceChart(series, congress, tone){
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Three years of price">${s}</svg>`;
 }
 
+/** Two columns on a real axis: the company's P/E against its index peers'
+    median. The fallback when too little P/E history is stored to draw a line —
+    a bar without a baseline is just a floating rectangle, so this one gets
+    gridlines, a zero rule and labelled ticks like every other chart here. */
+function peBars(own, peer, tone){
+  if (!own || !peer) return null;
+  const W = 470, H = 168, ml = 8, mr = 46, mt = 18, mb = 30;
+  const plotH = H - mt - mb;
+  const top = Math.max(own, peer) * 1.15;
+  const Y = v => mt + plotH * (1 - v / top);
+  const zero = Y(0);
+  let s = "";
+  /* Ticks are chosen against the axis top, not the taller bar: asking for
+     them across the data range alone returned a single gridline here. */
+  const yt = niceScale(0, top, 4);
+  for (const v of yt.values){
+    if (v > top || v <= 0) continue;
+    s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`
+       + `<text x="${W-mr+5}" y="${(Y(v)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">${v.toFixed(yt.decimals)}</text>`;
+  }
+  /* Rounded at the data end, square on the baseline. */
+  const col = (cx, v, fill, op) => {
+    const w = 24, r = 4, x = cx - w / 2, y = Y(v), h = Math.max(zero - y, r);
+    return `<path d="M${x} ${zero} L${x} ${(y+r).toFixed(1)} Q${x} ${y.toFixed(1)} ${x+r} ${y.toFixed(1)} L${(x+w-r).toFixed(1)} ${y.toFixed(1)} Q${(x+w).toFixed(1)} ${y.toFixed(1)} ${(x+w).toFixed(1)} ${(y+r).toFixed(1)} L${(x+w).toFixed(1)} ${zero} Z" fill="${fill}"${op ? ` opacity="${op}"` : ""}></path>`;
+  };
+  const plotW = W - ml - mr;
+  const c1 = ml + plotW * 0.38, c2 = ml + plotW * 0.62;
+  const accent = tone === "down" ? "var(--down)" : "var(--accent)";
+  s += col(c1, own, accent) + col(c2, peer, "var(--ink-3)", ".5");
+  /* Value on the cap, category under the baseline — both in text tokens. */
+  const cap = (cx, v) =>
+    `<text x="${cx.toFixed(1)}" y="${(Y(v)-6).toFixed(1)}" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle" font-family="IBM Plex Mono,monospace">${v.toFixed(1)}</text>`;
+  const foot = (cx, t) =>
+    `<text x="${cx.toFixed(1)}" y="${(zero+15).toFixed(1)}" font-size="10.5" fill="var(--ink-3)" text-anchor="middle">${t}</text>`;
+  s += cap(c1, own) + cap(c2, peer) + foot(c1, "own P/E") + foot(c2, "index peers");
+  s += `<line x1="${ml}" x2="${W-mr}" y1="${zero}" y2="${zero}" stroke="var(--rule)" stroke-width="1"></line>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="P/E ${own.toFixed(1)} against index peers ${peer.toFixed(1)}">${s}</svg>`;
+}
+
 /** The company's own P/E record against its index peers' median. */
 function peChart(hist, peer, own, tone){
   const pts = (hist || []).filter(p => p && p.pe > 0);
   const W = 470, H = 168, ml = 8, mr = 52, mt = 16, mb = 12;
-  if (pts.length < 8){
-    if (!own || !peer) return null;
-    const mx = Math.max(own, peer);
-    const h = v => Math.max(8, 86 * v / mx);
-    return `<div class="cmp">
-      <div class="bar"><i style="height:${h(own).toFixed(0)}px;background:${tone === "down" ? "var(--down)" : "var(--accent)"}"></i><b>${own.toFixed(1)}</b><span>own P/E</span></div>
-      <div class="bar"><i style="height:${h(peer).toFixed(0)}px;background:var(--ink-3);opacity:.55"></i><b>${peer.toFixed(1)}</b><span>index peers</span></div>
-    </div>`;
-  }
+  if (pts.length < 8) return peBars(own, peer, tone);
   const vals = pts.map(p => p.pe).concat(peer ? [peer] : []);
   const lo = Math.min(...vals), hi = Math.max(...vals);
   const pad = (hi - lo) * 0.08 || 2;
@@ -518,10 +553,32 @@ function candRow(idea, i){
 let IDEAS = [];
 let cur = 0;
 
+/** Fit the carousel to the slide on screen. Re-run on resize and whenever the
+    active slide reflows (late fonts, a hydrated logo), so the panel never
+    carries another slide's height. */
+let slideRO = null;
+function fitHero(){
+  const slides = document.getElementById("slides");
+  const clip = slides && slides.parentElement;
+  const active = slides && slides.children[cur];
+  if (!clip || !active) return;
+  clip.style.height = active.offsetHeight + "px";
+  if (window.ResizeObserver){
+    if (!slideRO) slideRO = new ResizeObserver(() => {
+      const el = document.getElementById("slides").children[cur];
+      if (el) clip.style.height = el.offsetHeight + "px";
+    });
+    slideRO.disconnect();
+    slideRO.observe(active);
+  }
+}
+addEventListener("resize", fitHero);
+
 function go(i, scroll){
   if (!IDEAS.length) return;
   cur = (i + IDEAS.length) % IDEAS.length;
   document.getElementById("slides").style.transform = `translateX(-${cur * 100}%)`;
+  fitHero();
   document.querySelectorAll("#dots button").forEach((b, j) =>
     b.classList.toggle("on", j === cur));
   const cnt = document.getElementById("cnt");

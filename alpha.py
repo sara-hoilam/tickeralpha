@@ -856,7 +856,43 @@ def run_scan(day: dt.date | None = None, force: bool = False) -> bool:
     n = store.rpc("record_alpha_day",
                   {"p_day": day.isoformat(), "p_ideas": ideas})
     log(f"stored {n} ideas for {day}")
+    if n:
+        warm_logos([i["symbol"] for i in ideas])
     return bool(n)
+
+
+# ---------------------------------------------------------------------------
+# Logos for the day's ideas
+# ---------------------------------------------------------------------------
+
+def warm_logos(symbols: list[str]) -> int:
+    """Cache Logo.dev images for the names about to appear on the page.
+
+    The hourly logo warmer walks a priority list thousands of symbols long and
+    skips anything already checked, including rows it recorded as `missing` --
+    so a name Logo.dev had no image for on the day it was first asked keeps its
+    monogram for a month, whatever the page needs. This is at most nine symbols
+    a day, so it just re-asks for the ideas being published: today's ideas are
+    the one place a missing logo is actually visible.
+    """
+    if not market.configured():
+        return 0
+    rows = []
+    for sym in symbols[:12]:
+        try:
+            rows.append(market.download_logo(sym, "stock"))
+        except Exception as exc:                    # never fail a stored scan
+            log(f"  logo {sym}: {type(exc).__name__}: {exc}")
+    if not rows:
+        return 0
+    try:
+        n = store.upsert_symbol_logos(rows)
+    except store.StoreError as exc:
+        log(f"  logo cache write: {exc}")
+        return 0
+    ok = sum(1 for r in rows if r.get("status") == "ok")
+    log(f"logos: {ok}/{len(rows)} of today's ideas have an image")
+    return n
 
 
 # ---------------------------------------------------------------------------
