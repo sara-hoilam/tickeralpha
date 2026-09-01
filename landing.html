@@ -861,6 +861,39 @@ a.nm:hover{color:var(--accent)}
     <div class="note" style="grid-column:1/-1;padding:18px"><span class="load"></span></div>
   </div>
 
+  <!-- Alpha of the Day — one scored idea, its evidence charted. Reads the
+       nightly scan (alpha.py) through get_alpha_day. -->
+  <section class="alphaday" id="alphaday" hidden>
+    <div class="ahead">
+      <h2 style="margin:0">Alpha of the Day</h2>
+      <div class="sub" id="a-meta">S&amp;P 500 + Nasdaq-100, scored before the open</div>
+    </div>
+
+    <section class="panel hero" id="a-hero" aria-roledescription="carousel" aria-label="Today's ideas">
+      <div class="slides-clip"><div class="slides" id="a-slides">
+        <div class="note" style="width:100%"><span class="load"></span></div>
+      </div></div>
+      <div class="ctrl" id="a-ctrl" hidden>
+        <button class="arr" id="a-prev" aria-label="Previous idea">‹</button>
+        <div class="dots" id="a-dots"></div>
+        <button class="arr" id="a-next" aria-label="Next idea">›</button>
+      </div>
+    </section>
+
+    <div class="grid2" id="a-cands" hidden>
+      <section class="panel">
+        <div class="lhead"><h2>Buy candidates</h2><span>same run · click for the deep-dive</span></div>
+        <div id="a-buys"></div>
+      </section>
+      <section class="panel">
+        <div class="lhead"><h2>Sell candidates</h2><span>same run · click for the deep-dive</span></div>
+        <div id="a-sells"></div>
+      </section>
+    </div>
+
+    <section class="panel strip" id="a-track" hidden></section>
+  </section>
+
   <div class="brief" id="brief">
     <section class="panel">
       <div class="hmhead">
@@ -896,39 +929,6 @@ a.nm:hover{color:var(--accent)}
     </section>
   </div>
 
-
-  <!-- Alpha of the Day — one scored idea, its evidence charted. Reads the
-       nightly scan (alpha.py) through get_alpha_day. -->
-  <section class="alphaday" id="alphaday" hidden>
-    <div class="ahead">
-      <h2 style="margin:0">Alpha of the Day</h2>
-      <div class="sub" id="a-meta">S&amp;P 500 + Nasdaq-100, scored before the open</div>
-    </div>
-
-    <section class="panel hero" id="a-hero" aria-roledescription="carousel" aria-label="Today's ideas">
-      <div class="slides-clip"><div class="slides" id="a-slides">
-        <div class="note" style="width:100%"><span class="load"></span></div>
-      </div></div>
-      <div class="ctrl" id="a-ctrl" hidden>
-        <button class="arr" id="a-prev" aria-label="Previous idea">‹</button>
-        <div class="dots" id="a-dots"></div>
-        <button class="arr" id="a-next" aria-label="Next idea">›</button>
-      </div>
-    </section>
-
-    <div class="grid2" id="a-cands" hidden>
-      <section class="panel">
-        <div class="lhead"><h2>Buy candidates</h2><span>same run · click for the deep-dive</span></div>
-        <div id="a-buys"></div>
-      </section>
-      <section class="panel">
-        <div class="lhead"><h2>Sell candidates</h2><span>same run · click for the deep-dive</span></div>
-        <div id="a-sells"></div>
-      </section>
-    </div>
-
-    <section class="panel strip" id="a-track" hidden></section>
-  </section>
 
   <section class="panel">
     <div class="split">
@@ -2549,7 +2549,7 @@ function renderRisk(payload){
   // right, left -- that stays inside the plot and clear of the labels already
   // placed. Biggest bubbles choose first, since they are the ones a reader
   // looks for.
-  const FS = 9.5, CW = 5.05;                 // char width at this size
+  const FS = 8.6, CW = 4.57;                 // char width at this size
   const boxes = [];
   // The bubbles are obstacles too, not just the labels already placed. With
   // only labels in the way a name would find a "clear" slot lying across the
@@ -2843,9 +2843,13 @@ function renderSectorPerf(history){
   // third narrower than the one "Communication Services" demanded. The names
   // also came down from 15.5px: they were larger than the figures they
   // labelled, which inverted the hierarchy. Between them the two changes give
-  // the plot back a third of the panel's width. Height is chosen so the bars
-  // fill the panel rather than sitting in its top third.
-  const W = 570, H = 380, ml = 126, mr = 14, mt = 10, mb = 16;
+  // the plot back a third of the panel's width.
+  //
+  // Height: the panel is stretched to match the taller rotation chart beside
+  // it, while this SVG keeps its own aspect ratio -- so a short viewBox left
+  // a band of empty card under the last bar. A taller one both fills that and
+  // gives each of the eleven bands more room.
+  const W = 570, H = 432, ml = 126, mr = 14, mt = 10, mb = 16;
   const pw = W - ml - mr, ph = H - mt - mb;
   // A fixed gutter for the value at the tip, rather than shrinking every bar
   // by an arbitrary factor to leave room for it: the bars were stubs in the
@@ -2866,7 +2870,7 @@ function renderSectorPerf(history){
   // Capped, never filling the slot: the leftover in each band is the air that
   // separates one bar from the next.
   const band = ph / rows.length;
-  const bh = Math.min(22, band - 9);
+  const bh = Math.min(26, band - 9);
 
   /** A bar with its data-end rounded and its baseline end square, so the zero
       rule reads as the single line every bar grows from. */
@@ -2889,11 +2893,11 @@ function renderSectorPerf(history){
     const d = barPath(zero, cy - bh / 2, w, bh, up);
     parts.push(`${d ? `<path d="${d}" fill="var(${up ? "--up" : "--down"})"
         data-s="${esc(r.sector)}" data-v="${r.changePct}" style="cursor:pointer"></path>` : ""}
-      <text x="${ml-12}" y="${cy+4.5}" text-anchor="end" font-size="13"
+      <text x="${ml-12}" y="${cy+4.8}" text-anchor="end" font-size="14"
         data-s="${esc(r.sector)}" style="cursor:pointer" fill="var(--ink-2)"
         >${esc(RISK_SHORT_NAME[r.sector] || r.sector)}</text>
-      <text x="${up ? zero + w + 7 : zero + w - 7}" y="${cy+4.5}"
-        text-anchor="${up ? "start" : "end"}" font-size="12.5" class="tnum"
+      <text x="${up ? zero + w + 7 : zero + w - 7}" y="${cy+4.8}"
+        text-anchor="${up ? "start" : "end"}" font-size="13" class="tnum"
         fill="var(${up ? "--up" : "--down"})" font-weight="600">${esc(pct(r.changePct))}</text>`);
   });
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="fullchart" role="img"
@@ -3335,7 +3339,9 @@ function priceChart(series, marks, tone){
   });
   const last = pts[pts.length - 1];
   s += `<circle cx="${X(pts.length-1).toFixed(1)}" cy="${Y(last.c).toFixed(1)}" r="3" fill="${col}"></circle>`;
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Three years of price">${s}</svg>`;
+  const tip = pts.map((p, i) => ({ x: +X(i).toFixed(1), y: +Y(p.c).toFixed(1),
+    t: fmtDay(p.d), r: [["Close", `$${p.c.toFixed(2)}`]] }));
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Three years of price"${tipData("Price", tip, { hair: 1 })}>${s}</svg>`;
 }
 
 /** Two columns on a real axis: the company's P/E against its index peers'
@@ -3374,7 +3380,12 @@ function peBars(own, peer, tone){
     `<text x="${cx.toFixed(1)}" y="${(zero+15).toFixed(1)}" font-size="10.5" fill="var(--ink-3)" text-anchor="middle">${t}</text>`;
   s += cap(c1, own) + cap(c2, peer) + foot(c1, "own P/E") + foot(c2, "index peers");
   s += `<line x1="${ml}" x2="${W-mr}" y1="${zero}" y2="${zero}" stroke="var(--rule)" stroke-width="1"></line>`;
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="P/E ${own.toFixed(1)} against index peers ${peer.toFixed(1)}">${s}</svg>`;
+  const tip = [
+    { x: +c1.toFixed(1), y: +Y(own).toFixed(1), t: "Own P/E",
+      r: [["P/E", own.toFixed(1)], ["vs peers", `${((own / peer - 1) * 100).toFixed(0)}%`]] },
+    { x: +c2.toFixed(1), y: +Y(peer).toFixed(1), t: "Index peers",
+      r: [["Median P/E", peer.toFixed(1)]] }];
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="P/E ${own.toFixed(1)} against index peers ${peer.toFixed(1)}"${tipData("Valuation", tip)}>${s}</svg>`;
 }
 
 
@@ -3429,7 +3440,9 @@ function drawdownChart(series, tone){
      + `<path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"></path>`
      + `<circle cx="${X(pts.length-1).toFixed(1)}" cy="${endY.toFixed(1)}" r="3" fill="${col}"></circle>`
      + `<text x="${W-mr+5}" y="${(endY+3.2).toFixed(1)}" font-size="9.5" font-weight="600" fill="${col}" font-family="IBM Plex Mono,monospace">${pts[pts.length-1].v.toFixed(0)}%</text>`;
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Drawdown from the ten-year high">${s}</svg>`;
+  const tip = pts.map((p, i) => ({ x: +X(i).toFixed(1), y: +Y(p.v).toFixed(1),
+    t: fmtDay(p.d), r: [["Below its high", `${p.v.toFixed(1)}%`]] }));
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Drawdown from the ten-year high"${tipData("Drawdown", tip, { hair: 1 })}>${s}</svg>`;
 }
 
 /** Price against its 50- and 200-day averages — the chart for a name whose
@@ -3491,7 +3504,14 @@ function maChart(series, tone){
     <text x="${ml+75}" y="12.2">50-day</text>
     <line x1="${ml+126}" x2="${ml+139}" y1="9" y2="9" stroke="var(--ink-3)" stroke-width="2" opacity=".85"></line>
     <text x="${ml+143}" y="12.2">200-day</text></g>`;
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Price against its 50- and 200-day averages">${s}</svg>`;
+  const tip = pts.map((p, i) => {
+    const rows = [["Close", `$${p.c.toFixed(2)}`]];
+    if (p.m50 != null) rows.push(["50-day", `$${p.m50.toFixed(2)}`]);
+    if (p.m200 != null) rows.push(["200-day", `$${p.m200.toFixed(2)}`,]);
+    if (p.m200) rows.push(["vs 200-day", `${((p.c / p.m200 - 1) * 100).toFixed(1)}%`]);
+    return { x: +X(i).toFixed(1), y: +Y(p.c).toFixed(1), t: fmtDay(p.d), r: rows };
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Price against its 50- and 200-day averages"${tipData("Price vs averages", tip, { hair: 1 })}>${s}</svg>`;
 }
 
 /** Average return by calendar month across the stored decade. */
@@ -3528,7 +3548,14 @@ function seasonalityChart(season, month){
       s += `<text x="${cx.toFixed(1)}" y="${(v >= 0 ? yv - 5 : yv + 11).toFixed(1)}" font-size="10" font-weight="600" fill="var(--ink)" text-anchor="middle" stroke="var(--sunk)" stroke-width="3" paint-order="stroke" font-family="IBM Plex Mono,monospace">${v > 0 ? "+" : ""}${v.toFixed(1)}%</text>`;
   });
   s += `<line x1="${ml}" x2="${W-mr}" y1="${zero.toFixed(1)}" y2="${zero.toFixed(1)}" stroke="var(--rule)" stroke-width="1.2"></line>`;
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average return by calendar month">${s}</svg>`;
+  const MONTH_NAME = ["January","February","March","April","May","June","July",
+                     "August","September","October","November","December"];
+  const tip = (season || []).filter(r => r && r.r != null).map(row => ({
+    x: +(ml + slot * (row.m - 0.5)).toFixed(1), y: +Y(row.r).toFixed(1),
+    t: MONTH_NAME[row.m - 1],
+    r: [["Average return", `${row.r > 0 ? "+" : ""}${row.r.toFixed(2)}%`],
+        ...(row.m === month ? [["", "the month being scored"]] : [])] }));
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average return by calendar month"${tipData("Seasonality", tip)}>${s}</svg>`;
 }
 
 /** Quarterly revenue from SEC filings, last eight quarters. */
@@ -3559,7 +3586,15 @@ function revenueChart(rev, tone){
       s += `<text x="${cx.toFixed(1)}" y="${(yv-5).toFixed(1)}" font-size="10" font-weight="600" fill="var(--ink)" text-anchor="middle" stroke="var(--sunk)" stroke-width="3" paint-order="stroke" font-family="IBM Plex Mono,monospace">${fmtRev(row.r)}</text>`;
   });
   s += `<line x1="${ml}" x2="${W-mr}" y1="${zero}" y2="${zero}" stroke="var(--rule)" stroke-width="1"></line>`;
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Revenue by quarter">${s}</svg>`;
+  const tip = rows.map((row, i) => {
+    const prev = i >= 4 ? rows[i - 4] : null;
+    const yoy = prev && prev.r ? ((row.r / prev.r - 1) * 100) : null;
+    return { x: +(ml + slot * (i + 0.5)).toFixed(1), y: +Y(row.r).toFixed(1),
+      t: row.e ? `Quarter to ${fmtDay(row.e)}` : "Quarter",
+      r: [["Revenue", fmtRev(row.r)],
+          ...(yoy != null ? [["vs a year ago", `${yoy > 0 ? "+" : ""}${yoy.toFixed(1)}%`]] : [])] };
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Revenue by quarter"${tipData("Revenue", tip)}>${s}</svg>`;
 }
 
 /** Who on the Street says what: one row per house, dot at its target,
@@ -3594,7 +3629,16 @@ function targetChart(rowsIn, range, price){
        + `<circle cx="${tx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4" fill="${col}" stroke="var(--sunk)" stroke-width="2"></circle>`
        + `<text x="${W - ml}" y="${(cy+3.5).toFixed(1)}" font-size="10" text-anchor="end" font-family="IBM Plex Mono,monospace"><tspan font-weight="600" fill="var(--ink)">$${t.target.toFixed(0)}</tspan>${t.d ? `<tspan fill="var(--ink-3)"> · ${esc(shortDate(t.d))}</tspan>` : ""}</text>`;
   });
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Wall Street price targets">${s}</svg>`;
+  const tip = rows.map((t, i) => {
+    const cy = mt + rowH * (i + 0.5);
+    const up = (t.target / price - 1) * 100;
+    return { x: +X(t.target).toFixed(1), y: +cy.toFixed(1),
+      t: String(t.house || t.analyst || "Target"),
+      r: [["Target", `$${t.target.toFixed(2)}`],
+          ["vs price at scan", `${up > 0 ? "+" : ""}${up.toFixed(0)}%`],
+          ...(t.d ? [["Published", shortDate(t.d)]] : [])] };
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Wall Street price targets"${tipData("Price targets", tip, { axis: "y" })}>${s}</svg>`;
 }
 
 /** The company's own P/E record against its index peers' median. */
@@ -3634,7 +3678,10 @@ function peChart(hist, peer, own, tone){
   const lx = X(pts.length - 1);
   s += `<circle cx="${lx.toFixed(1)}" cy="${lyv.toFixed(1)}" r="3" fill="${col}"></circle>`
      + `<text x="${(W-mr+5).toFixed(1)}" y="${endLabelY.toFixed(1)}" font-size="9.5" font-weight="600" fill="${col}" font-family="IBM Plex Mono,monospace">${last.pe.toFixed(1)}</text>`;
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="P/E against its own record and index peers">${s}</svg>`;
+  const tip = pts.map((p, i) => ({ x: +X(i).toFixed(1), y: +Y(p.pe).toFixed(1),
+    t: fmtDay(p.d), r: [["P/E", p.pe.toFixed(1)],
+      ...(peer ? [["Index peers", peer.toFixed(1)]] : [])] }));
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="P/E against its own record and index peers"${tipData("P/E", tip, { hair: 1 })}>${s}</svg>`;
 }
 
 function spark(series, side){
@@ -3662,6 +3709,136 @@ const WEIGHTS_HTML = `<span class="wgt" role="tooltip">
      investment advice.</p></span>`;
 
 /* ---- slides ------------------------------------------------------------- */
+
+/* ---- chart hover ---------------------------------------------------------
+   Every chart here carries its own readout: each one emits the points it
+   drew as a data-tip payload in viewBox coordinates, and one delegated
+   handler finds the nearest and shows the page's usual tooltip. Line charts
+   also get a crosshair; bar and lollipop charts just highlight the mark. */
+
+/** Attribute string for a chart's hover payload.
+    pts: [{x, y, r: [[label, value], ...]}]  — r is what the tooltip lists. */
+function tipData(title, pts, opts){
+  const o = opts || {};
+  if (!pts || !pts.length) return "";
+  return ` data-tip="${esc(JSON.stringify(pts))}" data-tip-title="${esc(title)}"`
+       + (o.axis === "y" ? ` data-tip-axis="y"` : "")
+       + (o.hair ? ` data-tip-hair="1"` : "");
+}
+
+const SVGNS = "http://www.w3.org/2000/svg";
+
+function wireChartTips(root){
+  (root || document).querySelectorAll("#alphaday svg[data-tip]").forEach(svg => {
+    let pts;
+    try { pts = JSON.parse(svg.dataset.tip); } catch { return; }
+    if (!Array.isArray(pts) || !pts.length) return;
+    const vb = svg.viewBox.baseVal;
+    const byY = svg.dataset.tipAxis === "y";
+    const hair = svg.dataset.tipHair === "1";
+    let line = null, dot = null;
+    const clear = () => {
+      hideTip();
+      if (line){ line.remove(); line = null; }
+      if (dot){ dot.remove(); dot = null; }
+    };
+    svg.style.cursor = "crosshair";
+    svg.addEventListener("mousemove", ev => {
+      const r = svg.getBoundingClientRect();
+      if (!r.width) return;
+      const k = vb.width / r.width;                  // uniform: height is auto
+      const mx = (ev.clientX - r.left) * k, my = (ev.clientY - r.top) * k;
+      let best = pts[0], bd = Infinity;
+      for (const p of pts){
+        const d = byY ? Math.abs(p.y - my) : Math.abs(p.x - mx);
+        if (d < bd){ bd = d; best = p; }
+      }
+      if (hair && !line){
+        line = document.createElementNS(SVGNS, "line");
+        line.setAttribute("stroke", "var(--ink-3)");
+        line.setAttribute("stroke-width", "1");
+        line.setAttribute("opacity", ".5");
+        line.setAttribute("pointer-events", "none");
+        svg.appendChild(line);
+      }
+      if (!dot){
+        dot = document.createElementNS(SVGNS, "circle");
+        dot.setAttribute("r", "3.6");
+        dot.setAttribute("fill", "var(--ink)");
+        dot.setAttribute("stroke", "var(--sunk)");
+        dot.setAttribute("stroke-width", "2");
+        dot.setAttribute("pointer-events", "none");
+        svg.appendChild(dot);
+      }
+      if (line){
+        line.setAttribute("x1", best.x); line.setAttribute("x2", best.x);
+        line.setAttribute("y1", 0); line.setAttribute("y2", vb.height);
+      }
+      dot.setAttribute("cx", best.x); dot.setAttribute("cy", best.y);
+      showTip(ev, best.t || svg.dataset.tipTitle, best.r || []);
+    });
+    svg.addEventListener("mouseleave", clear);
+  });
+}
+
+/* The second chart, per idea. Six kinds are available; which one an idea
+   gets is decided for the whole day at once by assignCharts below. */
+const CHART_KINDS = {
+  drawdown: { fam: "hist", title: "Drawdown from 10-year high",
+              has: ev => (ev.ddSeries || []).length > 10 },
+  ma:       { fam: "hist", title: "Price vs 50- &amp; 200-day",
+              has: ev => (ev.maSeries || []).length > 20 },
+  seasonality: { fam: "mom", title: "Avg return by month, 10 years",
+              has: ev => (ev.seasonality || []).filter(x => x && x.r != null).length >= 8 },
+  targets:  { fam: "street", title: "Wall Street price targets",
+              has: ev => (ev.streetTargets || []).length > 0 || !!ev.targetRange },
+  revenue:  { fam: "fund", title: "Revenue by quarter",
+              has: ev => (ev.revSeries || []).length >= 4 },
+  pe:       { fam: "val", title: "P/E vs its record &amp; peers",
+              has: ev => (ev.peHistory || []).length >= 8 || !!(ev.ownPe && ev.peerPe) },
+};
+const LEAD_TO_KIND = { drawdown: "drawdown", ma: "ma", seasonality: "seasonality",
+                       targets: "targets", revenue: "revenue", pe: "pe" };
+const FAM_STRONG = 55;    // a family worth illustrating on its own
+const FAM_OK = 40;        // still real evidence, if the day needs variety
+
+/** Decide the day's charts together rather than one slide at a time.
+
+    Price-vs-history carries the heaviest weight and is also what the buy
+    screen selects for, so ranking each idea independently gave nine slides
+    the same drawdown chart. An idea whose sentence names a chart always
+    keeps it -- the claim has to be the thing on screen. The rest prefer a
+    kind the day has not used yet, chosen among the families that actually
+    scored, so the carousel shows the evidence from several angles. */
+function assignCharts(ideas){
+  const used = new Set();
+  ideas.forEach(d => {
+    const ev = d.evidence || {};
+    const k = LEAD_TO_KIND[ev.lead];
+    if (k && CHART_KINDS[k].has(ev)){ d._chart = k; used.add(k); }
+    else d._chart = null;
+  });
+  ideas.forEach(d => {
+    if (d._chart) return;
+    const ev = d.evidence || {};
+    const fams = Object.entries(d.families || {})
+      .filter(([f]) => !(ev.thin || []).includes(f) && f !== "smart")
+      .sort((a, b) => b[1] - a[1]);
+    const kindsFor = list => list.flatMap(([f]) =>
+      Object.entries(CHART_KINDS)
+        .filter(([, spec]) => spec.fam === f && spec.has(ev)).map(([k]) => k));
+    const strong = kindsFor(fams.filter(([, v]) => v >= FAM_STRONG));
+    const ok = kindsFor(fams.filter(([, v]) => v >= FAM_OK));
+    const any = kindsFor(fams);
+    // An unused kind from a family that still scored beats a repeat of one
+    // the day has already shown -- taking strong[0] first put three
+    // identical target boards in one carousel.
+    const unused = list => list.find(k => !used.has(k));
+    d._chart = unused(strong) || unused(ok) || strong[0] || unused(any)
+            || ok[0] || any[0] || null;
+    if (d._chart) used.add(d._chart);
+  });
+}
 
 const barColour = v => v >= 80 ? "var(--up)" : v >= 60 ? "var(--accent)" : "var(--ink-3)";
 const sellBarColour = v => v >= 80 ? "var(--down)" : v >= 60 ? "var(--accent)" : "var(--ink-3)";
@@ -3704,37 +3881,15 @@ function slide(idea, idx, total){
   const marks = ev.marks || (ev.congress || []).map(m => ({ d: m.d, s: "buy",
     l: `${(m.person || "Congress").split(" ").slice(-1)[0]} ~${money(m.amt || 0)}` }));
   const price = priceChart(ev.priceSeries, marks, toneKey);
-  // The chart backs the sentence: the scan names it when its headline made a
-  // specific claim. Otherwise fall to the strongest family with data — which
-  // is also what days stored before `lead` existed still do. Smart money is
-  // skipped here because the price chart beside it already carries the flags.
-  const famsRanked = Object.entries(idea.families || {})
-    .filter(([f]) => !(ev.thin || []).includes(f) && f !== "smart")
-    .sort((a, b) => b[1] - a[1]);
-  const named = { drawdown: "hist", ma: "hist-ma", seasonality: "mom",
-                  targets: "street", revenue: "fund", pe: "val" }[ev.lead];
-  const lead = named || (famsRanked.length ? famsRanked[0][0] : "val");
-  let second = null, secondTitle = "";
-  if (lead === "hist-ma"){
-    second = maChart(ev.maSeries, toneKey);
-    secondTitle = "Price vs 50- &amp; 200-day";
-  } else if (lead === "hist"){
-    second = drawdownChart(ev.ddSeries, toneKey);
-    secondTitle = "Drawdown from 10-year high";
-    if (!second){                       // too little history to argue rarity
-      second = maChart(ev.maSeries, toneKey);
-      secondTitle = "Price vs 50- &amp; 200-day";
-    }
-  } else if (lead === "mom"){
-    second = seasonalityChart(ev.seasonality, MONTH);
-    secondTitle = "Avg return by month, 10 years";
-  } else if (lead === "street"){
-    second = targetChart(ev.streetTargets, ev.targetRange, +idea.price);
-    secondTitle = "Wall Street price targets";
-  } else if (lead === "fund"){
-    second = revenueChart(ev.revSeries, toneKey);
-    secondTitle = "Revenue by quarter";
-  }
+  // assignCharts picked this idea's chart with the rest of the day in view.
+  const kind = idea._chart;
+  let second = null, secondTitle = (CHART_KINDS[kind] || {}).title || "";
+  if (kind === "drawdown") second = drawdownChart(ev.ddSeries, toneKey);
+  else if (kind === "ma") second = maChart(ev.maSeries, toneKey);
+  else if (kind === "seasonality") second = seasonalityChart(ev.seasonality, MONTH);
+  else if (kind === "targets") second = targetChart(ev.streetTargets, ev.targetRange, +idea.price);
+  else if (kind === "revenue") second = revenueChart(ev.revSeries, toneKey);
+  else if (kind === "pe") second = peChart(ev.peHistory, ev.peerPe, ev.ownPe, toneKey);
   if (!second){
     second = peChart(ev.peHistory, ev.peerPe, ev.ownPe, toneKey);
     secondTitle = "P/E vs its record &amp; peers";
@@ -3857,7 +4012,9 @@ function renderDay(payload, track){
   document.getElementById("a-meta").innerHTML =
     `S&amp;P 500 + Nasdaq-100 · scanned before the open · ${fmtDay(payload.day)}`;
 
+  assignCharts(IDEAS);
   slides.innerHTML = IDEAS.map((d, i) => slide(d, i, IDEAS.length)).join("");
+  wireChartTips(slides);
   const ctrl = document.getElementById("a-ctrl");
   ctrl.hidden = IDEAS.length < 2;
   document.getElementById("a-dots").innerHTML = IDEAS.map((d, i) =>
