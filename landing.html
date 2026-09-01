@@ -792,30 +792,6 @@ a.nm:hover{color:var(--accent)}
 .alphaday .dots .cnt{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--ink-3);
   margin-left:9px}
 
-/* ---- candidate lists ---------------------------------------------------- */
-.alphaday .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
-.alphaday .lhead{padding:13px 18px 9px;display:flex;justify-content:space-between;
-  align-items:baseline;gap:10px}
-.alphaday .lhead h2{font-family:"IBM Plex Serif",Georgia,serif;font-size:16.5px;font-weight:600}
-.alphaday .lhead span{font-size:11.5px;color:var(--ink-3)}
-.alphaday .cand{display:grid;grid-template-columns:34px minmax(120px,150px) minmax(0,1fr) 74px 40px;
-  gap:12px;align-items:center;padding:11px 18px;border-top:1px solid var(--rule-2);
-  cursor:pointer}
-.alphaday .cand:hover{background:var(--sunk)}
-.alphaday .cand .dot{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;
-  color:#fff;font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
-  overflow:hidden;position:relative}
-.alphaday .cand .nm{display:flex;flex-direction:column;min-width:0}
-.alphaday .cand .nm b{font-family:"IBM Plex Mono",monospace;font-size:13.5px}
-.alphaday .cand .nm span{font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis}
-.alphaday .cand .why{font-size:12px;color:var(--ink-2);min-width:0}
-.alphaday .cand .why .tagline{display:block;margin-top:2px;font-size:10px;font-weight:700;
-  letter-spacing:.07em;text-transform:uppercase}
-.alphaday .cand svg{display:block}
-.alphaday .cand .sc{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:13px;
-  text-align:right}
-
 /* ---- track record strip ------------------------------------------------- */
 .alphaday .strip{margin-top:18px;padding:12px 18px;display:flex;align-items:center;gap:10px;
   flex-wrap:wrap}
@@ -843,10 +819,7 @@ a.nm:hover{color:var(--accent)}
     .alphaday .pick{grid-template-columns:minmax(0,1fr)}
   .alphaday .pick-main{border-right:0;border-bottom:1px solid var(--rule-2);padding:14px 16px 16px}
   .alphaday .charts{grid-template-columns:minmax(0,1fr)}
-  .alphaday .grid2{grid-template-columns:minmax(0,1fr)}
   .alphaday .meth .cols{grid-template-columns:1fr 1fr}
-  .alphaday .cand{grid-template-columns:34px minmax(100px,130px) minmax(0,1fr) 40px}
-  .alphaday .cand svg{display:none}
   .alphaday .pagehead .meta{margin-left:0}
 }
 </style>
@@ -879,17 +852,6 @@ a.nm:hover{color:var(--accent)}
         <button class="arr" id="a-next" aria-label="Next idea">›</button>
       </div>
     </section>
-
-    <div class="grid2" id="a-cands" hidden>
-      <section class="panel">
-        <div class="lhead"><h2>Buy candidates</h2><span>same run · click for the deep-dive</span></div>
-        <div id="a-buys"></div>
-      </section>
-      <section class="panel">
-        <div class="lhead"><h2>Sell candidates</h2><span>same run · click for the deep-dive</span></div>
-        <div id="a-sells"></div>
-      </section>
-    </div>
 
     <section class="panel strip" id="a-track" hidden></section>
   </section>
@@ -3684,18 +3646,6 @@ function peChart(hist, peer, own, tone){
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="P/E against its own record and index peers"${tipData("P/E", tip, { hair: 1 })}>${s}</svg>`;
 }
 
-function spark(series, side){
-  const pts = (series || []).slice(-27).map(p => p.c).filter(c => c != null);
-  if (pts.length < 5) return "";
-  const W = 74, H = 24, lo = Math.min(...pts), hi = Math.max(...pts);
-  const X = i => 2 + (W - 4) * i / (pts.length - 1);
-  const Y = v => H - 3 - (v - lo) / (hi - lo || 1) * (H - 6);
-  const up = pts[pts.length-1] >= pts[0];
-  const col = `var(${up ? "--up" : "--down"})`;
-  const d = pts.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join(" ");
-  return `<svg viewBox="0 0 ${W} ${H}" width="74" height="24"><path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round" opacity=".85"></path><circle cx="${X(pts.length-1)}" cy="${Y(pts[pts.length-1])}" r="2.2" fill="${col}"></circle></svg>`;
-}
-
 /* The weighting behind every score, shown on hover/focus of the number. */
 const WEIGHTS = [["Price vs own history", 25], ["Smart money", 20],
                  ["Valuation vs peers", 15], ["Fundamentals", 15],
@@ -3894,9 +3844,11 @@ function slide(idea, idx, total){
     second = peChart(ev.peHistory, ev.peerPe, ev.ownPe, toneKey);
     secondTitle = "P/E vs its record &amp; peers";
   }
+  // Once the next session closes the line carries the outcome; until then it
+  // carries nothing -- "price at the scan" only restated the number above it.
   const result = idea.resultPct != null
     ? `next session <b class="${(sell ? -idea.resultPct : idea.resultPct) >= 0 ? "up" : "down"}">${idea.resultPct >= 0 ? "+" : ""}${idea.resultPct.toFixed(1)}%</b>`
-    : "price at the scan";
+    : "";
   const url = `company.html?t=${encodeURIComponent(idea.symbol)}&src=alpha_page`;
   return `<div class="slide" role="group" aria-label="${esc(idea.symbol)}, ${idx+1} of ${total}"><div class="pick">
     <div class="pick-main">
@@ -3905,7 +3857,7 @@ function slide(idea, idx, total){
         <span class="dot" data-logo="${esc(idea.symbol)}" style="background:${avatarColour(idea.symbol)}">${esc(idea.symbol.slice(0, 2))}</span>
         <span class="nm"><b><a href="${url}">${esc(idea.symbol)}</a> <span class="side-in ${tone}">${sell ? "SELL" : "BUY"}</span></b>
           <span>${esc(ev.industry || "")}</span></span>
-        <span class="px"><div class="p">$${(+idea.price).toFixed(2)}</div><div class="c">${result}</div></span>
+        <span class="px"><div class="p">$${(+idea.price).toFixed(2)}</div>${result ? `<div class="c">${result}</div>` : ""}</span>
       </div>
       <p class="case">${esc(idea.headline || "")}</p>
       <div class="charts">
@@ -3931,25 +3883,6 @@ function slide(idea, idx, total){
 }
 
 /* ---- candidate rows ------------------------------------------------------ */
-
-function candRow(idea, i){
-  const ev = idea.evidence || {};
-  // Lead with a chip that argues the row's own side; a congress buy is a
-  // strange headline for a sell even when it is true.
-  const want = idea.side === "SELL" ? "down" : "up";
-  const chip = (ev.chips || []).find(c => c.t === want) || (ev.chips || [])[0];
-  const why = chip ? `${chip.l} ${chip.v}` : (idea.headline || "").slice(0, 60);
-  const fams = Object.entries(idea.families || {})
-    .filter(([f]) => !(ev.thin || []).includes(f)).sort((a, b) => b[1] - a[1]);
-  const tag = fams.length ? (FAMILY_LABEL[fams[0][0]] || fams[0][0]) : "";
-  const sell = idea.side === "SELL";
-  return `<a class="cand" data-i="${i}">
-    <span class="dot" data-logo="${esc(idea.symbol)}" style="background:${avatarColour(idea.symbol)}">${esc(idea.symbol.slice(0, 2))}</span>
-    <span class="nm"><b>${esc(idea.symbol)}</b><span>${esc(ev.industry || "")}</span></span>
-    <span class="why">${esc(why)}<span class="tagline ${sell ? "down" : "up"}">${esc(tag)}</span></span>
-    ${spark(ev.priceSeries, idea.side)}
-    <span class="sc ${sell ? "down" : ""}">${idea.score}</span></a>`;
-}
 
 /* ---- carousel ------------------------------------------------------------ */
 
@@ -4031,18 +3964,7 @@ function renderDay(payload, track){
   });
   go(0);
 
-  const buys = IDEAS.map((d, i) => [d, i]).filter(([d]) => d.side === "BUY" && !d.isPick);
-  const sells = IDEAS.map((d, i) => [d, i]).filter(([d]) => d.side === "SELL" && !d.isPick);
-  document.getElementById("a-buys").innerHTML = buys.length
-    ? buys.map(([d, i]) => candRow(d, i)).join("")
-    : `<div class="note">No buy cleared the gates in this run.</div>`;
-  document.getElementById("a-sells").innerHTML = sells.length
-    ? sells.map(([d, i]) => candRow(d, i)).join("")
-    : `<div class="note">No sell found an anchor in this run.</div>`;
-  document.getElementById("a-cands").hidden = false;
   document.getElementById("alphaday").hidden = false;
-  document.querySelectorAll("#alphaday .cand").forEach(el =>
-    el.onclick = () => { go(+el.dataset.i, true); GA.track("alpha_candidate_open"); });
 
   const rows = (track || []).filter(t => t.day !== payload.day).slice(0, 6);
   if (rows.length){
