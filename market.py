@@ -1938,6 +1938,45 @@ def ownership_probe(symbol: str) -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# Peers
+# ---------------------------------------------------------------------------
+# FMP publishes its own peer list per symbol, which would settle the Industry
+# tab's competitor set for every ticker rather than the ones written down by
+# hand. Whether it is on this plan is not documented anywhere we can read, and
+# the 13F endpoints taught us not to assume: this asks, and reports what came
+# back, so one command answers it.
+
+_PEER_ENDPOINTS = (
+    ("stock-peers", None),
+    ("company-peers", None),
+    ("stock_peers", V4_BASE),
+)
+
+
+def peers_probe(symbol: str) -> list[dict]:
+    """Ask every spelling of FMP's peer endpoint and report what each said."""
+    out = []
+    for path, base in _PEER_ENDPOINTS:
+        row = {"path": path, "base": (base or BASE).rsplit("/", 1)[-1]}
+        try:
+            data = _get(path, base, symbol=symbol)
+        except MarketError as exc:
+            row["error"] = str(exc)[:160]
+        else:
+            if isinstance(data, list):
+                row["rows"] = len(data)
+                if data and isinstance(data[0], dict):
+                    row["keys"] = sorted(data[0])[:12]
+                    row["sample"] = {k: data[0][k] for k in list(data[0])[:4]}
+            elif isinstance(data, dict):
+                row["keys"] = sorted(data)[:12]
+            else:
+                row["error"] = f"unexpected payload: {type(data).__name__}"
+        out.append(row)
+    return out
+
+
 def institutional_holders(symbol: str, limit: int = 60) -> list[dict]:
     """Institutions holding one ticker, largest position first.
 
