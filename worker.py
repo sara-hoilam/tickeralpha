@@ -20,6 +20,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py funds             refresh the mutual / money market fund list
     python worker.py long-closes [T...] 10y closes for the correlation heatmap
     python worker.py ownership TICKER   why an Ownership tab is empty
+    python worker.py peers TICKER       what FMP knows about a ticker's peers
     python worker.py alpha [DATE] [--force]  run the Alpha of the Day scan
     python worker.py alpha-results      backfill past picks' next-day returns
     python worker.py stats              coverage summary
@@ -1622,6 +1623,21 @@ def main(argv: list[str]) -> int:
             return 2
         for t in argv[1:]:
             check_ownership(t)
+
+    elif cmd == "peers":
+        # Does this plan carry FMP's own peer list? The Industry tab's
+        # competitor set falls back to "the largest companies filed under the
+        # same industry", which is wrong for anything the curated list does
+        # not cover. If this prints rows, that fallback can be replaced with
+        # the vendor's own answer for every ticker.
+        if len(argv) < 2:
+            print("usage: python worker.py peers TICKER [TICKER ...]")
+            return 2
+        for t in argv[1:]:
+            sym = t.upper()
+            print(f"--- {sym} ---")
+            for row in market.peers_probe(sym):
+                print("   ", row)
 
     elif cmd == "alpha":
         # Run the Alpha of the Day scan by hand. `--force` re-scores a day
