@@ -1838,16 +1838,15 @@ def earnings_calendar(start: dt.date | None = None,
 # spellings in turn and keeps the first that answers with rows rather than
 # betting the feature on one guess. A 402 here is ordinary: 13F data sits above
 # the entry tiers.
-# Spellings are tried in order and the first that answers wins. The symbol
-# goes in the query string on stable, but v3 puts it in the path -- these two
-# were the only legacy call sites in the file, so there was no working example
-# to copy and both were written the stable way.
+# One spelling each, both confirmed against the live account: they answer 402
+# ("not included in this FMP plan"), which is the path being right and the
+# entitlement missing. The others were removed once the account answered --
+# stable/symbol-ownership is a 404, and the v3/v4 forms are 403 "Legacy
+# Endpoint ... only available for legacy users who have valid subscriptions
+# prior August 31, 2025". Asking any of them again is a request spent to be
+# told the same thing.
 _HOLDER_ENDPOINTS = (
-    ("institutional-ownership/symbol-positions-summary", None),
-    ("institutional-ownership/symbol-ownership", None),
     ("institutional-ownership/extract-analytics/holder", None),
-    ("institutional-holder", V3_BASE),
-    ("institutional-holder/{symbol}", V3_BASE),
 )
 
 # FMP has used every one of these for the same column.
@@ -1993,8 +1992,6 @@ def institutional_holders(symbol: str, limit: int = 60) -> list[dict]:
 # dated rows wins.
 _OWNERSHIP_ENDPOINTS = (
     ("institutional-ownership/symbol-positions-summary", None),
-    ("institutional-ownership/symbol-ownership", None),
-    ("institutional-ownership/symbol-ownership", V4_BASE),
 )
 
 _OWNERSHIP_KEYS = {

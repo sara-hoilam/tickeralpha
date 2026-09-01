@@ -2669,10 +2669,8 @@ function drawHolders(){
   const out = d && d.sharesOut;
 
   if (!rows) {
-    host.innerHTML = `<div class="note">${HELD.failed
-      ? `Institutional holders for ${esc(HELD.symbol || "")} are unavailable.`
-      : `Institutional holdings arrive with the next refresh for ${esc(HELD.symbol || "")}.`
-    }</div>`;
+    host.innerHTML = `<div class="note">Institutional holders for `
+      + `${esc(HELD.symbol || "this ticker")} are not available.</div>`;
     if (scope) scope.textContent = "From the latest 13F filings.";
     return;
   }
@@ -2768,9 +2766,10 @@ function drawOwnershipHistory(){
   const points = d && d.points;
   const sym = OWNH.symbol || "this ticker";
   if (!points) {
-    return ownhistState(OWNH.failed
-      ? `Ownership history for ${sym} is unavailable.`
-      : `Ownership history for ${sym} arrives with the next price refresh.`);
+    // Not "arrives with the next price refresh": 13F sits above the data
+    // plan's tier, so on the current subscription no refresh ever brings it
+    // and that sentence was a promise the page could not keep.
+    return ownhistState(`Institutional ownership for ${sym} is not available.`);
   }
   const all = points.filter(p => p && p.shares != null);
   if (!all.length) {
