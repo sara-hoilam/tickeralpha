@@ -673,6 +673,182 @@ a.nm:hover{color:var(--accent)}
   .disc-card .body{padding:8px 9px 9px;gap:6px}
   .disc-dots{margin-top:12px}
 }
+
+/* ---- Alpha of the Day ----------------------------------------------------
+   Lifted from the standalone page; every selector is scoped to .alphaday so
+   the market page's own .grid2/.chip/.big rules are untouched. */
+.alphaday{margin-top:26px}
+/* The market page styles its links per component; this block came from a
+   page that reset them globally, so keep that reset inside the section. */
+.alphaday a{color:inherit;text-decoration:none}
+.alphaday .ahead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.alphaday .ahead .sub{color:var(--ink-3);font-size:12.5px;margin-left:auto}
+/* Alpha score: hovering (or focusing) the number explains the weighting. */
+.alphaday .scorewrap{position:relative;display:inline-block;cursor:help}
+.alphaday .scorewrap:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+.alphaday .wgt{position:absolute;left:0;top:calc(100% + 8px);z-index:40;width:236px;
+  background:var(--card);border:1px solid var(--rule);border-radius:9px;
+  box-shadow:var(--shadow);padding:11px 13px;opacity:0;visibility:hidden;
+  transform:translateY(-3px);transition:opacity .14s ease,transform .14s ease,visibility .14s}
+.alphaday .scorewrap:hover .wgt,.alphaday .scorewrap:focus-visible .wgt{
+  opacity:1;visibility:visible;transform:translateY(0)}
+.alphaday .wgt h5{font-size:10.5px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-3);margin-bottom:7px}
+.alphaday .wgt .wr{display:flex;justify-content:space-between;gap:10px;
+  font-size:12px;color:var(--ink-2);padding:2.5px 0}
+.alphaday .wgt .wr b{font-family:"IBM Plex Mono",monospace;color:var(--ink);font-weight:600}
+.alphaday .wgt p{margin-top:8px;padding-top:8px;border-top:1px solid var(--rule-2);
+  font-size:11px;color:var(--ink-3);line-height:1.45}
+
+/* ---- hero carousel ------------------------------------------------------ */
+.alphaday .hero{position:relative}
+/* The clip is sized to the slide on screen, not to the tallest of the nine —
+   the pick carries three gate rows the candidates do not, and letting it set
+   the height left every other slide with dead space under its chips. */
+.alphaday .slides-clip{overflow:hidden;transition:height .28s ease}
+.alphaday .slides{display:flex;align-items:flex-start;transition:transform .32s ease}
+@media (prefers-reduced-motion:reduce){
+  .alphaday .slides{transition:none}.alphaday .slides-clip{transition:none}
+}
+.alphaday .slide{flex:0 0 100%;min-width:0}
+.alphaday .pick{display:grid;grid-template-columns:minmax(0,1fr) 270px}
+.alphaday .pick-main{padding:16px 24px 18px;border-right:1px solid var(--rule-2);min-width:0;
+  display:flex;flex-direction:column}
+/* Whatever slack the score rail leaves goes to the charts, so the evidence
+   grows into the space instead of stranding it under the chips. */
+.alphaday .pick-main .charts{flex:1 0 auto}
+.alphaday .eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  margin-bottom:10px}
+.alphaday .eyebrow.today{color:var(--accent)}
+.alphaday .eyebrow.rank{color:var(--ink-3)}
+.alphaday .idrow{display:flex;align-items:center;gap:13px;flex-wrap:wrap}
+.alphaday .idrow .dot{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;
+  color:#fff;font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:600;
+  flex-shrink:0;overflow:hidden;position:relative}
+.alphaday .idrow .nm b{font-size:19px;letter-spacing:-.01em;display:block;line-height:1.2}
+.alphaday .idrow .nm b a:hover{color:var(--accent)}
+.alphaday .side-in{font-size:14px;font-weight:700}
+.alphaday .idrow .nm > span{color:var(--ink-3);font-size:12.5px}
+.alphaday .side-in.up{color:var(--up)}.alphaday .side-in.down{color:var(--down)}
+.alphaday .px{margin-left:auto;text-align:right}
+.alphaday .px .p{font-family:"IBM Plex Mono",monospace;font-size:19px;font-weight:600}
+.alphaday .px .c{font-size:11.5px;color:var(--ink-3)}
+.alphaday .px .c b{font-family:"IBM Plex Mono",monospace;font-weight:600}
+.alphaday .case{font-family:"IBM Plex Serif",Georgia,serif;font-size:17.5px;line-height:1.42;
+  letter-spacing:-.008em;margin:11px 0 14px;max-width:74ch}
+.alphaday .case b{font-weight:600}
+.alphaday .charts{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.alphaday .ch{background:var(--sunk);border:1px solid var(--rule-2);border-radius:9px;
+  padding:12px 14px 8px;min-width:0}
+.alphaday .ch h4{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-3);display:flex;justify-content:space-between;align-items:baseline;
+  margin-bottom:4px;gap:8px}
+.alphaday .ch h4 a{color:var(--accent);text-transform:none;letter-spacing:0;font-weight:600;
+  font-size:11.5px;white-space:nowrap}
+.alphaday .ch svg{width:100%;height:auto;display:block}
+.alphaday .ch .empty{color:var(--ink-3);font-size:12px;padding:26px 0;text-align:center}
+.alphaday .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+.alphaday .chip{display:inline-flex;align-items:center;gap:7px;background:var(--sunk);
+  border:1px solid var(--rule-2);border-radius:8px;padding:6px 11px;font-size:12px;
+  color:var(--ink-2)}
+.alphaday .chip b{font-family:"IBM Plex Mono",monospace;color:var(--ink);font-weight:600}
+.alphaday .chip .d{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.alphaday .chip .d.up{background:var(--up)} .alphaday .chip .d.down{background:var(--down)}
+.alphaday .chip .d.mut{background:var(--ink-3)}
+
+.alphaday .rail{padding:18px 22px;background:var(--sunk)}
+.alphaday .rail h3{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);margin-bottom:6px}
+.alphaday .big{font-family:"IBM Plex Mono",monospace;font-size:44px;font-weight:600;
+  letter-spacing:-.03em;line-height:1}
+.alphaday .big small{font-size:15px;color:var(--ink-3);font-weight:500;letter-spacing:0}
+.alphaday .conv{font-size:11.5px;color:var(--ink-2);margin:6px 0 15px}
+.alphaday .fam{margin-bottom:9px}
+.alphaday .fam .fr{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-2);
+  margin-bottom:3px;gap:8px}
+.alphaday .fam .fr b{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--ink)}
+.alphaday .fam.thin .fr{color:var(--ink-3)}
+.alphaday .fam.thin .fr b{color:var(--ink-3);font-weight:500}
+.alphaday .bar2{height:5px;border-radius:3px;background:var(--rule-2);overflow:hidden}
+.alphaday .bar2 i{display:block;height:100%;border-radius:3px}
+.alphaday .gate{display:flex;gap:7px;align-items:center;font-size:11.5px;color:var(--ink-2);
+  margin-top:10px}
+.alphaday .gate:first-of-type{padding-top:11px;border-top:1px solid var(--rule)}
+.alphaday .gate .ok{width:15px;height:15px;border-radius:50%;background:var(--up-soft);
+  color:var(--up);display:grid;place-items:center;font-size:9.5px;font-weight:700;
+  flex-shrink:0}
+
+.alphaday .ctrl{display:flex;gap:14px;justify-content:center;align-items:center;padding:8px 0 10px;
+  border-top:1px solid var(--rule-2);background:var(--card)}
+.alphaday .arr{width:28px;height:28px;border-radius:50%;border:1px solid var(--rule);
+  background:var(--card);color:var(--ink-2);cursor:pointer;font-size:15px;line-height:1;
+  display:grid;place-items:center;flex-shrink:0;font-family:inherit}
+.alphaday .arr:hover{color:var(--accent);border-color:var(--accent)}
+.alphaday .arr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.alphaday .dots{display:flex;gap:6px;justify-content:center;align-items:center}
+.alphaday .dots button{width:7px;height:7px;border-radius:50%;border:0;background:var(--rule);
+  cursor:pointer;padding:0}
+.alphaday .dots button.on{background:var(--accent);width:18px;border-radius:4px}
+.alphaday .dots .cnt{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--ink-3);
+  margin-left:9px}
+
+/* ---- candidate lists ---------------------------------------------------- */
+.alphaday .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+.alphaday .lhead{padding:13px 18px 9px;display:flex;justify-content:space-between;
+  align-items:baseline;gap:10px}
+.alphaday .lhead h2{font-family:"IBM Plex Serif",Georgia,serif;font-size:16.5px;font-weight:600}
+.alphaday .lhead span{font-size:11.5px;color:var(--ink-3)}
+.alphaday .cand{display:grid;grid-template-columns:34px minmax(120px,150px) minmax(0,1fr) 74px 40px;
+  gap:12px;align-items:center;padding:11px 18px;border-top:1px solid var(--rule-2);
+  cursor:pointer}
+.alphaday .cand:hover{background:var(--sunk)}
+.alphaday .cand .dot{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;
+  color:#fff;font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
+  overflow:hidden;position:relative}
+.alphaday .cand .nm{display:flex;flex-direction:column;min-width:0}
+.alphaday .cand .nm b{font-family:"IBM Plex Mono",monospace;font-size:13.5px}
+.alphaday .cand .nm span{font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.alphaday .cand .why{font-size:12px;color:var(--ink-2);min-width:0}
+.alphaday .cand .why .tagline{display:block;margin-top:2px;font-size:10px;font-weight:700;
+  letter-spacing:.07em;text-transform:uppercase}
+.alphaday .cand svg{display:block}
+.alphaday .cand .sc{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:13px;
+  text-align:right}
+
+/* ---- track record strip ------------------------------------------------- */
+.alphaday .strip{margin-top:18px;padding:12px 18px;display:flex;align-items:center;gap:10px;
+  flex-wrap:wrap}
+.alphaday .strip h2{font-family:"IBM Plex Serif",Georgia,serif;font-size:14.5px;font-weight:600;
+  margin-right:4px}
+.alphaday .tr-chip{display:inline-flex;gap:7px;align-items:center;background:var(--sunk);
+  border:1px solid var(--rule-2);border-radius:8px;padding:5px 10px;font-size:11.5px;
+  color:var(--ink-2)}
+.alphaday .tr-chip b{font-family:"IBM Plex Mono",monospace;font-weight:600}
+
+/* ---- methodology -------------------------------------------------------- */
+.alphaday .meth{margin-top:18px;padding:16px 18px}
+.alphaday .meth h2{font-family:"IBM Plex Serif",Georgia,serif;font-size:16.5px;font-weight:600;
+  margin-bottom:12px}
+.alphaday .meth .cols{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.alphaday .mcard{background:var(--sunk);border:1px solid var(--rule-2);border-radius:8px;
+  padding:10px 12px}
+.alphaday .mcard b{font-family:"IBM Plex Mono",monospace;color:var(--ink-3);font-weight:500;
+  font-size:11px;display:block}
+.alphaday .mcard h5{font-size:12.5px;font-weight:600;margin:1px 0 3px}
+.alphaday .mcard p{font-size:11px;color:var(--ink-3);line-height:1.4}
+.alphaday .disc{margin-top:12px;font-size:10.5px;color:var(--ink-3);max-width:110ch}
+
+@media (max-width:980px){
+    .alphaday .pick{grid-template-columns:minmax(0,1fr)}
+  .alphaday .pick-main{border-right:0;border-bottom:1px solid var(--rule-2);padding:14px 16px 16px}
+  .alphaday .charts{grid-template-columns:minmax(0,1fr)}
+  .alphaday .grid2{grid-template-columns:minmax(0,1fr)}
+  .alphaday .meth .cols{grid-template-columns:1fr 1fr}
+  .alphaday .cand{grid-template-columns:34px minmax(100px,130px) minmax(0,1fr) 40px}
+  .alphaday .cand svg{display:none}
+  .alphaday .pagehead .meta{margin-left:0}
+}
 </style>
 </head>
 <body>
@@ -719,6 +895,40 @@ a.nm:hover{color:var(--accent)}
       <div class="cal-scroll" id="brief-cal"><div class="note"><span class="load"></span></div></div>
     </section>
   </div>
+
+
+  <!-- Alpha of the Day — one scored idea, its evidence charted. Reads the
+       nightly scan (alpha.py) through get_alpha_day. -->
+  <section class="alphaday" id="alphaday" hidden>
+    <div class="ahead">
+      <h2 style="margin:0">Alpha of the Day</h2>
+      <div class="sub" id="a-meta">S&amp;P 500 + Nasdaq-100, scored before the open</div>
+    </div>
+
+    <section class="panel hero" id="a-hero" aria-roledescription="carousel" aria-label="Today's ideas">
+      <div class="slides-clip"><div class="slides" id="a-slides">
+        <div class="note" style="width:100%"><span class="load"></span></div>
+      </div></div>
+      <div class="ctrl" id="a-ctrl" hidden>
+        <button class="arr" id="a-prev" aria-label="Previous idea">‹</button>
+        <div class="dots" id="a-dots"></div>
+        <button class="arr" id="a-next" aria-label="Next idea">›</button>
+      </div>
+    </section>
+
+    <div class="grid2" id="a-cands" hidden>
+      <section class="panel">
+        <div class="lhead"><h2>Buy candidates</h2><span>same run · click for the deep-dive</span></div>
+        <div id="a-buys"></div>
+      </section>
+      <section class="panel">
+        <div class="lhead"><h2>Sell candidates</h2><span>same run · click for the deep-dive</span></div>
+        <div id="a-sells"></div>
+      </section>
+    </div>
+
+    <section class="panel strip" id="a-track" hidden></section>
+  </section>
 
   <section class="panel">
     <div class="split">
@@ -3025,6 +3235,690 @@ async function loadBrief(){
   // carry .info-i bubbles that nothing else wires.
   wirePanelInfoTips();
 })();
+
+/* ---- Alpha of the Day ---------------------------------------------------
+   Ported from the standalone page. Everything lives in this closure so
+   its esc/rpc/niceScale/AVATAR do not collide with the market page's. */
+(function(){
+"use strict";
+const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
+const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+const GA = window.TAnalytics || { track(){}, pageView(){} };
+const esc = s => String(s ?? "").replace(/[&<>"]/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+async function rpc(fn, args){
+  if (!HOSTED) throw new Error("config.js is missing, so there is no data source");
+  const r = await fetch(`${CFG.supabaseUrl}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
+    body: JSON.stringify(args || {}),
+  });
+  if (!r.ok) throw new Error(`${fn} ${r.status}`);
+  return r.json();
+}
+
+const AVATAR = ["#1e4fbf","#eb2024","#1baf7a","#eda100","#e87ba4","#4a3aa7","#2a78d6","#e34948"];
+const avatarColour = s => AVATAR[[...String(s)].reduce((a,c)=>a+c.charCodeAt(0),0) % AVATAR.length];
+
+function niceScale(lo, hi, want){
+  const span = (hi - lo) || Math.abs(hi) || 1;
+  const raw = span / Math.max(1, want);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 5, 10].map(m => m * mag).find(v => v >= raw) || mag * 10;
+  const decimals = Math.max(0, Math.ceil(-Math.log10(step) - 1e-9));
+  const out = [];
+  for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + step * 1e-6; v += step)
+    out.push(+v.toFixed(10));
+  return { values: out, decimals };
+}
+
+const FAMILY_LABEL = {
+  hist: "Price vs own history", val: "Valuation vs peers", smart: "Smart money",
+  fund: "Fundamentals", street: "The Street", mom: "Momentum & season",
+};
+const money = v => v >= 1e9 ? `$${(v/1e9).toFixed(1)}B`
+  : v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : `$${Math.round(v/1e3)}K`;
+const fmtDay = iso => {
+  const d = new Date(iso + "T12:00:00Z");
+  return d.toLocaleDateString("en-US", { weekday:"short", day:"numeric",
+    month:"short", year:"numeric", timeZone:"UTC" });
+};
+const dow = iso => new Date(iso + "T12:00:00Z")
+  .toLocaleDateString("en-US", { weekday:"short", timeZone:"UTC" });
+
+/* ---- charts ------------------------------------------------------------- */
+
+/** Three years of weekly closes with congress purchase flags. */
+function priceChart(series, marks, tone){
+  const W = 470, H = 168, ml = 8, mr = 46, mt = 14, mb = 20;
+  const pts = (series || []).filter(p => p && p.c != null);
+  if (pts.length < 10) return null;
+  const cs = pts.map(p => p.c);
+  const lo = Math.min(...cs), hi = Math.max(...cs);
+  const pad = (hi - lo) * 0.06 || hi * 0.05;
+  const y0 = lo - pad, y1 = hi + pad;
+  const X = i => ml + (W - ml - mr) * i / (pts.length - 1);
+  const Y = v => mt + (H - mt - mb) * (1 - (v - y0) / (y1 - y0));
+  const col = tone === "down" ? "var(--down)" : "var(--accent)";
+  let s = "";
+  const yt = niceScale(lo, hi, 3);
+  for (const v of yt.values){
+    if (v < y0 || v > y1) continue;
+    s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`
+       + `<text x="${W-mr+5}" y="${(Y(v)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">$${v.toFixed(yt.decimals)}</text>`;
+  }
+  // year ticks
+  let lastYear = "";
+  pts.forEach((p, i) => {
+    const y = p.d.slice(0, 4);
+    if (y !== lastYear && i > 0){
+      lastYear = y;
+      s += `<text x="${X(i).toFixed(1)}" y="${H-6}" font-size="9.5" fill="var(--ink-3)" text-anchor="middle" font-family="IBM Plex Mono,monospace">${y}</text>`;
+    } else if (i === 0) lastYear = y;
+  });
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(p.c).toFixed(1)}`).join(" ");
+  s += `<path d="${line} L${X(pts.length-1).toFixed(1)} ${(H-mb).toFixed(1)} L${ml} ${(H-mb).toFixed(1)} Z" fill="${col}" opacity=".07"></path>`;
+  s += `<path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"></path>`;
+  // trade flags — congress and insiders alike, green for buys and red for
+  // sells, stacked so labels never collide
+  (marks || []).slice(0, 3).forEach((m, j) => {
+    let idx = pts.findIndex(p => p.d >= m.d);
+    if (idx < 0) idx = pts.length - 1;
+    const mcol = m.s === "sell" ? "var(--down)" : "var(--up)";
+    const x = X(idx), ly = mt + 2 + j * 15;
+    const anchor = x > W * 0.6 ? "end" : "start";
+    const tx = x > W * 0.6 ? x - 6 : x + 6;
+    s += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${(ly+3).toFixed(1)}" y2="${Y(pts[idx].c).toFixed(1)}" stroke="${mcol}" stroke-width="1" opacity=".55"></line>`
+       + `<circle cx="${x.toFixed(1)}" cy="${Y(pts[idx].c).toFixed(1)}" r="3" fill="${mcol}"></circle>`
+       + `<text x="${tx.toFixed(1)}" y="${ly+7}" font-size="9.5" font-weight="600" fill="${mcol}" text-anchor="${anchor}" stroke="var(--sunk)" stroke-width="3" paint-order="stroke">${esc(m.l || "")}</text>`;
+  });
+  const last = pts[pts.length - 1];
+  s += `<circle cx="${X(pts.length-1).toFixed(1)}" cy="${Y(last.c).toFixed(1)}" r="3" fill="${col}"></circle>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Three years of price">${s}</svg>`;
+}
+
+/** Two columns on a real axis: the company's P/E against its index peers'
+    median. The fallback when too little P/E history is stored to draw a line —
+    a bar without a baseline is just a floating rectangle, so this one gets
+    gridlines, a zero rule and labelled ticks like every other chart here. */
+function peBars(own, peer, tone){
+  if (!own || !peer) return null;
+  const W = 470, H = 168, ml = 8, mr = 46, mt = 18, mb = 30;
+  const plotH = H - mt - mb;
+  const top = Math.max(own, peer) * 1.15;
+  const Y = v => mt + plotH * (1 - v / top);
+  const zero = Y(0);
+  let s = "";
+  /* Ticks are chosen against the axis top, not the taller bar: asking for
+     them across the data range alone returned a single gridline here. */
+  const yt = niceScale(0, top, 4);
+  for (const v of yt.values){
+    if (v > top || v <= 0) continue;
+    s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`
+       + `<text x="${W-mr+5}" y="${(Y(v)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">${v.toFixed(yt.decimals)}</text>`;
+  }
+  /* Rounded at the data end, square on the baseline. */
+  const col = (cx, v, fill, op) => {
+    const w = 24, r = 4, x = cx - w / 2, y = Y(v), h = Math.max(zero - y, r);
+    return `<path d="M${x} ${zero} L${x} ${(y+r).toFixed(1)} Q${x} ${y.toFixed(1)} ${x+r} ${y.toFixed(1)} L${(x+w-r).toFixed(1)} ${y.toFixed(1)} Q${(x+w).toFixed(1)} ${y.toFixed(1)} ${(x+w).toFixed(1)} ${(y+r).toFixed(1)} L${(x+w).toFixed(1)} ${zero} Z" fill="${fill}"${op ? ` opacity="${op}"` : ""}></path>`;
+  };
+  const plotW = W - ml - mr;
+  const c1 = ml + plotW * 0.38, c2 = ml + plotW * 0.62;
+  const accent = tone === "down" ? "var(--down)" : "var(--accent)";
+  s += col(c1, own, accent) + col(c2, peer, "var(--ink-3)", ".5");
+  /* Value on the cap, category under the baseline — both in text tokens. */
+  const cap = (cx, v) =>
+    `<text x="${cx.toFixed(1)}" y="${(Y(v)-6).toFixed(1)}" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle" font-family="IBM Plex Mono,monospace">${v.toFixed(1)}</text>`;
+  const foot = (cx, t) =>
+    `<text x="${cx.toFixed(1)}" y="${(zero+15).toFixed(1)}" font-size="10.5" fill="var(--ink-3)" text-anchor="middle">${t}</text>`;
+  s += cap(c1, own) + cap(c2, peer) + foot(c1, "own P/E") + foot(c2, "index peers");
+  s += `<line x1="${ml}" x2="${W-mr}" y1="${zero}" y2="${zero}" stroke="var(--rule)" stroke-width="1"></line>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="P/E ${own.toFixed(1)} against index peers ${peer.toFixed(1)}">${s}</svg>`;
+}
+
+
+/* ---- per-family evidence charts ------------------------------------------
+   The second chart follows the idea's strongest family: the drawdown record
+   when price-vs-history leads, the month-by-month seasonal averages when
+   momentum leads, the houses' price targets when the Street leads, the
+   revenue quarters when fundamentals lead, and the P/E comparison otherwise.
+   Each returns null when its data is missing so the caller can fall back. */
+
+const shortDate = iso => {
+  if (!iso) return "";
+  const d = new Date(String(iso).slice(0, 10) + "T12:00:00Z");
+  return isNaN(d) ? "" : d.toLocaleDateString("en-US",
+    { day: "numeric", month: "short", timeZone: "UTC" });
+};
+const fmtRev = v => v >= 1e9 ? `$${(v / 1e9).toFixed(v >= 2e10 ? 0 : 1)}B`
+  : `$${Math.round(v / 1e6)}M`;
+
+/** Drawdown from the 10-year running high, weekly over 3 years. */
+function drawdownChart(series, tone){
+  const pts = (series || []).filter(p => p && p.v != null);
+  if (pts.length < 10) return null;
+  const W = 470, H = 168, ml = 8, mr = 46, mt = 14, mb = 20;
+  const col = tone === "down" ? "var(--down)" : "var(--accent)";
+  const lo = Math.min(...pts.map(p => p.v));
+  const y0 = Math.min(lo * 1.08, -1), y1 = 0;
+  const X = i => ml + (W - ml - mr) * i / (pts.length - 1);
+  const Y = v => mt + (H - mt - mb) * (y1 - v) / (y1 - y0);
+  let s = "";
+  const endY = Y(pts[pts.length - 1].v);
+  const yt = niceScale(0, -y0, 3);
+  for (const t of yt.values){
+    if (t <= 0 || -t < y0) continue;
+    s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(-t).toFixed(1)}" y2="${Y(-t).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`;
+    if (Math.abs(Y(-t) - endY) > 12)
+      s += `<text x="${W-mr+5}" y="${(Y(-t)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">−${t.toFixed(yt.decimals)}%</text>`;
+  }
+  // the zero line is the running high itself
+  s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}" stroke="var(--rule)" stroke-width="1.2"></line>`
+     + `<text x="${W-mr+5}" y="${(Y(0)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">high</text>`;
+  let lastYear = "";
+  pts.forEach((p, i) => {
+    const y = p.d.slice(0, 4);
+    if (y !== lastYear && i > 0){
+      lastYear = y;
+      s += `<text x="${X(i).toFixed(1)}" y="${H-6}" font-size="9.5" fill="var(--ink-3)" text-anchor="middle" font-family="IBM Plex Mono,monospace">${y}</text>`;
+    } else if (i === 0) lastYear = y;
+  });
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(p.v).toFixed(1)}`).join(" ");
+  s += `<path d="${line} L${X(pts.length-1).toFixed(1)} ${Y(0).toFixed(1)} L${ml} ${Y(0).toFixed(1)} Z" fill="${col}" opacity=".07"></path>`
+     + `<path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"></path>`
+     + `<circle cx="${X(pts.length-1).toFixed(1)}" cy="${endY.toFixed(1)}" r="3" fill="${col}"></circle>`
+     + `<text x="${W-mr+5}" y="${(endY+3.2).toFixed(1)}" font-size="9.5" font-weight="600" fill="${col}" font-family="IBM Plex Mono,monospace">${pts[pts.length-1].v.toFixed(0)}%</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Drawdown from the ten-year high">${s}</svg>`;
+}
+
+/** Price against its 50- and 200-day averages — the chart for a name whose
+    story is a test of long-term support rather than a deep drawdown. */
+function maChart(series, tone){
+  const pts = (series || []).filter(p => p && p.c != null);
+  if (pts.length < 20) return null;
+  const W = 470, H = 168, ml = 8, mr = 46, mt = 22, mb = 20;
+  const vals = pts.flatMap(p => [p.c, p.m50, p.m200].filter(v => v != null));
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = (hi - lo) * 0.06 || hi * 0.05;
+  const y0 = lo - pad, y1 = hi + pad;
+  const X = i => ml + (W - ml - mr) * i / (pts.length - 1);
+  const Y = v => mt + (H - mt - mb) * (1 - (v - y0) / (y1 - y0));
+  const col = tone === "down" ? "var(--down)" : "var(--accent)";
+  let s = "";
+  const yt = niceScale(lo, hi, 3);
+  const last = pts[pts.length - 1];
+  const endY = Y(last.c), ma200Y = last.m200 != null ? Y(last.m200) : null;
+  for (const v of yt.values){
+    if (v < y0 || v > y1) continue;
+    s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`;
+    if (Math.abs(Y(v) - endY) > 12 && (ma200Y == null || Math.abs(Y(v) - ma200Y) > 12))
+      s += `<text x="${W-mr+5}" y="${(Y(v)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">$${v.toFixed(yt.decimals)}</text>`;
+  }
+  let lastYear = "";
+  pts.forEach((p, i) => {
+    const y = p.d.slice(0, 4);
+    if (y !== lastYear && i > 0){
+      lastYear = y;
+      s += `<text x="${X(i).toFixed(1)}" y="${H-6}" font-size="9.5" fill="var(--ink-3)" text-anchor="middle" font-family="IBM Plex Mono,monospace">${y}</text>`;
+    } else if (i === 0) lastYear = y;
+  });
+  // the averages sit under the price line
+  const path = key => {
+    let d = "", open = false;
+    pts.forEach((p, i) => {
+      const v = p[key];
+      if (v == null){ open = false; return; }
+      d += `${open ? "L" : "M"}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`;
+      open = true;
+    });
+    return d;
+  };
+  const d200 = path("m200"), d50 = path("m50");
+  if (d200) s += `<path d="${d200}" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linejoin="round" opacity=".85"></path>`;
+  if (d50) s += `<path d="${d50}" fill="none" stroke="var(--up)" stroke-width="2" stroke-linejoin="round" opacity=".6"></path>`;
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(p.c).toFixed(1)}`).join(" ");
+  s += `<path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"></path>`;
+  if (ma200Y != null)
+    s += `<text x="${W-mr+5}" y="${(ma200Y+3.2).toFixed(1)}" font-size="9.5" font-weight="600" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">200d</text>`;
+  s += `<circle cx="${X(pts.length-1).toFixed(1)}" cy="${endY.toFixed(1)}" r="3.5" fill="${col}" stroke="var(--sunk)" stroke-width="2"></circle>`
+     + `<text x="${W-mr+5}" y="${(endY+3.2).toFixed(1)}" font-size="9.5" font-weight="600" fill="${col}" font-family="IBM Plex Mono,monospace">$${last.c.toFixed(0)}</text>`;
+  // three lines on one chart need naming
+  s += `<g font-size="9.5" fill="var(--ink-3)">
+    <line x1="${ml}" x2="${ml+13}" y1="9" y2="9" stroke="${col}" stroke-width="2"></line>
+    <text x="${ml+17}" y="12.2">Price</text>
+    <line x1="${ml+58}" x2="${ml+71}" y1="9" y2="9" stroke="var(--up)" stroke-width="2" opacity=".6"></line>
+    <text x="${ml+75}" y="12.2">50-day</text>
+    <line x1="${ml+126}" x2="${ml+139}" y1="9" y2="9" stroke="var(--ink-3)" stroke-width="2" opacity=".85"></line>
+    <text x="${ml+143}" y="12.2">200-day</text></g>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Price against its 50- and 200-day averages">${s}</svg>`;
+}
+
+/** Average return by calendar month across the stored decade. */
+function seasonalityChart(season, month){
+  const rows = (season || []).filter(x => x && x.r != null);
+  if (rows.length < 8) return null;
+  const W = 470, H = 168, ml = 8, mr = 46, mt = 14, mb = 24;
+  const vals = rows.map(x => x.r);
+  const top = Math.max(...vals, 0.4) * 1.2, bot = Math.min(...vals, -0.4) * 1.2;
+  const Y = v => mt + (H - mt - mb) * (top - v) / (top - bot);
+  const zero = Y(0);
+  let s = "";
+  /* Small symmetric ranges (±2%) starve a 3-tick ask down to zero labels. */
+  const yt = niceScale(bot, top, 5);
+  for (const v of yt.values){
+    if (v < bot || v > top || v === 0) continue;
+    s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`
+       + `<text x="${W-mr+5}" y="${(Y(v)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">${v > 0 ? "+" : ""}${v.toFixed(yt.decimals)}%</text>`;
+  }
+  const plotW = W - ml - mr, slot = plotW / 12, bw = Math.min(20, slot * 0.62), r = 3;
+  const LETTER = ["J","F","M","A","M","J","J","A","S","O","N","D"];
+  (season || []).forEach(row => {
+    const cx = ml + slot * (row.m - 0.5), x = cx - bw / 2;
+    const cur = row.m === month;
+    s += `<text x="${cx.toFixed(1)}" y="${H-7}" font-size="9.5" font-weight="${cur ? 700 : 400}" fill="${cur ? "var(--ink)" : "var(--ink-3)"}" text-anchor="middle" font-family="IBM Plex Mono,monospace">${LETTER[row.m-1]}</text>`;
+    if (row.r == null) return;
+    const v = row.r, col = v >= 0 ? "var(--up)" : "var(--down)";
+    const yv = Y(v), h = Math.max(Math.abs(zero - yv), r);
+    const bar = v >= 0
+      ? `M${x} ${zero} L${x} ${(zero-h+r).toFixed(1)} Q${x} ${(zero-h).toFixed(1)} ${x+r} ${(zero-h).toFixed(1)} L${(x+bw-r).toFixed(1)} ${(zero-h).toFixed(1)} Q${(x+bw).toFixed(1)} ${(zero-h).toFixed(1)} ${(x+bw).toFixed(1)} ${(zero-h+r).toFixed(1)} L${(x+bw).toFixed(1)} ${zero} Z`
+      : `M${x} ${zero} L${x} ${(zero+h-r).toFixed(1)} Q${x} ${(zero+h).toFixed(1)} ${x+r} ${(zero+h).toFixed(1)} L${(x+bw-r).toFixed(1)} ${(zero+h).toFixed(1)} Q${(x+bw).toFixed(1)} ${(zero+h).toFixed(1)} ${(x+bw).toFixed(1)} ${(zero+h-r).toFixed(1)} L${(x+bw).toFixed(1)} ${zero} Z`;
+    s += `<path d="${bar}" fill="${col}"${cur ? "" : ` opacity=".35"`}></path>`;
+    if (cur)
+      s += `<text x="${cx.toFixed(1)}" y="${(v >= 0 ? yv - 5 : yv + 11).toFixed(1)}" font-size="10" font-weight="600" fill="var(--ink)" text-anchor="middle" stroke="var(--sunk)" stroke-width="3" paint-order="stroke" font-family="IBM Plex Mono,monospace">${v > 0 ? "+" : ""}${v.toFixed(1)}%</text>`;
+  });
+  s += `<line x1="${ml}" x2="${W-mr}" y1="${zero.toFixed(1)}" y2="${zero.toFixed(1)}" stroke="var(--rule)" stroke-width="1.2"></line>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average return by calendar month">${s}</svg>`;
+}
+
+/** Quarterly revenue from SEC filings, last eight quarters. */
+function revenueChart(rev, tone){
+  const rows = (rev || []).filter(x => x && x.r > 0).slice(-8);
+  if (rows.length < 4) return null;
+  const W = 470, H = 168, ml = 8, mr = 52, mt = 16, mb = 24;
+  const col = tone === "down" ? "var(--down)" : "var(--accent)";
+  const top = Math.max(...rows.map(x => x.r)) * 1.15;
+  const Y = v => mt + (H - mt - mb) * (1 - v / top);
+  const zero = Y(0);
+  let s = "";
+  const yt = niceScale(0, top, 4);
+  for (const v of yt.values){
+    if (v <= 0 || v > top) continue;
+    s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`
+       + `<text x="${W-mr+5}" y="${(Y(v)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">${fmtRev(v)}</text>`;
+  }
+  const plotW = W - ml - mr, slot = plotW / rows.length, bw = Math.min(24, slot * 0.55), r = 4;
+  rows.forEach((row, i) => {
+    const cx = ml + slot * (i + 0.5), x = cx - bw / 2;
+    const yv = Y(row.r), h = Math.max(zero - yv, r);
+    s += `<path d="M${x.toFixed(1)} ${zero} L${x.toFixed(1)} ${(yv+r).toFixed(1)} Q${x.toFixed(1)} ${yv.toFixed(1)} ${(x+r).toFixed(1)} ${yv.toFixed(1)} L${(x+bw-r).toFixed(1)} ${yv.toFixed(1)} Q${(x+bw).toFixed(1)} ${yv.toFixed(1)} ${(x+bw).toFixed(1)} ${(yv+r).toFixed(1)} L${(x+bw).toFixed(1)} ${zero} Z" fill="${col}"${i === rows.length - 1 ? "" : ` opacity=".55"`}></path>`;
+    const q = row.e ? `Q${Math.floor((+row.e.slice(5,7) - 1) / 3) + 1}’${row.e.slice(2,4)}` : "";
+    if (i === 0 || i === rows.length - 1 || i === Math.floor(rows.length / 2))
+      s += `<text x="${cx.toFixed(1)}" y="${H-7}" font-size="9" fill="var(--ink-3)" text-anchor="middle" font-family="IBM Plex Mono,monospace">${q}</text>`;
+    if (i === rows.length - 1)
+      s += `<text x="${cx.toFixed(1)}" y="${(yv-5).toFixed(1)}" font-size="10" font-weight="600" fill="var(--ink)" text-anchor="middle" stroke="var(--sunk)" stroke-width="3" paint-order="stroke" font-family="IBM Plex Mono,monospace">${fmtRev(row.r)}</text>`;
+  });
+  s += `<line x1="${ml}" x2="${W-mr}" y1="${zero}" y2="${zero}" stroke="var(--rule)" stroke-width="1"></line>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Revenue by quarter">${s}</svg>`;
+}
+
+/** Who on the Street says what: one row per house, dot at its target,
+    the scan price as a reference line through the lanes. */
+function targetChart(rowsIn, range, price){
+  let rows = (rowsIn || []).filter(t => t && t.target > 0).slice(0, 5);
+  if (!rows.length && range)
+    rows = [{ house: "Low", target: range.low },
+            { house: "Median", target: range.median || range.consensus },
+            { house: "High", target: range.high }]
+      .filter(t => t.target > 0);
+  if (!rows.length || !price) return null;
+  const W = 470, H = 168, mt = 22, mb = 8, houseW = 128, valueW = 86, ml = 8;
+  const laneX0 = ml + houseW, laneX1 = W - valueW;
+  const lo = Math.min(price, ...rows.map(t => t.target)) * 0.96;
+  const hi = Math.max(price, ...rows.map(t => t.target)) * 1.04;
+  const X = v => laneX0 + (laneX1 - laneX0) * (v - lo) / (hi - lo || 1);
+  const rowH = Math.min(28, (H - mt - mb) / rows.length);
+  let s = "";
+  // the reference: where the stock was when the scan ran
+  const px = X(price);
+  s += `<line x1="${px.toFixed(1)}" x2="${px.toFixed(1)}" y1="${mt - 4}" y2="${(mt + rowH * rows.length).toFixed(1)}" stroke="var(--ink-3)" stroke-width="1.2" opacity=".55"></line>`
+     + `<text x="${px.toFixed(1)}" y="${mt - 9}" font-size="9.5" fill="var(--ink-3)" text-anchor="middle" font-family="IBM Plex Mono,monospace">at scan $${price.toFixed(0)}</text>`;
+  rows.forEach((t, i) => {
+    const cy = mt + rowH * (i + 0.5);
+    const col = t.target >= price ? "var(--up)" : "var(--down)";
+    const tx = X(t.target);
+    const house = String(t.house || t.analyst || "—").slice(0, 20);
+    s += `<line x1="${laneX0}" x2="${laneX1}" y1="${cy.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`
+       + `<text x="${ml}" y="${(cy+3.5).toFixed(1)}" font-size="10.5" fill="var(--ink-2)">${esc(house)}</text>`
+       + `<line x1="${px.toFixed(1)}" x2="${tx.toFixed(1)}" y1="${cy.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${col}" stroke-width="2" opacity=".45"></line>`
+       + `<circle cx="${tx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4" fill="${col}" stroke="var(--sunk)" stroke-width="2"></circle>`
+       + `<text x="${W - ml}" y="${(cy+3.5).toFixed(1)}" font-size="10" text-anchor="end" font-family="IBM Plex Mono,monospace"><tspan font-weight="600" fill="var(--ink)">$${t.target.toFixed(0)}</tspan>${t.d ? `<tspan fill="var(--ink-3)"> · ${esc(shortDate(t.d))}</tspan>` : ""}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Wall Street price targets">${s}</svg>`;
+}
+
+/** The company's own P/E record against its index peers' median. */
+function peChart(hist, peer, own, tone){
+  const pts = (hist || []).filter(p => p && p.pe > 0);
+  const W = 470, H = 168, ml = 8, mr = 52, mt = 16, mb = 12;
+  if (pts.length < 8) return peBars(own, peer, tone);
+  const vals = pts.map(p => p.pe).concat(peer ? [peer] : []);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = (hi - lo) * 0.08 || 2;
+  const y0 = Math.max(0, lo - pad), y1 = hi + pad;
+  const X = i => ml + (W - ml - mr) * i / (pts.length - 1);
+  const Y = v => mt + (H - mt - mb) * (1 - (v - y0) / (y1 - y0));
+  const col = tone === "down" ? "var(--down)" : "var(--accent)";
+  let s = "";
+  const last = pts[pts.length - 1];
+  const lyv = Y(last.pe);
+  const peerY = peer ? Y(peer) : null;
+  // The endpoint label dodges the peer label when they meet; its final
+  // baseline is decided here so tick labels can stay out of both.
+  const endLabelY = lyv + (peerY != null && Math.abs(lyv - peerY) < 12
+    ? (lyv < peerY ? -6 : 12) : 3.2);
+  const yt = niceScale(lo, hi, 3);
+  const taken = [peerY, endLabelY].filter(v => v != null);
+  for (const v of yt.values){
+    if (v < y0 || v > y1) continue;
+    s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`;
+    if (taken.every(t => Math.abs(t - Y(v)) > 13))
+      s += `<text x="${W-mr+5}" y="${(Y(v)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">${v.toFixed(yt.decimals)}</text>`;
+  }
+  if (peer){
+    s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(peer).toFixed(1)}" y2="${Y(peer).toFixed(1)}" stroke="var(--ink-3)" stroke-width="1.4" opacity=".6"></line>`
+       + `<text x="${W-mr+5}" y="${(Y(peer)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">Peers ${peer.toFixed(1)}</text>`;
+  }
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(p.pe).toFixed(1)}`).join(" ");
+  s += `<path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"></path>`;
+  const lx = X(pts.length - 1);
+  s += `<circle cx="${lx.toFixed(1)}" cy="${lyv.toFixed(1)}" r="3" fill="${col}"></circle>`
+     + `<text x="${(W-mr+5).toFixed(1)}" y="${endLabelY.toFixed(1)}" font-size="9.5" font-weight="600" fill="${col}" font-family="IBM Plex Mono,monospace">${last.pe.toFixed(1)}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="P/E against its own record and index peers">${s}</svg>`;
+}
+
+function spark(series, side){
+  const pts = (series || []).slice(-27).map(p => p.c).filter(c => c != null);
+  if (pts.length < 5) return "";
+  const W = 74, H = 24, lo = Math.min(...pts), hi = Math.max(...pts);
+  const X = i => 2 + (W - 4) * i / (pts.length - 1);
+  const Y = v => H - 3 - (v - lo) / (hi - lo || 1) * (H - 6);
+  const up = pts[pts.length-1] >= pts[0];
+  const col = `var(${up ? "--up" : "--down"})`;
+  const d = pts.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join(" ");
+  return `<svg viewBox="0 0 ${W} ${H}" width="74" height="24"><path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round" opacity=".85"></path><circle cx="${X(pts.length-1)}" cy="${Y(pts[pts.length-1])}" r="2.2" fill="${col}"></circle></svg>`;
+}
+
+/* The weighting behind every score, shown on hover/focus of the number. */
+const WEIGHTS = [["Price vs own history", 25], ["Smart money", 20],
+                 ["Valuation vs peers", 15], ["Fundamentals", 15],
+                 ["The Street", 15], ["Momentum & season", 10]];
+const WEIGHTS_HTML = `<span class="wgt" role="tooltip">
+  <h5>How the score is weighted</h5>
+  ${WEIGHTS.map(([l, w]) => `<span class="wr"><span>${l}</span><b>${w}%</b></span>`).join("")}
+  <p>Each family is scored 0–100 across the universe, then blended by these
+     weights. A family with no data behind it scores a neutral 50 and cannot
+     count toward conviction. A screen over public data by fixed rules — not
+     investment advice.</p></span>`;
+
+/* ---- slides ------------------------------------------------------------- */
+
+const barColour = v => v >= 80 ? "var(--up)" : v >= 60 ? "var(--accent)" : "var(--ink-3)";
+const sellBarColour = v => v >= 80 ? "var(--down)" : v >= 60 ? "var(--accent)" : "var(--ink-3)";
+
+function convLine(idea){
+  const ev = idea.evidence || {};
+  const strong = Object.entries(idea.families || {})
+    .filter(([f, v]) => v >= 80 && !(ev.thin || []).includes(f)).length;
+  if (idea.side === "SELL"){
+    const anchor = (ev.peOwnPct || 0) >= 88 ? "own-history valuation"
+      : (ev.insiderSellers || 0) >= 3 ? "insider selling" : "news pile-up";
+    return `Sell anchor: ${anchor} · ${strong} of 6 families ≥ 80`;
+  }
+  const ei = (ev.congress || []).length ? "Event-driven buy · " :
+    (ev.insiderBuyers || 0) >= 3 ? "Event-driven buy · " : "";
+  return `${ei}${strong} of 6 families ≥ 80`;
+}
+
+function slide(idea, idx, total){
+  const ev = idea.evidence || {};
+  const sell = idea.side === "SELL";
+  const tone = sell ? "down" : "up";
+  const eyebrow = idea.isPick
+    ? `<div class="eyebrow today">Today’s pick</div>`
+    : `<div class="eyebrow rank">${sell ? "Sell" : "Buy"} candidate · rank ${idea.rank}</div>`;
+  const fams = Object.entries(idea.families || {})
+    .sort((a, b) => b[1] - a[1]);
+  const colour = sell ? sellBarColour : barColour;
+  const famHtml = fams.map(([f, v]) => {
+    const thin = (ev.thin || []).includes(f);
+    return `<div class="fam${thin ? " thin" : ""}"><div class="fr"><span>${FAMILY_LABEL[f] || f}${thin ? " · thin data" : ""}</span><b>${thin ? "—" : v}</b></div>
+      <div class="bar2"><i style="width:${thin ? 0 : v}%;background:${colour(v)}"></i></div></div>`;
+  }).join("");
+  const gates = (idea.gates || []).map(g =>
+    `<div class="gate"><span class="ok">✓</span><span>${esc(g.l)}</span></div>`).join("");
+  const chips = (ev.chips || []).map(c =>
+    `<span class="chip"><span class="d ${c.t === "up" ? "up" : c.t === "down" ? "down" : "mut"}"></span>${esc(c.l)} <b>${esc(c.v)}</b></span>`).join("");
+  const toneKey = sell ? "down" : "up";
+  // Days stored before marks existed carry only congress rows — synthesise.
+  const marks = ev.marks || (ev.congress || []).map(m => ({ d: m.d, s: "buy",
+    l: `${(m.person || "Congress").split(" ").slice(-1)[0]} ~${money(m.amt || 0)}` }));
+  const price = priceChart(ev.priceSeries, marks, toneKey);
+  // The chart backs the sentence: the scan names it when its headline made a
+  // specific claim. Otherwise fall to the strongest family with data — which
+  // is also what days stored before `lead` existed still do. Smart money is
+  // skipped here because the price chart beside it already carries the flags.
+  const famsRanked = Object.entries(idea.families || {})
+    .filter(([f]) => !(ev.thin || []).includes(f) && f !== "smart")
+    .sort((a, b) => b[1] - a[1]);
+  const named = { drawdown: "hist", ma: "hist-ma", seasonality: "mom",
+                  targets: "street", revenue: "fund", pe: "val" }[ev.lead];
+  const lead = named || (famsRanked.length ? famsRanked[0][0] : "val");
+  let second = null, secondTitle = "";
+  if (lead === "hist-ma"){
+    second = maChart(ev.maSeries, toneKey);
+    secondTitle = "Price vs 50- &amp; 200-day";
+  } else if (lead === "hist"){
+    second = drawdownChart(ev.ddSeries, toneKey);
+    secondTitle = "Drawdown from 10-year high";
+    if (!second){                       // too little history to argue rarity
+      second = maChart(ev.maSeries, toneKey);
+      secondTitle = "Price vs 50- &amp; 200-day";
+    }
+  } else if (lead === "mom"){
+    second = seasonalityChart(ev.seasonality, MONTH);
+    secondTitle = "Avg return by month, 10 years";
+  } else if (lead === "street"){
+    second = targetChart(ev.streetTargets, ev.targetRange, +idea.price);
+    secondTitle = "Wall Street price targets";
+  } else if (lead === "fund"){
+    second = revenueChart(ev.revSeries, toneKey);
+    secondTitle = "Revenue by quarter";
+  }
+  if (!second){
+    second = peChart(ev.peHistory, ev.peerPe, ev.ownPe, toneKey);
+    secondTitle = "P/E vs its record &amp; peers";
+  }
+  const result = idea.resultPct != null
+    ? `next session <b class="${(sell ? -idea.resultPct : idea.resultPct) >= 0 ? "up" : "down"}">${idea.resultPct >= 0 ? "+" : ""}${idea.resultPct.toFixed(1)}%</b>`
+    : "price at the scan";
+  const url = `company.html?t=${encodeURIComponent(idea.symbol)}&src=alpha_page`;
+  return `<div class="slide" role="group" aria-label="${esc(idea.symbol)}, ${idx+1} of ${total}"><div class="pick">
+    <div class="pick-main">
+      ${eyebrow}
+      <div class="idrow">
+        <span class="dot" data-logo="${esc(idea.symbol)}" style="background:${avatarColour(idea.symbol)}">${esc(idea.symbol.slice(0, 2))}</span>
+        <span class="nm"><b><a href="${url}">${esc(idea.symbol)}</a> <span class="side-in ${tone}">${sell ? "SELL" : "BUY"}</span></b>
+          <span>${esc(ev.industry || "")}</span></span>
+        <span class="px"><div class="p">$${(+idea.price).toFixed(2)}</div><div class="c">${result}</div></span>
+      </div>
+      <p class="case">${esc(idea.headline || "")}</p>
+      <div class="charts">
+        <div class="ch"><h4>Price, 3 years <a href="${url}">full chart →</a></h4>
+          ${price || `<div class="empty">price history arrives with the next refresh</div>`}</div>
+        <div class="ch"><h4>${secondTitle} <a href="${url}">company page →</a></h4>
+          ${second || `<div class="empty">no P/E on record</div>`}</div>
+      </div>
+      <div class="chips">${chips}</div>
+    </div>
+    <aside class="rail">
+      <h3>Alpha score</h3>
+      <span class="scorewrap" tabindex="0" role="button"
+            aria-label="Alpha score ${idea.score} of 100. How it is weighted.">
+        <span class="big ${sell ? "down" : ""}">${idea.score}<small> / 100</small></span>
+        ${WEIGHTS_HTML}
+      </span>
+      <div class="conv">${esc(convLine(idea))}</div>
+      ${famHtml}
+      ${gates}
+    </aside>
+  </div></div>`;
+}
+
+/* ---- candidate rows ------------------------------------------------------ */
+
+function candRow(idea, i){
+  const ev = idea.evidence || {};
+  // Lead with a chip that argues the row's own side; a congress buy is a
+  // strange headline for a sell even when it is true.
+  const want = idea.side === "SELL" ? "down" : "up";
+  const chip = (ev.chips || []).find(c => c.t === want) || (ev.chips || [])[0];
+  const why = chip ? `${chip.l} ${chip.v}` : (idea.headline || "").slice(0, 60);
+  const fams = Object.entries(idea.families || {})
+    .filter(([f]) => !(ev.thin || []).includes(f)).sort((a, b) => b[1] - a[1]);
+  const tag = fams.length ? (FAMILY_LABEL[fams[0][0]] || fams[0][0]) : "";
+  const sell = idea.side === "SELL";
+  return `<a class="cand" data-i="${i}">
+    <span class="dot" data-logo="${esc(idea.symbol)}" style="background:${avatarColour(idea.symbol)}">${esc(idea.symbol.slice(0, 2))}</span>
+    <span class="nm"><b>${esc(idea.symbol)}</b><span>${esc(ev.industry || "")}</span></span>
+    <span class="why">${esc(why)}<span class="tagline ${sell ? "down" : "up"}">${esc(tag)}</span></span>
+    ${spark(ev.priceSeries, idea.side)}
+    <span class="sc ${sell ? "down" : ""}">${idea.score}</span></a>`;
+}
+
+/* ---- carousel ------------------------------------------------------------ */
+
+let IDEAS = [];
+let cur = 0;
+let MONTH = new Date().getMonth() + 1;
+
+/** Fit the carousel to the slide on screen. Re-run on resize and whenever the
+    active slide reflows (late fonts, a hydrated logo), so the panel never
+    carries another slide's height. */
+let slideRO = null;
+function fitHero(){
+  const slides = document.getElementById("a-slides");
+  const clip = slides && slides.parentElement;
+  const active = slides && slides.children[cur];
+  if (!clip || !active) return;
+  clip.style.height = active.offsetHeight + "px";
+  if (window.ResizeObserver){
+    if (!slideRO) slideRO = new ResizeObserver(() => {
+      const el = document.getElementById("a-slides").children[cur];
+      if (el) clip.style.height = el.offsetHeight + "px";
+    });
+    slideRO.disconnect();
+    slideRO.observe(active);
+  }
+}
+addEventListener("resize", fitHero);
+
+function go(i, scroll){
+  if (!IDEAS.length) return;
+  cur = (i + IDEAS.length) % IDEAS.length;
+  document.getElementById("a-slides").style.transform = `translateX(-${cur * 100}%)`;
+  fitHero();
+  document.querySelectorAll("#a-dots button").forEach((b, j) =>
+    b.classList.toggle("on", j === cur));
+  const cnt = document.getElementById("a-cnt");
+  if (cnt) cnt.textContent = `${cur + 1} / ${IDEAS.length} · ${IDEAS[cur].symbol}`;
+  if (scroll){
+    const y = document.getElementById("a-hero").getBoundingClientRect().top
+      + window.scrollY - 68;
+    window.scrollTo({ top: y, behavior: "smooth" });
+  }
+}
+
+function renderDay(payload, track){
+  const ideas = (payload || {}).ideas || [];
+  const slides = document.getElementById("a-slides");
+  if (!ideas.length){
+    slides.innerHTML = `<div class="note" style="width:100%">The first scan runs before
+      the next trading open — the worker scores the whole universe each morning and the
+      day's ideas land here.</div>`;
+    return;
+  }
+  // pick first, then buys by rank, then sells by rank
+  IDEAS = ideas.slice().sort((a, b) =>
+    (b.isPick - a.isPick)
+    || (a.side === b.side ? a.rank - b.rank : (a.side === "BUY" ? -1 : 1)));
+
+  MONTH = +(payload.day || "").slice(5, 7) || MONTH;
+  document.getElementById("a-meta").innerHTML =
+    `S&amp;P 500 + Nasdaq-100 · scanned before the open · ${fmtDay(payload.day)}`;
+
+  slides.innerHTML = IDEAS.map((d, i) => slide(d, i, IDEAS.length)).join("");
+  const ctrl = document.getElementById("a-ctrl");
+  ctrl.hidden = IDEAS.length < 2;
+  document.getElementById("a-dots").innerHTML = IDEAS.map((d, i) =>
+    `<button data-i="${i}" aria-label="Show ${esc(d.symbol)}"></button>`).join("")
+    + `<span class="cnt" id="a-cnt"></span>`;
+  document.querySelectorAll("#a-dots button").forEach(b =>
+    b.onclick = () => go(+b.dataset.i));
+  document.getElementById("a-prev").onclick = () => go(cur - 1);
+  document.getElementById("a-next").onclick = () => go(cur + 1);
+  addEventListener("keydown", e => {
+    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (e.key === "ArrowLeft") go(cur - 1);
+    if (e.key === "ArrowRight") go(cur + 1);
+  });
+  go(0);
+
+  const buys = IDEAS.map((d, i) => [d, i]).filter(([d]) => d.side === "BUY" && !d.isPick);
+  const sells = IDEAS.map((d, i) => [d, i]).filter(([d]) => d.side === "SELL" && !d.isPick);
+  document.getElementById("a-buys").innerHTML = buys.length
+    ? buys.map(([d, i]) => candRow(d, i)).join("")
+    : `<div class="note">No buy cleared the gates in this run.</div>`;
+  document.getElementById("a-sells").innerHTML = sells.length
+    ? sells.map(([d, i]) => candRow(d, i)).join("")
+    : `<div class="note">No sell found an anchor in this run.</div>`;
+  document.getElementById("a-cands").hidden = false;
+  document.getElementById("alphaday").hidden = false;
+  document.querySelectorAll("#alphaday .cand").forEach(el =>
+    el.onclick = () => { go(+el.dataset.i, true); GA.track("alpha_candidate_open"); });
+
+  const rows = (track || []).filter(t => t.day !== payload.day).slice(0, 6);
+  if (rows.length){
+    const el = document.getElementById("a-track");
+    el.innerHTML = `<h2>Recent picks</h2>` + rows.map(t => {
+      const pending = t.resultPct == null;
+      const good = t.side === "SELL" ? t.resultPct < 0 : t.resultPct > 0;
+      const cls = pending ? "" : good ? "up" : "down";
+      const val = pending ? "…"
+        : `${t.resultPct >= 0 ? "+" : ""}${(+t.resultPct).toFixed(1)}%`;
+      return `<span class="tr-chip">${dow(t.day)} · <b>${esc(t.symbol)}</b> ${t.side.toLowerCase()} <b class="${cls}">${val}</b></span>`;
+    }).join("");
+    el.hidden = false;
+  }
+
+  if (window.TickerLogos)
+    window.TickerLogos.hydrate(IDEAS.map(d => d.symbol), document);
+}
+
+(async () => {
+  try {
+    const [day, track] = await Promise.all([
+      rpc("get_alpha_day", {}),
+      rpc("get_alpha_track_record", { p_days: 14 }).catch(() => []),
+    ]);
+    renderDay(day, track);
+  } catch (e) {
+    // A page that cannot reach the scan simply does not show the section.
+    console.warn("alpha of the day unavailable:", e.message);
+  }
+})();
+})();
+
 </script>
 <script src="nav.js"></script>
 </body>
