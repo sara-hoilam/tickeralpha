@@ -608,7 +608,9 @@ tbody tr:hover td{background:var(--sunk)}
 .pairrow{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:4px}
 /* Sector-ETF pages have no index-PE history, so the drawdown card stands alone. */
 .pairrow.idx-solo{grid-template-columns:minmax(0,1fr)}
-.pairrow>.panel{margin-bottom:16px}
+/* min-width:0 lets a column shrink below its content, so the head-to-head
+   table scrolls inside its card instead of stretching the page. */
+.pairrow>.panel{margin-bottom:16px;min-width:0}
 
 .lwrap{padding:2px 14px 12px}
 .lchart{width:100%;height:auto;display:block;touch-action:none}
@@ -666,7 +668,7 @@ tbody tr:hover td{background:var(--sunk)}
   padding:10px 12px;font-size:12px;line-height:1.45;color:var(--ink-2)}
 .helptip[hidden]{display:none}
 
-@media (max-width:1000px){ .pairrow{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:1000px){ .pairrow,.pairrow.peer-split{grid-template-columns:minmax(0,1fr)} }
 
 /* ---- section tabs -------------------------------------------------------
    Overview / Financials / Industry / Ownership. One set of panels at every
@@ -980,6 +982,16 @@ button.pchip.addp:hover{border-color:var(--accent);color:var(--accent)}
 .peer-scroll .otab td.co{white-space:nowrap}
 .peer-scroll .otab td.co .tick-logo{vertical-align:-4px;margin-right:6px}
 .peer-verdict{text-align:left;padding:8px 14px 14px;margin:0}
+/* Performance beside Head to head: the table earns the wider column. */
+.pairrow.peer-split{grid-template-columns:1fr 1.55fr}
+/* Floating readout beside the cursor, the market page's price-chart manner. */
+.ltip{position:absolute;z-index:7;pointer-events:none;background:var(--card);
+  border:1px solid var(--rule);border-radius:9px;box-shadow:var(--shadow);
+  padding:7px 11px;font-size:12px;line-height:1.6;white-space:nowrap}
+.ltip i{display:inline-block;width:8px;height:8px;border-radius:2px;
+  margin-right:6px;vertical-align:baseline}
+.ltip .d{font-weight:600;margin-bottom:1px}
+.ltip b{font-weight:600;font-variant-numeric:tabular-nums}
 .pnews-row{display:flex;gap:10px;align-items:baseline;padding:9px 14px;
   border-bottom:1px solid var(--rule-2)}
 .pnews-row:last-child{border-bottom:0}
@@ -1514,7 +1526,7 @@ const HELP = {
   congress:  "Trades in this ticker disclosed by members of Congress under the STOCK Act, over the last 90 days. Members report a band rather than a figure, and may file up to 45 days after the trade, so the disclosure date is not the trade date.",
   houses:    "The most recent action from each institution covering the company. One row per firm, newest first, so a bank that reiterates weekly does not crowd out the rest.",
   peers:     "Who this company is measured against. The set starts from a curated list of well-known rivals, backed by every company filed under the same industry, largest first. Remove any name, add any listed company; the choice is remembered on this device for this ticker.",
-  peerperf:  "One year of weekly closes for the whole peer set, every line rebased to 100 at the start, so the chart shows who actually performed rather than whose share price is bigger. A peer just added may take a moment to fetch its prices.",
+  peerperf:  "Weekly closes for the whole peer set, every line rebased to 100 at the start of the chosen range, so the chart shows who actually performed rather than whose share price is bigger. The range buttons re-base the comparison at the window they open. A peer just added may take a moment to fetch its prices.",
   peertable: "The same yardsticks for every company in the set, this company first. Revenue growth compares the last four filed quarters with the four before. Street upside is the analysts' median target against today's price — a measure of sentiment, not a promise.",
   peerscatter: "Each bubble is one company: trailing P/E across, revenue growth up, bubble sized by market cap. Up and to the left is growth going cheap; down and to the right is a premium price on a slowing business. A company missing either figure is not drawn.",
   peerrev:   "Filed quarterly revenue for each company, indexed to 100 at the first quarter the set shares, so a giant and a challenger fit one chart. This is growth in what the companies actually booked, not share price.",
@@ -1689,7 +1701,10 @@ function linePlot(host, series, opts){
   const labelN = opts.xLabels || 5;
   const every = Math.max(1, Math.round((labs.length - 1) / Math.max(1, labelN - 1)));
   const dateIdx = new Set([0, labs.length - 1]);
-  for (let i = every; i < labs.length - 1; i += every) dateIdx.add(i);
+  // An interior label a step-fraction from the last one prints on top of it
+  // (49 points, every 12: index 48 lands under index 49), so the tail of the
+  // walk stays clear of the endpoint.
+  for (let i = every; i <= labs.length - 1 - Math.ceil(every * 0.6); i += every) dateIdx.add(i);
   const dates = [...dateIdx].sort((a, b) => a - b).map(i => {
     const p = labs[i];
     if (!p) return "";
@@ -1714,26 +1729,51 @@ function linePlot(host, series, opts){
     </div>
     <div class="lread" id="${opts.id}-read">${opts.idle || ""}</div>`;
 
-  // Crosshair reading every series at the hovered point.
+  // Crosshair reading every series at the hovered point. The reading lands
+  // in the caption strip below the plot, or — with floatTip — in a card that
+  // follows the cursor, the way the market page's price chart reads out.
   const svg = host.querySelector("svg");
   const cross = host.querySelector(`#${opts.id}-cross`);
   const xh = cross.querySelector(".xh");
   const read = host.querySelector(`#${opts.id}-read`);
   const hit = host.querySelector(".hit");
+  let tip = null;
+  if (opts.floatTip) {
+    host.style.position = "relative";
+    tip = document.createElement("div");
+    tip.className = "ltip";
+    tip.hidden = true;
+    host.appendChild(tip);
+  }
   hit.addEventListener("pointermove", e => {
     const r = svg.getBoundingClientRect();
     const px = (e.clientX - r.left) / r.width * W;
     const i = Math.max(0, Math.min(n - 1, Math.round((px - ml) / pw * (n - 1))));
     cross.style.display = "";
     xh.setAttribute("x1", x(i)); xh.setAttribute("x2", x(i));
-    read.innerHTML = `<b>${esc(labs[i] ? labs[i].full || labs[i].label : "")}</b>` +
-      series.map(s => s.pts[i] && s.pts[i].v !== null
-        ? ` <span><i style="background:${s.colour}"></i>${esc(s.name)} ${opts.fmtV(s.pts[i].v)}</span>`
-        : "").join("");
+    if (tip) {
+      tip.innerHTML = `<div class="d">${esc(labs[i] ? labs[i].full || labs[i].label : "")}</div>` +
+        series.map(s => s.pts[i] && s.pts[i].v !== null
+          ? `<div><i style="background:${s.colour}"></i>${esc(s.name)} <b>${opts.fmtV(s.pts[i].v)}</b></div>`
+          : "").join("");
+      tip.hidden = false;
+      const hr = host.getBoundingClientRect();
+      let lx = e.clientX - hr.left + 16, ty = e.clientY - hr.top + 14;
+      if (lx + tip.offsetWidth > hr.width - 6) lx = e.clientX - hr.left - tip.offsetWidth - 16;
+      if (ty + tip.offsetHeight > hr.height - 4) ty = e.clientY - hr.top - tip.offsetHeight - 12;
+      tip.style.left = Math.max(2, lx) + "px";
+      tip.style.top = Math.max(2, ty) + "px";
+    } else {
+      read.innerHTML = `<b>${esc(labs[i] ? labs[i].full || labs[i].label : "")}</b>` +
+        series.map(s => s.pts[i] && s.pts[i].v !== null
+          ? ` <span><i style="background:${s.colour}"></i>${esc(s.name)} ${opts.fmtV(s.pts[i].v)}</span>`
+          : "").join("");
+    }
   });
   hit.addEventListener("pointerleave", () => {
     cross.style.display = "none";
-    read.innerHTML = opts.idle || "";
+    if (tip) tip.hidden = true;
+    else read.innerHTML = opts.idle || "";
   });
 }
 
@@ -1826,7 +1866,8 @@ function drawPE(){
    every chart from one call; a peer whose prices are not cached yet is
    warmed through the same request_prices path the page already uses. */
 const PEERS = { symbol: null, sugg: [], chosen: null, custom: false,
-                data: null, news: null, loading: false, warmAsked: {}, poll: 0 };
+                data: null, news: null, loading: false, warmAsked: {}, poll: 0,
+                range: "1Y" };
 const PEER_COLOURS = ["var(--c-blue)", "#e2635a", "#3fa76e", "#d9a400",
                       "#8a63d2", "#2aa7b8", "#c05a2e"];
 const MAX_PEERS = 6;
@@ -1964,6 +2005,17 @@ function wirePeerPicker(){
   }
   const reset = document.getElementById("peer-reset");
   if (reset) reset.onclick = peerResetChoice;
+  const rng = document.getElementById("peer-perf-range");
+  if (rng && rng.dataset.wired !== "1") {
+    rng.dataset.wired = "1";
+    rng.querySelectorAll("[data-r]").forEach(b => b.onclick = () => {
+      if (PEERS.range === b.dataset.r) return;
+      PEERS.range = b.dataset.r;
+      rng.querySelectorAll("[data-r]").forEach(x =>
+        x.setAttribute("aria-pressed", String(x.dataset.r === PEERS.range)));
+      renderPeerPerf();
+    });
+  }
   const chips = document.getElementById("peer-chips");
   if (chips) chips.onclick = ev => {
     const x = ev.target.closest("[data-p]");
@@ -2016,10 +2068,21 @@ function renderPeers(){
   hydratePageLogos();
 }
 
+/** The first date the chosen range admits; null means the whole year. */
+function peerPerfCut(){
+  const d = new Date();
+  if (PEERS.range === "3M") { d.setMonth(d.getMonth() - 3); return d.toISOString().slice(0, 10); }
+  if (PEERS.range === "6M") { d.setMonth(d.getMonth() - 6); return d.toISOString().slice(0, 10); }
+  if (PEERS.range === "YTD") return d.getFullYear() + "-01-01";
+  return null;
+}
+
 function renderPeerPerf(){
   const host = document.getElementById("peer-perf");
   if (!host) return;
-  const rows = (PEERS.data || []).filter(r => (r.closes || []).length >= 2);
+  const cut = peerPerfCut();
+  const clip = r => (r.closes || []).filter(c => !cut || c.d >= cut);
+  const rows = (PEERS.data || []).filter(r => clip(r).length >= 2);
   if (rows.length < 2) {
     host.innerHTML = `<div class="note">${
       PEERS.loading ? `<span class="load"></span> &nbsp;Loading peer prices…`
@@ -2029,10 +2092,10 @@ function renderPeerPerf(){
     return;
   }
   const base = rows.find(r => r.symbol === PEERS.symbol) || rows[0];
-  const dates = base.closes.map(c => c.d);
+  const dates = clip(base).map(c => c.d);
   const series = rows.map((r, i) => {
     const by = {};
-    (r.closes || []).forEach(c => { by[c.d] = c.c; });
+    clip(r).forEach(c => { by[c.d] = c.c; });
     let c0 = null;
     const pts = dates.map(d => {
       const v = by[d];
@@ -2043,10 +2106,11 @@ function renderPeerPerf(){
     return { name: r.symbol, colour: PEER_COLOURS[i % PEER_COLOURS.length], pts };
   });
   linePlot(host, series, {
-    id: "peerperf", fmtY: v => v.toFixed(0),
+    id: "peerperf", H: 320, floatTip: true,
+    fmtY: v => v.toFixed(0),
     fmtV: v => sign(v - 100) + (v - 100).toFixed(1) + "%",
-    alt: "One-year performance of the peer set, rebased to 100",
-    idle: "Weekly closes, rebased to 100 at the start.",
+    alt: "Performance of the peer set, rebased to 100",
+    idle: "Weekly closes, rebased to 100 at the start of the range.",
   });
 }
 
@@ -5420,23 +5484,33 @@ function render(){
         </div>
       </section>
 
-      <section class="card panel">
-        <div class="phead"><div>
-          <h2>Performance, one year ${helpIcon("peerperf")}</h2>
-          <p>Weekly closes, everything rebased to 100</p>
-        </div></div>
-        <div class="lwrap" id="peer-perf"><div class="note">
-          <span class="load"></span> &nbsp;Loading peer prices…</div></div>
-      </section>
+      <div class="pairrow peer-split">
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>Performance ${helpIcon("peerperf")}</h2>
+            <p>Weekly closes, rebased to 100</p>
+          </div>
+          <div class="phead-tools">
+            <div class="ranges" id="peer-perf-range" role="group" aria-label="Performance range">
+              <button type="button" data-r="3M" aria-pressed="false">3M</button>
+              <button type="button" data-r="6M" aria-pressed="false">6M</button>
+              <button type="button" data-r="YTD" aria-pressed="false">YTD</button>
+              <button type="button" data-r="1Y" aria-pressed="true">1Y</button>
+            </div>
+          </div></div>
+          <div class="lwrap" id="peer-perf"><div class="note">
+            <span class="load"></span> &nbsp;Loading peer prices…</div></div>
+        </section>
 
-      <section class="card panel">
-        <div class="phead"><div>
-          <h2>Head to head ${helpIcon("peertable")}</h2>
-          <p>The company first, then its peers by size</p>
-        </div></div>
-        <div class="peer-scroll" id="peer-table"></div>
-        <p class="note peer-verdict" id="peer-verdict" hidden></p>
-      </section>
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>Head to head ${helpIcon("peertable")}</h2>
+            <p>The company first, then its peers by size</p>
+          </div></div>
+          <div class="peer-scroll" id="peer-table"></div>
+          <p class="note peer-verdict" id="peer-verdict" hidden></p>
+        </section>
+      </div>
 
       <div class="pairrow">
         <section class="card panel">
