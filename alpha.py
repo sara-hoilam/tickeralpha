@@ -376,6 +376,11 @@ def digest(r: dict, today: dt.date) -> dict | None:
         "ext_pct": ext_pct,
         "pe_own_pct": _pe_own_pct(r.get("peHistory"), q.get("pe")),
         "pe_hist": r.get("peHistory") or [],
+        "ins_trades": r.get("insiderTrades") or [],
+        "street_rows": r.get("analystTargets") or [],
+        "target_range": (r.get("analyst") or {}).get("target"),
+        "monthly_raw": r.get("monthly") or [],
+        "rev_q": r.get("revenue") or [],
         "cg_amt": cg_recent_amt, "cg_members": len(cg_people),
         "cg_sell_amt": cg_sell_amt, "cg_marks": cg_marks[:4],
         "ins_cluster_buy": buyers >= 3 or (buyers >= 2 and buy_amt >= 2e6),
@@ -590,12 +595,68 @@ def fill_history(shortlist: list[dict]) -> dict[str, list]:
     return have
 
 
+
+def _dd_series(closes: list, years: float = 3.0) -> list[dict] | None:
+    """Weekly drawdown-from-the-decade-high over the last `years`, in percent
+    (negative). Computed against the running max of the FULL stored series, so
+    the endpoint agrees with the "off its high" chip rather than with whatever
+    high happens to fall inside the chart window."""
+    pts = [(c.get("d"), c.get("c")) for c in (closes or [])
+           if c.get("d") and c.get("c")]
+    pts.sort()
+    if len(pts) < 250:
+        return None
+    high = 0.0
+    dd = []
+    for d, c in pts:
+        high = max(high, c)
+        dd.append((d, -100.0 * (1.0 - c / high)))
+    cut = (dt.date.today() - dt.timedelta(days=int(365.25 * years))).isoformat()
+    by_week: dict[str, tuple] = {}
+    for d, v in dd:
+        if d < cut:
+            continue
+        y, w, _ = dt.date.fromisoformat(d).isocalendar()
+        by_week[f"{y}-{w:02d}"] = (d, v)
+    out = [{"d": d, "v": round(v, 1)} for d, v in
+           (by_week[k] for k in sorted(by_week))]
+    return out if len(out) > 20 else None
+
+
+def _seasonality(monthly: list) -> list[dict] | None:
+    """Average calendar-month return across the stored years, one row per
+    month, in percent. None when there are not ~3 years of months to average."""
+    closes = [(m.get("d"), m.get("c")) for m in (monthly or [])
+              if m.get("d") and m.get("c")]
+    closes.sort()
+    if len(closes) < 36:
+        return None
+    by_month: dict[int, list[float]] = {m: [] for m in range(1, 13)}
+    for i in range(1, len(closes)):
+        try:
+            m = int(closes[i][0][5:7])
+            if closes[i - 1][1]:
+                by_month[m].append(closes[i][1] / closes[i - 1][1] - 1)
+        except (ValueError, TypeError, ZeroDivisionError):
+            continue
+    out = []
+    for m in range(1, 13):
+        rets = by_month[m]
+        out.append({"m": m,
+                    "r": round(100.0 * sum(rets) / len(rets), 2) if rets else None})
+    return out
+
+
 # ---------------------------------------------------------------------------
 # The story: chips, headline, gates for the page
 # ---------------------------------------------------------------------------
 
 def _fmt_musd(v: float) -> str:
-    return f"${v / 1e6:.1f}M" if v < 1e9 else f"${v / 1e9:.1f}B"
+    if v >= 1e9:
+        return f"${v / 1e9:.1f}B"
+    if v >= 1e6:
+        return f"${v / 1e6:.1f}M"
+    return f"${max(v, 0) / 1e3:.0f}K"
 
 
 def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
@@ -618,8 +679,9 @@ def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
         chips.append({"t": "up" if not sell else "mut", "l": "Off its high",
                       "v": f"−{dds['dd'] * 100:.0f}%"})
         if not sell and dds["rarity"] >= 80:
+            pct = 100 - dds["rarity"]
             chips.append({"t": "up", "l": "Cheaper only",
-                          "v": f"{max(0.1, 100 - dds['rarity']):.0f}% of days"})
+                          "v": f"{pct:.0f}% of days" if pct >= 1 else "<1% of days"})
     if d.get("pe") and d.get("peer_pe"):
         chips.append({"t": "down" if sell and d["pe"] > d["peer_pe"] else
                       ("up" if d["pe"] < d["peer_pe"] else "mut"),
@@ -652,8 +714,37 @@ def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
         {"l": "Not picked in the last 14 days", "ok": True},
     ] if is_pick else [])
 
+    # Flags for the price chart: congress purchases first (rarer news), then
+    # the idea's own side of the insider tape, largest trades first. Form 4
+    # names come surname-first, so the first token is the readable handle.
+    marks = [{"d": m["d"], "s": "buy",
+              "l": f"{(m['person'] or 'Congress').split()[-1]} "
+                   f"~{_fmt_musd(m['amt'])}"}
+             for m in d["cg_marks"][:2] if m.get("d")]
+    ins_rows = sorted((t for t in d["ins_trades"]
+                       if t.get("filed") and t.get("amount")),
+                      key=lambda t: -abs(t["amount"]))
+    ins_rows.sort(key=lambda t: (t.get("side") == "Sell") != sell)
+    for t in ins_rows[:3 - len(marks)]:
+        selling = t.get("side") == "Sell"
+        who = (t.get("person") or "Insider").split()[0].title()
+        marks.append({"d": t["filed"], "s": "sell" if selling else "buy",
+                      "l": f"{who} {'−' if selling else '+'}"
+                           f"{_fmt_musd(abs(t['amount']))}"})
+
     evidence = {
         "chips": chips[:6],
+        "marks": marks[:3],
+        "ddSeries": _dd_series(closes) if closes else None,
+        "seasonality": _seasonality(d.get("monthly_raw")),
+        "revSeries": [{"e": q["e"], "r": q["r"]}
+                      for q in (d.get("rev_q") or [])
+                      if q.get("e") and q.get("r")][-8:] or None,
+        "streetTargets": [{"house": t.get("house"), "analyst": t.get("analyst"),
+                           "target": t.get("target"), "d": t.get("published")}
+                          for t in d.get("street_rows", [])
+                          if t.get("target")][:5] or None,
+        "targetRange": d.get("target_range"),
         "industry": d["industry"],
         "peerPe": round(d["peer_pe"], 1) if d.get("peer_pe") else None,
         "ownPe": round(d["pe"], 1) if d.get("pe") else None,
@@ -697,9 +788,10 @@ def _headline(d: dict, s: dict, side: str) -> str:
             lead = (f"{d['ins_buyers']} {name} insiders bought their own "
                     f"stock inside a month")
         elif dds and dds["rarity"] >= 90:
-            lead = (f"{name} has been this far below its high on only "
-                    f"{max(0.1, 100 - dds['rarity']):.0f}% of days in "
-                    f"{dds['years']:.0f} years")
+            pct = 100 - dds["rarity"]
+            share = (f"only {pct:.0f}%" if pct >= 1 else "fewer than 1%")
+            lead = (f"{name} has been this far below its high on {share} "
+                    f"of days in {dds['years']:.0f} years")
         else:
             lead = f"{name} screens cheap on several families at once"
         tail = []

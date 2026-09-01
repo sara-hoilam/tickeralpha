@@ -91,13 +91,14 @@ a{color:inherit;text-decoration:none}
 .idrow .nm b{font-size:19px;letter-spacing:-.01em;display:block;line-height:1.2}
 .idrow .nm b a:hover{color:var(--accent)}
 .side-in{font-size:14px;font-weight:700}
-.idrow .nm span{color:var(--ink-3);font-size:12.5px}
+.idrow .nm > span{color:var(--ink-3);font-size:12.5px}
+.side-in.up{color:var(--up)}.side-in.down{color:var(--down)}
 .px{margin-left:auto;text-align:right}
 .px .p{font-family:"IBM Plex Mono",monospace;font-size:19px;font-weight:600}
 .px .c{font-size:11.5px;color:var(--ink-3)}
 .px .c b{font-family:"IBM Plex Mono",monospace;font-weight:600}
 .case{font-family:"IBM Plex Serif",Georgia,serif;font-size:17.5px;line-height:1.42;
-  letter-spacing:-.008em;margin:11px 0 14px;max-width:66ch;text-wrap:balance}
+  letter-spacing:-.008em;margin:11px 0 14px;max-width:74ch}
 .case b{font-weight:600}
 .charts{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .ch{background:var(--sunk);border:1px solid var(--rule-2);border-radius:9px;
@@ -317,7 +318,7 @@ const dow = iso => new Date(iso + "T12:00:00Z")
 /* ---- charts ------------------------------------------------------------- */
 
 /** Three years of weekly closes with congress purchase flags. */
-function priceChart(series, congress, tone){
+function priceChart(series, marks, tone){
   const W = 470, H = 168, ml = 8, mr = 46, mt = 14, mb = 20;
   const pts = (series || []).filter(p => p && p.c != null);
   if (pts.length < 10) return null;
@@ -347,17 +348,18 @@ function priceChart(series, congress, tone){
   const line = pts.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(p.c).toFixed(1)}`).join(" ");
   s += `<path d="${line} L${X(pts.length-1).toFixed(1)} ${(H-mb).toFixed(1)} L${ml} ${(H-mb).toFixed(1)} Z" fill="${col}" opacity=".07"></path>`;
   s += `<path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"></path>`;
-  // congress purchase flags, stacked so labels never collide
-  (congress || []).slice(0, 3).forEach((m, j) => {
+  // trade flags — congress and insiders alike, green for buys and red for
+  // sells, stacked so labels never collide
+  (marks || []).slice(0, 3).forEach((m, j) => {
     let idx = pts.findIndex(p => p.d >= m.d);
     if (idx < 0) idx = pts.length - 1;
+    const mcol = m.s === "sell" ? "var(--down)" : "var(--up)";
     const x = X(idx), ly = mt + 2 + j * 15;
-    const label = `${(m.person || "Congress").split(" ").slice(-1)[0]} ~${money(m.amt || 0)}`;
     const anchor = x > W * 0.6 ? "end" : "start";
     const tx = x > W * 0.6 ? x - 6 : x + 6;
-    s += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${(ly+3).toFixed(1)}" y2="${Y(pts[idx].c).toFixed(1)}" stroke="var(--up)" stroke-width="1" opacity=".55"></line>`
-       + `<circle cx="${x.toFixed(1)}" cy="${Y(pts[idx].c).toFixed(1)}" r="3" fill="var(--up)"></circle>`
-       + `<text x="${tx.toFixed(1)}" y="${ly+7}" font-size="9.5" font-weight="600" fill="var(--up)" text-anchor="${anchor}" stroke="var(--sunk)" stroke-width="3" paint-order="stroke">${esc(label)}</text>`;
+    s += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${(ly+3).toFixed(1)}" y2="${Y(pts[idx].c).toFixed(1)}" stroke="${mcol}" stroke-width="1" opacity=".55"></line>`
+       + `<circle cx="${x.toFixed(1)}" cy="${Y(pts[idx].c).toFixed(1)}" r="3" fill="${mcol}"></circle>`
+       + `<text x="${tx.toFixed(1)}" y="${ly+7}" font-size="9.5" font-weight="600" fill="${mcol}" text-anchor="${anchor}" stroke="var(--sunk)" stroke-width="3" paint-order="stroke">${esc(m.l || "")}</text>`;
   });
   const last = pts[pts.length - 1];
   s += `<circle cx="${X(pts.length-1).toFixed(1)}" cy="${Y(last.c).toFixed(1)}" r="3" fill="${col}"></circle>`;
@@ -401,6 +403,164 @@ function peBars(own, peer, tone){
   s += cap(c1, own) + cap(c2, peer) + foot(c1, "own P/E") + foot(c2, "index peers");
   s += `<line x1="${ml}" x2="${W-mr}" y1="${zero}" y2="${zero}" stroke="var(--rule)" stroke-width="1"></line>`;
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="P/E ${own.toFixed(1)} against index peers ${peer.toFixed(1)}">${s}</svg>`;
+}
+
+
+/* ---- per-family evidence charts ------------------------------------------
+   The second chart follows the idea's strongest family: the drawdown record
+   when price-vs-history leads, the month-by-month seasonal averages when
+   momentum leads, the houses' price targets when the Street leads, the
+   revenue quarters when fundamentals lead, and the P/E comparison otherwise.
+   Each returns null when its data is missing so the caller can fall back. */
+
+const shortDate = iso => {
+  if (!iso) return "";
+  const d = new Date(String(iso).slice(0, 10) + "T12:00:00Z");
+  return isNaN(d) ? "" : d.toLocaleDateString("en-US",
+    { day: "numeric", month: "short", timeZone: "UTC" });
+};
+const fmtRev = v => v >= 1e9 ? `$${(v / 1e9).toFixed(v >= 2e10 ? 0 : 1)}B`
+  : `$${Math.round(v / 1e6)}M`;
+
+/** Drawdown from the 10-year running high, weekly over 3 years. */
+function drawdownChart(series, tone){
+  const pts = (series || []).filter(p => p && p.v != null);
+  if (pts.length < 10) return null;
+  const W = 470, H = 168, ml = 8, mr = 46, mt = 14, mb = 20;
+  const col = tone === "down" ? "var(--down)" : "var(--accent)";
+  const lo = Math.min(...pts.map(p => p.v));
+  const y0 = Math.min(lo * 1.08, -1), y1 = 0;
+  const X = i => ml + (W - ml - mr) * i / (pts.length - 1);
+  const Y = v => mt + (H - mt - mb) * (y1 - v) / (y1 - y0);
+  let s = "";
+  const endY = Y(pts[pts.length - 1].v);
+  const yt = niceScale(0, -y0, 3);
+  for (const t of yt.values){
+    if (t <= 0 || -t < y0) continue;
+    s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(-t).toFixed(1)}" y2="${Y(-t).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`;
+    if (Math.abs(Y(-t) - endY) > 12)
+      s += `<text x="${W-mr+5}" y="${(Y(-t)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">−${t.toFixed(yt.decimals)}%</text>`;
+  }
+  // the zero line is the running high itself
+  s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}" stroke="var(--rule)" stroke-width="1.2"></line>`
+     + `<text x="${W-mr+5}" y="${(Y(0)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">high</text>`;
+  let lastYear = "";
+  pts.forEach((p, i) => {
+    const y = p.d.slice(0, 4);
+    if (y !== lastYear && i > 0){
+      lastYear = y;
+      s += `<text x="${X(i).toFixed(1)}" y="${H-6}" font-size="9.5" fill="var(--ink-3)" text-anchor="middle" font-family="IBM Plex Mono,monospace">${y}</text>`;
+    } else if (i === 0) lastYear = y;
+  });
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(p.v).toFixed(1)}`).join(" ");
+  s += `<path d="${line} L${X(pts.length-1).toFixed(1)} ${Y(0).toFixed(1)} L${ml} ${Y(0).toFixed(1)} Z" fill="${col}" opacity=".07"></path>`
+     + `<path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"></path>`
+     + `<circle cx="${X(pts.length-1).toFixed(1)}" cy="${endY.toFixed(1)}" r="3" fill="${col}"></circle>`
+     + `<text x="${W-mr+5}" y="${(endY+3.2).toFixed(1)}" font-size="9.5" font-weight="600" fill="${col}" font-family="IBM Plex Mono,monospace">${pts[pts.length-1].v.toFixed(0)}%</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Drawdown from the ten-year high">${s}</svg>`;
+}
+
+/** Average return by calendar month across the stored decade. */
+function seasonalityChart(season, month){
+  const rows = (season || []).filter(x => x && x.r != null);
+  if (rows.length < 8) return null;
+  const W = 470, H = 168, ml = 8, mr = 46, mt = 14, mb = 24;
+  const vals = rows.map(x => x.r);
+  const top = Math.max(...vals, 0.4) * 1.2, bot = Math.min(...vals, -0.4) * 1.2;
+  const Y = v => mt + (H - mt - mb) * (top - v) / (top - bot);
+  const zero = Y(0);
+  let s = "";
+  /* Small symmetric ranges (±2%) starve a 3-tick ask down to zero labels. */
+  const yt = niceScale(bot, top, 5);
+  for (const v of yt.values){
+    if (v < bot || v > top || v === 0) continue;
+    s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`
+       + `<text x="${W-mr+5}" y="${(Y(v)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">${v > 0 ? "+" : ""}${v.toFixed(yt.decimals)}%</text>`;
+  }
+  const plotW = W - ml - mr, slot = plotW / 12, bw = Math.min(20, slot * 0.62), r = 3;
+  const LETTER = ["J","F","M","A","M","J","J","A","S","O","N","D"];
+  (season || []).forEach(row => {
+    const cx = ml + slot * (row.m - 0.5), x = cx - bw / 2;
+    const cur = row.m === month;
+    s += `<text x="${cx.toFixed(1)}" y="${H-7}" font-size="9.5" font-weight="${cur ? 700 : 400}" fill="${cur ? "var(--ink)" : "var(--ink-3)"}" text-anchor="middle" font-family="IBM Plex Mono,monospace">${LETTER[row.m-1]}</text>`;
+    if (row.r == null) return;
+    const v = row.r, col = v >= 0 ? "var(--up)" : "var(--down)";
+    const yv = Y(v), h = Math.max(Math.abs(zero - yv), r);
+    const bar = v >= 0
+      ? `M${x} ${zero} L${x} ${(zero-h+r).toFixed(1)} Q${x} ${(zero-h).toFixed(1)} ${x+r} ${(zero-h).toFixed(1)} L${(x+bw-r).toFixed(1)} ${(zero-h).toFixed(1)} Q${(x+bw).toFixed(1)} ${(zero-h).toFixed(1)} ${(x+bw).toFixed(1)} ${(zero-h+r).toFixed(1)} L${(x+bw).toFixed(1)} ${zero} Z`
+      : `M${x} ${zero} L${x} ${(zero+h-r).toFixed(1)} Q${x} ${(zero+h).toFixed(1)} ${x+r} ${(zero+h).toFixed(1)} L${(x+bw-r).toFixed(1)} ${(zero+h).toFixed(1)} Q${(x+bw).toFixed(1)} ${(zero+h).toFixed(1)} ${(x+bw).toFixed(1)} ${(zero+h-r).toFixed(1)} L${(x+bw).toFixed(1)} ${zero} Z`;
+    s += `<path d="${bar}" fill="${col}"${cur ? "" : ` opacity=".35"`}></path>`;
+    if (cur)
+      s += `<text x="${cx.toFixed(1)}" y="${(v >= 0 ? yv - 5 : yv + 11).toFixed(1)}" font-size="10" font-weight="600" fill="var(--ink)" text-anchor="middle" stroke="var(--sunk)" stroke-width="3" paint-order="stroke" font-family="IBM Plex Mono,monospace">${v > 0 ? "+" : ""}${v.toFixed(1)}%</text>`;
+  });
+  s += `<line x1="${ml}" x2="${W-mr}" y1="${zero.toFixed(1)}" y2="${zero.toFixed(1)}" stroke="var(--rule)" stroke-width="1.2"></line>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average return by calendar month">${s}</svg>`;
+}
+
+/** Quarterly revenue from SEC filings, last eight quarters. */
+function revenueChart(rev, tone){
+  const rows = (rev || []).filter(x => x && x.r > 0).slice(-8);
+  if (rows.length < 4) return null;
+  const W = 470, H = 168, ml = 8, mr = 52, mt = 16, mb = 24;
+  const col = tone === "down" ? "var(--down)" : "var(--accent)";
+  const top = Math.max(...rows.map(x => x.r)) * 1.15;
+  const Y = v => mt + (H - mt - mb) * (1 - v / top);
+  const zero = Y(0);
+  let s = "";
+  const yt = niceScale(0, top, 4);
+  for (const v of yt.values){
+    if (v <= 0 || v > top) continue;
+    s += `<line x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`
+       + `<text x="${W-mr+5}" y="${(Y(v)+3.2).toFixed(1)}" font-size="9.5" fill="var(--ink-3)" font-family="IBM Plex Mono,monospace">${fmtRev(v)}</text>`;
+  }
+  const plotW = W - ml - mr, slot = plotW / rows.length, bw = Math.min(24, slot * 0.55), r = 4;
+  rows.forEach((row, i) => {
+    const cx = ml + slot * (i + 0.5), x = cx - bw / 2;
+    const yv = Y(row.r), h = Math.max(zero - yv, r);
+    s += `<path d="M${x.toFixed(1)} ${zero} L${x.toFixed(1)} ${(yv+r).toFixed(1)} Q${x.toFixed(1)} ${yv.toFixed(1)} ${(x+r).toFixed(1)} ${yv.toFixed(1)} L${(x+bw-r).toFixed(1)} ${yv.toFixed(1)} Q${(x+bw).toFixed(1)} ${yv.toFixed(1)} ${(x+bw).toFixed(1)} ${(yv+r).toFixed(1)} L${(x+bw).toFixed(1)} ${zero} Z" fill="${col}"${i === rows.length - 1 ? "" : ` opacity=".55"`}></path>`;
+    const q = row.e ? `Q${Math.floor((+row.e.slice(5,7) - 1) / 3) + 1}’${row.e.slice(2,4)}` : "";
+    if (i === 0 || i === rows.length - 1 || i === Math.floor(rows.length / 2))
+      s += `<text x="${cx.toFixed(1)}" y="${H-7}" font-size="9" fill="var(--ink-3)" text-anchor="middle" font-family="IBM Plex Mono,monospace">${q}</text>`;
+    if (i === rows.length - 1)
+      s += `<text x="${cx.toFixed(1)}" y="${(yv-5).toFixed(1)}" font-size="10" font-weight="600" fill="var(--ink)" text-anchor="middle" stroke="var(--sunk)" stroke-width="3" paint-order="stroke" font-family="IBM Plex Mono,monospace">${fmtRev(row.r)}</text>`;
+  });
+  s += `<line x1="${ml}" x2="${W-mr}" y1="${zero}" y2="${zero}" stroke="var(--rule)" stroke-width="1"></line>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Revenue by quarter">${s}</svg>`;
+}
+
+/** Who on the Street says what: one row per house, dot at its target,
+    the scan price as a reference line through the lanes. */
+function targetChart(rowsIn, range, price){
+  let rows = (rowsIn || []).filter(t => t && t.target > 0).slice(0, 5);
+  if (!rows.length && range)
+    rows = [{ house: "Low", target: range.low },
+            { house: "Median", target: range.median || range.consensus },
+            { house: "High", target: range.high }]
+      .filter(t => t.target > 0);
+  if (!rows.length || !price) return null;
+  const W = 470, H = 168, mt = 22, mb = 8, houseW = 128, valueW = 86, ml = 8;
+  const laneX0 = ml + houseW, laneX1 = W - valueW;
+  const lo = Math.min(price, ...rows.map(t => t.target)) * 0.96;
+  const hi = Math.max(price, ...rows.map(t => t.target)) * 1.04;
+  const X = v => laneX0 + (laneX1 - laneX0) * (v - lo) / (hi - lo || 1);
+  const rowH = Math.min(28, (H - mt - mb) / rows.length);
+  let s = "";
+  // the reference: where the stock was when the scan ran
+  const px = X(price);
+  s += `<line x1="${px.toFixed(1)}" x2="${px.toFixed(1)}" y1="${mt - 4}" y2="${(mt + rowH * rows.length).toFixed(1)}" stroke="var(--ink-3)" stroke-width="1.2" opacity=".55"></line>`
+     + `<text x="${px.toFixed(1)}" y="${mt - 9}" font-size="9.5" fill="var(--ink-3)" text-anchor="middle" font-family="IBM Plex Mono,monospace">at scan $${price.toFixed(0)}</text>`;
+  rows.forEach((t, i) => {
+    const cy = mt + rowH * (i + 0.5);
+    const col = t.target >= price ? "var(--up)" : "var(--down)";
+    const tx = X(t.target);
+    const house = String(t.house || t.analyst || "—").slice(0, 20);
+    s += `<line x1="${laneX0}" x2="${laneX1}" y1="${cy.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"></line>`
+       + `<text x="${ml}" y="${(cy+3.5).toFixed(1)}" font-size="10.5" fill="var(--ink-2)">${esc(house)}</text>`
+       + `<line x1="${px.toFixed(1)}" x2="${tx.toFixed(1)}" y1="${cy.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${col}" stroke-width="2" opacity=".45"></line>`
+       + `<circle cx="${tx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4" fill="${col}" stroke="var(--sunk)" stroke-width="2"></circle>`
+       + `<text x="${W - ml}" y="${(cy+3.5).toFixed(1)}" font-size="10" text-anchor="end" font-family="IBM Plex Mono,monospace"><tspan font-weight="600" fill="var(--ink)">$${t.target.toFixed(0)}</tspan>${t.d ? `<tspan fill="var(--ink-3)"> · ${esc(shortDate(t.d))}</tspan>` : ""}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Wall Street price targets">${s}</svg>`;
 }
 
 /** The company's own P/E record against its index peers' median. */
@@ -493,8 +653,33 @@ function slide(idea, idx, total){
     `<div class="gate"><span class="ok">✓</span><span>${esc(g.l)}</span></div>`).join("");
   const chips = (ev.chips || []).map(c =>
     `<span class="chip"><span class="d ${c.t === "up" ? "up" : c.t === "down" ? "down" : "mut"}"></span>${esc(c.l)} <b>${esc(c.v)}</b></span>`).join("");
-  const price = priceChart(ev.priceSeries, ev.congress, sell ? "down" : "up");
-  const pe = peChart(ev.peHistory, ev.peerPe, ev.ownPe, sell ? "down" : "up");
+  const toneKey = sell ? "down" : "up";
+  // Days stored before marks existed carry only congress rows — synthesise.
+  const marks = ev.marks || (ev.congress || []).map(m => ({ d: m.d, s: "buy",
+    l: `${(m.person || "Congress").split(" ").slice(-1)[0]} ~${money(m.amt || 0)}` }));
+  const price = priceChart(ev.priceSeries, marks, toneKey);
+  // The second chart follows the strongest family with data behind it.
+  const famsRanked = Object.entries(idea.families || {})
+    .filter(([f]) => !(ev.thin || []).includes(f)).sort((a, b) => b[1] - a[1]);
+  const lead = famsRanked.length ? famsRanked[0][0] : "val";
+  let second = null, secondTitle = "";
+  if (lead === "hist"){
+    second = drawdownChart(ev.ddSeries, toneKey);
+    secondTitle = "Drawdown from 10-year high";
+  } else if (lead === "mom"){
+    second = seasonalityChart(ev.seasonality, MONTH);
+    secondTitle = "Avg return by month, 10 years";
+  } else if (lead === "street"){
+    second = targetChart(ev.streetTargets, ev.targetRange, +idea.price);
+    secondTitle = "Wall Street price targets";
+  } else if (lead === "fund"){
+    second = revenueChart(ev.revSeries, toneKey);
+    secondTitle = "Revenue by quarter";
+  }
+  if (!second){
+    second = peChart(ev.peHistory, ev.peerPe, ev.ownPe, toneKey);
+    secondTitle = "P/E vs its record &amp; peers";
+  }
   const result = idea.resultPct != null
     ? `next session <b class="${(sell ? -idea.resultPct : idea.resultPct) >= 0 ? "up" : "down"}">${idea.resultPct >= 0 ? "+" : ""}${idea.resultPct.toFixed(1)}%</b>`
     : "price at the scan";
@@ -512,8 +697,8 @@ function slide(idea, idx, total){
       <div class="charts">
         <div class="ch"><h4>Price, 3 years <a href="${url}">full chart →</a></h4>
           ${price || `<div class="empty">price history arrives with the next refresh</div>`}</div>
-        <div class="ch"><h4>P/E vs its record &amp; peers <a href="${url}">company page →</a></h4>
-          ${pe || `<div class="empty">no P/E on record</div>`}</div>
+        <div class="ch"><h4>${secondTitle} <a href="${url}">company page →</a></h4>
+          ${second || `<div class="empty">no P/E on record</div>`}</div>
       </div>
       <div class="chips">${chips}</div>
     </div>
@@ -552,6 +737,7 @@ function candRow(idea, i){
 
 let IDEAS = [];
 let cur = 0;
+let MONTH = new Date().getMonth() + 1;
 
 /** Fit the carousel to the slide on screen. Re-run on resize and whenever the
     active slide reflows (late fonts, a hydrated logo), so the panel never
@@ -604,6 +790,7 @@ function renderDay(payload, track){
     (b.isPick - a.isPick)
     || (a.side === b.side ? a.rank - b.rank : (a.side === "BUY" ? -1 : 1)));
 
+  MONTH = +(payload.day || "").slice(5, 7) || MONTH;
   document.getElementById("meta").innerHTML =
     `S&amp;P 500 + Nasdaq-100 · scanned before the open · ${fmtDay(payload.day)} · <a href="#method">methodology ↓</a>`;
 
