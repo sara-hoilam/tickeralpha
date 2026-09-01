@@ -1527,8 +1527,8 @@ const HELP = {
   houses:    "The most recent action from each institution covering the company. One row per firm, newest first, so a bank that reiterates weekly does not crowd out the rest.",
   peers:     "Who this company is measured against. The set starts from a curated list of well-known rivals, backed by every company filed under the same industry, largest first. Remove any name, add any listed company; the choice is remembered on this device for this ticker.",
   peerperf:  "Weekly closes for the whole peer set, every line rebased to 100 at the start of the chosen range, so the chart shows who actually performed rather than whose share price is bigger. The range buttons re-base the comparison at the window they open. A peer just added may take a moment to fetch its prices.",
-  peertable: "The same yardsticks for every company in the set, this company first. Revenue growth compares the last four filed quarters with the four before. Street upside is the analysts' median target against today's price — a measure of sentiment, not a promise.",
-  peerscatter: "Each bubble is one company: trailing P/E across, revenue growth up, bubble sized by market cap. Up and to the left is growth going cheap; down and to the right is a premium price on a slowing business. A company missing either figure is not drawn.",
+  peertable: "The same yardsticks for every company in the set, this company first. Revenue growth compares the last four filed quarters with the four before — or, for a company public less than two years, its newest quarter with the same quarter a year earlier. P/E is the market feed's, or one computed from filed diluted EPS where the feed has none; \"n/m\" means the company lost money over the last four filed quarters, so there are no earnings to price. Street upside is the analysts' median target against today's price — a measure of sentiment, not a promise.",
+  peerscatter: "Each bubble is one company: valuation across, revenue growth up, bubble sized by market cap. Up and to the left is growth going cheap; down and to the right is a premium price on a slowing business. P/E cannot place a company that earns nothing, so the P/S button prices the same companies on sales instead — the fairer axis when the set mixes profitable incumbents with loss-making challengers. Whoever is left out is named beneath the chart.",
   peerrev:   "Filed quarterly revenue for each company, indexed to 100 at the first quarter the set shares, so a giant and a challenger fit one chart. This is growth in what the companies actually booked, not share price.",
   peernews:  "The freshest stories tagged with any ticker in the peer set. A competitor's news is often this company's news a quarter early — a rival's terrible earnings can mark weather the whole industry is standing in.",
   drawdown:  "Percent below the index's last all-time high (the running peak in available price history). The pink line sits at 0% on new highs and falls as the index pulls back. Pastel green bands behind the line mark drawdown depths that were reached or exceeded on about 1%, 5%, 10%, 25%, and 50% of trading days over the last 25 years (or as much history as is cached): higher probability bands are lighter green, rarer deep drawdowns are darker. The left axis labels those probabilities; the right axis shows drawdown percent.",
@@ -1867,7 +1867,7 @@ function drawPE(){
    warmed through the same request_prices path the page already uses. */
 const PEERS = { symbol: null, sugg: [], chosen: null, custom: false,
                 data: null, news: null, loading: false, warmAsked: {},
-                poll: 0, polling: false, range: "1Y" };
+                poll: 0, polling: false, range: "1Y", basis: "pe" };
 const PEER_COLOURS = ["var(--c-blue)", "#e2635a", "#3fa76e", "#d9a400",
                       "#8a63d2", "#2aa7b8", "#c05a2e"];
 const MAX_PEERS = 6;
@@ -1891,7 +1891,7 @@ async function loadPeers(){
   if (!sym || !HOSTED || !document.getElementById("peer-chips")) return;
   if (PEERS.symbol === sym && (PEERS.data || PEERS.loading)) {
     renderPeers();
-    warmColdPeers();          // a peer still cold when the tab was left
+    ensurePeerData();          // a peer still cold when the tab was left
     return;
   }
   PEERS.symbol = sym; PEERS.loading = true;
@@ -1926,25 +1926,71 @@ async function refreshPeerData(){
   } catch { if (PEERS.symbol !== sym) return; PEERS.data = []; }
   PEERS.loading = false;
   renderPeers();
-  warmColdPeers();
+  ensurePeerData();
   loadPeerNews();
 }
 
-/** A peer added from search may never have been opened, so its prices are
-    not cached. Ask the worker once per symbol, then poll the compare call
-    until the fetch lands. The worker drains its queue on a 20-second loop
-    and serves other requests first, so two cold peers can take minutes,
-    not seconds: the poll starts eager, relaxes, and holds on for about
-    four minutes. Leaving and re-entering the tab starts it again. */
-function warmColdPeers(){
-  (PEERS.data || [])
-    .filter(r => !r.warm && !PEERS.warmAsked[r.symbol])
-    .forEach(r => {
-      PEERS.warmAsked[r.symbol] = 1;
+/** The newest close anything in the set has, which is as close to "today" as
+    the cache can testify. Comparing against it rather than the wall clock
+    means a weekend or a market holiday does not read as stale data. */
+function peerNewestDay(rows){
+  let best = null;
+  (rows || []).forEach(r => {
+    const c = r.closes || [];
+    const d = c.length ? c[c.length - 1].d : null;
+    if (d && (!best || d > best)) best = d;
+  });
+  return best;
+}
+
+const PEER_STALE_DAYS = 4;
+
+/** A peer whose cached bars stop well before the rest of the set was fetched
+    once and never refreshed -- its line would simply stop mid-chart. */
+function peerPriceStale(r, newest){
+  const c = r.closes || [];
+  if (!c.length) return true;
+  if (!newest) return false;
+  const days = (Date.parse(newest) - Date.parse(c[c.length - 1].d)) / 864e5;
+  return days > PEER_STALE_DAYS;
+}
+
+/** What a peer is still missing, if anything. `filedQuarters` arrives with
+    migration 0077; while the database is behind it, the field is absent and
+    nothing is requested -- an older backend degrades to the old behaviour
+    rather than queueing a backfill for every peer on every render. */
+function peerGaps(r, newest){
+  return {
+    prices: !r.warm || peerPriceStale(r, newest),
+    filings: r.filedQuarters === 0,
+  };
+}
+
+/** Fill in whatever the set is missing. Prices come from the price queue --
+    for a peer never opened, and for one whose cache has gone stale -- and
+    filings from the same SEC backfill queue a first visit to a company uses.
+    Both are drained by the worker on a 20-second loop behind everything else,
+    so this polls: eager at first, relaxing to twelve seconds, holding on for
+    about four minutes. Re-entering the tab starts it again. */
+function ensurePeerData(){
+  const rows = PEERS.data || [];
+  const newest = peerNewestDay(rows);
+  let outstanding = false;
+  rows.forEach(r => {
+    const gaps = peerGaps(r, newest);
+    if (!gaps.prices && !gaps.filings) return;
+    outstanding = true;
+    const asked = PEERS.warmAsked[r.symbol] || (PEERS.warmAsked[r.symbol] = {});
+    if (gaps.prices && !asked.prices) {
+      asked.prices = 1;
       API.requestPrices(r.symbol).catch(() => {});
-    });
-  if (!(PEERS.data || []).some(r => !r.warm)) return;
-  if (PEERS.polling) return;
+    }
+    if (gaps.filings && !asked.filings) {
+      asked.filings = 1;
+      API.requestBackfill(r.symbol).catch(() => {});
+    }
+  });
+  if (!outstanding || PEERS.polling) return;
   PEERS.polling = true;
   let tries = 0;
   const sym = PEERS.symbol;
@@ -1953,11 +1999,15 @@ function warmColdPeers(){
       PEERS.polling = false; return;
     }
     if (tries++ >= 24) { PEERS.polling = false; return; }
-    let rows = null;
-    try { rows = await API.peerCompare([sym, ...PEERS.chosen]); } catch {}
+    let rows2 = null;
+    try { rows2 = await API.peerCompare([sym, ...PEERS.chosen]); } catch {}
     if (PEERS.symbol !== sym) { PEERS.polling = false; return; }
-    if (rows) { PEERS.data = rows; renderPeers(); }
-    if (rows && rows.every(r => r.warm)) { PEERS.polling = false; return; }
+    if (rows2) { PEERS.data = rows2; renderPeers(); }
+    if (rows2) {
+      const day = peerNewestDay(rows2);
+      const g = rows2.some(r => { const x = peerGaps(r, day); return x.prices || x.filings; });
+      if (!g) { PEERS.polling = false; return; }
+    }
     PEERS.poll = setTimeout(tick, tries < 6 ? 5000 : 12000);
   };
   PEERS.poll = setTimeout(tick, 4000);
@@ -2018,6 +2068,17 @@ function wirePeerPicker(){
   }
   const reset = document.getElementById("peer-reset");
   if (reset) reset.onclick = peerResetChoice;
+  const basis = document.getElementById("peer-val-basis");
+  if (basis && basis.dataset.wired !== "1") {
+    basis.dataset.wired = "1";
+    basis.querySelectorAll("[data-b]").forEach(b => b.onclick = () => {
+      if (PEERS.basis === b.dataset.b) return;
+      PEERS.basis = b.dataset.b;
+      basis.querySelectorAll("[data-b]").forEach(x =>
+        x.setAttribute("aria-pressed", String(x.dataset.b === PEERS.basis)));
+      renderPeerScatter();
+    });
+  }
   const rng = document.getElementById("peer-perf-range");
   if (rng && rng.dataset.wired !== "1") {
     rng.dataset.wired = "1";
@@ -2143,11 +2204,50 @@ function renderPeerPerf(){
 /** Four filed quarters against the four before them. */
 function peerRevGrowth(r){
   const q = (r.revenue || []).filter(x => x && x.r > 0);
-  if (q.length < 8) return null;
   const sum = a => a.reduce((t, x) => t + x.r, 0);
-  const last4 = sum(q.slice(-4)), prev4 = sum(q.slice(-8, -4));
-  return prev4 > 0 ? (last4 / prev4 - 1) * 100 : null;
+  if (q.length >= 8) {
+    const last4 = sum(q.slice(-4)), prev4 = sum(q.slice(-8, -4));
+    return prev4 > 0 ? (last4 / prev4 - 1) * 100 : null;
+  }
+  // A company public for barely a year has no prior trailing year to measure
+  // against. Its newest quarter against the same quarter twelve months back
+  // asks the same question of the history that exists, so a recent listing
+  // takes its place on the chart instead of waiting a year for one.
+  if (q.length >= 5) {
+    const last = q[q.length - 1], back = q[q.length - 5];
+    return back.r > 0 ? (last.r / back.r - 1) * 100 : null;
+  }
+  return null;
 }
+
+/** Trailing twelve months of filed revenue -- the denominator for P/S. */
+function peerTtmRevenue(r){
+  const q = (r.revenue || []).filter(x => x && x.r > 0);
+  return q.length >= 4 ? q.slice(-4).reduce((t, x) => t + x.r, 0) : null;
+}
+
+/** Price to earnings, in order of authority: the market feed's own figure,
+    then one formed from the company's filed diluted EPS, and failing both
+    the reason there is none. A company earning nothing has no P/E to find —
+    that is a fact about the company, not a hole in the data, so it comes
+    back marked rather than empty. */
+function peerPE(r){
+  const q = r.quote || {};
+  if (q.pe > 0) return { v: q.pe };
+  if (q.pe < 0) return { loss: true };
+  if (r.epsTtm != null && q.price > 0)
+    return r.epsTtm > 0 ? { v: q.price / r.epsTtm, filed: true } : { loss: true };
+  return {};
+}
+
+/** Market cap over trailing revenue: the valuation a loss-making company can
+    still be measured on, which is most of the point of offering it. */
+function peerPS(r){
+  const rev = peerTtmRevenue(r), cap = r.quote && r.quote.cap;
+  return rev && cap > 0 ? { v: cap / rev } : {};
+}
+
+const peerValuation = r => PEERS.basis === "ps" ? peerPS(r) : peerPE(r);
 
 function renderPeerTable(){
   const host = document.getElementById("peer-table");
@@ -2185,8 +2285,17 @@ function renderPeerTable(){
           r.name ? ` <span style="color:var(--ink-3)">${esc(r.name)}</span>` : ""}${
           r.warm ? "" : ` <span style="color:var(--ink-3)">· fetching…</span>`}</td>
         ${cell(q.cap, v => money(v, 1))}
-        ${cell(q.pe > 0 ? q.pe : null, v => v.toFixed(1))}
-        ${cell(q.divYield > 0 ? q.divYield * 100 : null, v => v.toFixed(2) + "%")}
+        ${(() => {
+          const pe = peerPE(r);
+          if (pe.v != null) return `<td class="num"${pe.filed
+            ? ` title="Computed from filed diluted EPS over the last four quarters"` : ""
+            }>${pe.v.toFixed(1)}</td>`;
+          if (pe.loss) return `<td class="num" title="Loss-making over the last four filed quarters — there are no earnings to price"><span style="color:var(--ink-3)">n/m</span></td>`;
+          return `<td class="num">—</td>`;
+        })()}
+        ${q.divYield > 0 ? `<td class="num">${(q.divYield * 100).toFixed(2)}%</td>`
+          : q.divYield === 0 ? `<td class="num" title="Pays no dividend">0%</td>`
+          : `<td class="num">—</td>`}
         ${cell(peerRevGrowth(r), v => sign(v) + v.toFixed(1) + "%", true)}
         ${cell(yr(r), v => sign(v) + v.toFixed(1) + "%", true)}
         ${cell(offHigh(r), v => v.toFixed(1) + "%", true)}
@@ -2201,9 +2310,8 @@ function renderPeerTable(){
     verdict.hidden = true;
     const mine = rows.find(r => r.symbol === PEERS.symbol);
     const peers = rows.filter(r => r !== mine);
-    const pes = peers.map(r => r.quote && r.quote.pe > 0 ? r.quote.pe : null)
-                     .filter(v => v !== null).sort((a, b) => a - b);
-    const myPe = mine && mine.quote && mine.quote.pe > 0 ? mine.quote.pe : null;
+    const pes = peers.map(r => peerPE(r).v).filter(v => v != null).sort((a, b) => a - b);
+    const myPe = mine ? peerPE(mine).v : null;
     if (myPe && pes.length >= 2) {
       const med = pes.length % 2 ? pes[(pes.length - 1) / 2]
         : (pes[pes.length / 2 - 1] + pes[pes.length / 2]) / 2;
@@ -2211,7 +2319,11 @@ function renderPeerTable(){
       let s = `<b>${esc(PEERS.symbol)}</b> trades at ${myPe.toFixed(1)}× earnings — `
         + `${Math.abs(prem) < 2 ? "in line with" : prem > 0
             ? `a ${prem.toFixed(0)}% premium to` : `a ${(-prem).toFixed(0)}% discount to`} `
-        + `the peer median of ${med.toFixed(1)}×`;
+        + `the peer median of ${med.toFixed(1)}×`
+        // A median struck over half the set should say so rather than imply
+        // the whole industry sits at that multiple.
+        + (pes.length < peers.length
+            ? ` (the ${pes.length} of ${peers.length} that earn a profit)` : "");
       const myG = mine ? peerRevGrowth(mine) : null;
       const gs = peers.map(peerRevGrowth).filter(v => v !== null);
       if (myG !== null && gs.length >= 2) {
@@ -2227,23 +2339,30 @@ function renderPeerTable(){
 function renderPeerScatter(){
   const host = document.getElementById("peer-scatter");
   if (!host) return;
+  const ps = PEERS.basis === "ps";
+  const measure = ps ? "P/S" : "P/E";
+  const sub = document.getElementById("peer-scatter-sub");
+  if (sub) sub.textContent = ps
+    ? "Price to sales against revenue growth; bubble is market cap"
+    : "P/E against revenue growth; bubble is market cap";
   const rows = (PEERS.data || []).map((r, i) => ({
     sym: r.symbol,
-    pe: r.quote && r.quote.pe > 0 ? r.quote.pe : null,
+    val: peerValuation(r).v ?? null,
     g: peerRevGrowth(r),
     cap: r.quote ? r.quote.cap : null,
     colour: PEER_COLOURS[i % PEER_COLOURS.length],
     me: r.symbol === PEERS.symbol,
-  })).filter(r => r.pe !== null && r.g !== null);
+  })).filter(r => r.val !== null && r.g !== null);
   if (rows.length < 2) {
-    host.innerHTML = `<div class="note">Needs a trailing P/E and two years of
-      filed revenue for at least two of the set.</div>`;
+    host.innerHTML = `<div class="note">Needs a ${measure} and a year-earlier
+      quarter to measure growth against, for at least two of the set.${
+      ps ? "" : ` Loss-making companies have no P/E — try P/S.`}</div>`;
     return;
   }
   const W = 620, H = MOBILE_MQ.matches ? 340 : 280,
         ml = 10, mr = 46, mt = 14, mb = 30;
   const pw = W - ml - mr, ph = H - mt - mb;
-  const xs = rows.map(r => r.pe), ys = rows.map(r => r.g);
+  const xs = rows.map(r => r.val), ys = rows.map(r => r.g);
   const xPad = (Math.max(...xs) - Math.min(...xs)) * 0.15 || 2;
   const yPad = (Math.max(...ys) - Math.min(...ys)) * 0.15 || 2;
   const x0 = Math.max(0, Math.min(...xs) - xPad), x1 = Math.max(...xs) + xPad;
@@ -2254,21 +2373,23 @@ function renderPeerScatter(){
   const capMax = Math.max(...caps, 1);
   const rad = c => 7 + 13 * Math.sqrt((c || 0) / capMax);
   const xt = bandTicks(x0, x1, 5), yt = bandTicks(y0, y1, 5);
+  // A P/S of 3.4x needs its decimal where a P/E of 25x does not.
+  const fx = v => (x1 < 15 ? v.toFixed(1) : v.toFixed(0)) + "\u00d7";
   host.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" class="lchart" role="img"
-         aria-label="Trailing P/E against revenue growth, bubble sized by market cap">
+         aria-label="${esc(measure)} against revenue growth, bubble sized by market cap">
       ${yt.map(t => `<line x1="${ml}" x2="${W - mr}" y1="${y(t).toFixed(1)}"
           y2="${y(t).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"/>
         <text x="${W - mr + 6}" y="${(y(t) + 3.5).toFixed(1)}" class="ax">${t.toFixed(0)}%</text>`).join("")}
       ${xt.map(t => `<text x="${x(t).toFixed(1)}" y="${H - 8}" class="ax"
-          text-anchor="middle">${t.toFixed(0)}×</text>`).join("")}
+          text-anchor="middle">${fx(t)}</text>`).join("")}
       ${rows.map(r => {
-        const cx = x(r.pe).toFixed(1), cy = y(r.g).toFixed(1), rr = rad(r.cap).toFixed(1);
-        return `<g><title>${esc(r.sym)}: P/E ${r.pe.toFixed(1)}×, revenue ${
+        const cx = x(r.val).toFixed(1), cy = y(r.g).toFixed(1), rr = rad(r.cap).toFixed(1);
+        return `<g><title>${esc(r.sym)}: ${measure} ${r.val.toFixed(1)}×, revenue ${
             sign(r.g)}${r.g.toFixed(1)}%, cap ${money(r.cap, 1)}</title>
           <circle cx="${cx}" cy="${cy}" r="${rr}" fill="${r.colour}"
             opacity="${r.me ? .85 : .55}" stroke="${r.colour}" stroke-width="1.4"/>
-          <text x="${cx}" y="${(+cy - rad(r.cap) - 4).toFixed(1)}" class="ax"
+          <text x="${cx}" y="${Math.max(10, +cy - rad(r.cap) - 4).toFixed(1)}" class="ax"
             text-anchor="middle" style="fill:var(--ink);font-weight:${r.me ? 700 : 400};
             stroke:var(--card);stroke-width:3;paint-order:stroke">${esc(r.sym)}</text></g>`;
       }).join("")}
@@ -2279,10 +2400,17 @@ function renderPeerScatter(){
         // about the company rather than a broken chart.
         const out = (PEERS.data || [])
           .filter(r => !rows.some(x => x.sym === r.symbol))
-          .map(r => `${esc(r.symbol)} (${
-            !r.warm ? "prices still fetching"
-            : !(r.quote && r.quote.pe > 0) ? "no trailing P/E — loss-making"
-            : "needs two years of filed revenue"})`);
+          .map(r => {
+            const v = peerValuation(r);
+            const why = v.loss ? "loss-making, so no P/E — switch to P/S"
+              : v.v == null
+                ? (!r.warm ? "prices still fetching"
+                   : r.filedQuarters === 0 ? "filings not read yet"
+                   : ps ? "no filed revenue to price against" : "no P/E on file")
+              : r.filedQuarters === 0 ? "filings not read yet"
+              : "not enough filed quarters to measure growth";
+            return `${esc(r.symbol)} (${why})`;
+          });
         return out.length ? ` Not drawn: ${out.join(", ")}.` : "";
       })()}</div>`;
 }
@@ -5552,7 +5680,13 @@ function render(){
         <section class="card panel">
           <div class="phead"><div>
             <h2>Growth vs valuation ${helpIcon("peerscatter")}</h2>
-            <p>P/E against revenue growth; bubble is market cap</p>
+            <p id="peer-scatter-sub">P/E against revenue growth; bubble is market cap</p>
+          </div>
+          <div class="phead-tools">
+            <div class="ranges" id="peer-val-basis" role="group" aria-label="Valuation measure">
+              <button type="button" data-b="pe" aria-pressed="true">P/E</button>
+              <button type="button" data-b="ps" aria-pressed="false">P/S</button>
+            </div>
           </div></div>
           <div class="lwrap" id="peer-scatter"></div>
         </section>
