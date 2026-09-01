@@ -3761,11 +3761,17 @@ const FAM_OK = 40;        // still real evidence, if the day needs variety
     kind the day has not used yet, chosen among the families that actually
     scored, so the carousel shows the evidence from several angles. */
 function assignCharts(ideas){
-  const used = new Set();
+  // How many slides each kind already occupies. A set of "seen" kinds was not
+  // enough: with nine ideas and six kinds some kind must repeat, and every
+  // repeat fell to the highest-scoring family -- price-vs-history, which is
+  // what the buy screen selects for -- so the day ended on five drawdowns.
+  // Counting lets the repeats spread instead of piling onto one chart.
+  const used = {};
+  const take = k => { used[k] = (used[k] || 0) + 1; return k; };
   ideas.forEach(d => {
     const ev = d.evidence || {};
     const k = LEAD_TO_KIND[ev.lead];
-    if (k && CHART_KINDS[k].has(ev)){ d._chart = k; used.add(k); }
+    if (k && CHART_KINDS[k].has(ev)){ d._chart = take(k); }
     else d._chart = null;
   });
   ideas.forEach(d => {
@@ -3780,13 +3786,22 @@ function assignCharts(ideas){
     const strong = kindsFor(fams.filter(([, v]) => v >= FAM_STRONG));
     const ok = kindsFor(fams.filter(([, v]) => v >= FAM_OK));
     const any = kindsFor(fams);
-    // An unused kind from a family that still scored beats a repeat of one
-    // the day has already shown -- taking strong[0] first put three
-    // identical target boards in one carousel.
-    const unused = list => list.find(k => !used.has(k));
-    d._chart = unused(strong) || unused(ok) || strong[0] || unused(any)
-            || ok[0] || any[0] || null;
-    if (d._chart) used.add(d._chart);
+    // Least-shown wins, then the stronger family, then its own order. Both
+    // strong and ok count as real evidence -- that is what FAM_OK is for --
+    // so an unshown ok kind beats a fourth repeat of a strong one, while
+    // among equals the better-scoring family still leads. The weak tier is
+    // reached only when nothing real is available: novelty is not worth
+    // illustrating a family that barely scored.
+    const rarest = tiers => {
+      let best = null, key = Infinity;
+      tiers.forEach((list, tier) => list.forEach((k, i) => {
+        const rank = (used[k] || 0) * 1000 + tier * 100 + i;
+        if (rank < key) { key = rank; best = k; }
+      }));
+      return best;
+    };
+    d._chart = rarest([strong, ok]) || rarest([any]) || null;
+    if (d._chart) take(d._chart);
   });
 }
 
