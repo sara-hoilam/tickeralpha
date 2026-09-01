@@ -950,6 +950,44 @@ body.mreport .mtab-panel.on{display:block}
    so the grid cell is a wrapper the redraw cannot take with it. */
 .acol{display:flex;flex-direction:column;min-width:0;margin-bottom:16px}
 .acol>.panel{margin-bottom:0}
+
+/* ---- Industry: the competitor set ---------------------------------------- */
+.peer-chips{display:flex;flex-wrap:wrap;gap:8px;padding:2px 14px 12px;align-items:center}
+.pchip{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;
+  border:1px solid var(--rule);border-radius:999px;font-size:12.5px;
+  background:var(--sunk);color:var(--ink)}
+.pchip b{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:12px}
+.pchip .pnm{color:var(--ink-2);max-width:15ch;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.pchip.me{border-color:var(--accent);background:var(--accent-soft)}
+.pchip .x{cursor:pointer;border:0;background:none;color:var(--ink-3);
+  font-size:15px;line-height:1;padding:0 1px;margin-right:-3px}
+.pchip .x:hover{color:var(--down)}
+/* A suggestion not yet in the set: dashed, one click to add. */
+button.pchip.addp{cursor:pointer;border-style:dashed;background:transparent;
+  color:var(--ink-2)}
+button.pchip.addp:hover{border-color:var(--accent);color:var(--accent)}
+.peer-add{display:flex;gap:12px;align-items:center;padding:0 14px 14px}
+.peer-field{position:relative;flex:0 1 300px;min-width:0}
+.peer-field input{width:100%;padding:8px 12px;border:1px solid var(--rule);
+  border-radius:9px;background:var(--sunk);color:var(--ink);font-size:13px}
+#peer-reset{border:0;background:none;color:var(--ink-3);font-size:12px;
+  cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:0}
+#peer-reset:hover{color:var(--accent)}
+.peer-scroll{overflow-x:auto;padding-bottom:4px}
+.peer-scroll .otab{min-width:760px}
+.peer-scroll .otab tr.me td{background:var(--accent-soft)}
+.peer-scroll .otab td.co{white-space:nowrap}
+.peer-scroll .otab td.co .tick-logo{vertical-align:-4px;margin-right:6px}
+.peer-verdict{text-align:left;padding:8px 14px 14px;margin:0}
+.pnews-row{display:flex;gap:10px;align-items:baseline;padding:9px 14px;
+  border-bottom:1px solid var(--rule-2)}
+.pnews-row:last-child{border-bottom:0}
+.pnews-row .sym{font-family:"IBM Plex Mono",monospace;font-size:11.5px;
+  color:var(--accent);min-width:52px}
+.pnews-row a{color:var(--ink);text-decoration:none;font-size:13px}
+.pnews-row a:hover{text-decoration:underline;text-underline-offset:3px}
+.pnews-row .src{color:var(--ink-3);font-size:11.5px;white-space:nowrap;margin-left:auto;padding-left:10px}
 .ascroll{max-height:330px;overflow-y:auto;scrollbar-width:thin;
   scrollbar-color:var(--rule) transparent}
 .atable{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
@@ -1301,6 +1339,18 @@ const API = {
   ownership: symbol => HOSTED
     ? rpc("get_symbol_ownership", { p_symbol: symbol })
     : Promise.resolve(null),
+
+  peers: symbol => HOSTED
+    ? rpc("get_industry_peers", { p_symbol: symbol })
+    : Promise.resolve(null),
+
+  peerCompare: symbols => HOSTED
+    ? rpc("get_peer_compare", { p_symbols: symbols })
+    : Promise.resolve(null),
+
+  peerNews: symbols => HOSTED
+    ? rpc("get_peer_news", { p_symbols: symbols, p_limit: 12 })
+    : Promise.resolve(null),
 };
 
 /* ===========================================================================
@@ -1463,6 +1513,12 @@ const HELP = {
   insiders:  "Form 4 filings by officers, directors and 10% owners of this company over the last 90 days. Only filings worth more than $1M, or more than 1% of shares outstanding, are listed -- the routine grants and tax withholdings below that line would bury the rest.",
   congress:  "Trades in this ticker disclosed by members of Congress under the STOCK Act, over the last 90 days. Members report a band rather than a figure, and may file up to 45 days after the trade, so the disclosure date is not the trade date.",
   houses:    "The most recent action from each institution covering the company. One row per firm, newest first, so a bank that reiterates weekly does not crowd out the rest.",
+  peers:     "Who this company is measured against. The set starts from a curated list of well-known rivals, backed by every company filed under the same industry, largest first. Remove any name, add any listed company; the choice is remembered on this device for this ticker.",
+  peerperf:  "One year of weekly closes for the whole peer set, every line rebased to 100 at the start, so the chart shows who actually performed rather than whose share price is bigger. A peer just added may take a moment to fetch its prices.",
+  peertable: "The same yardsticks for every company in the set, this company first. Revenue growth compares the last four filed quarters with the four before. Street upside is the analysts' median target against today's price — a measure of sentiment, not a promise.",
+  peerscatter: "Each bubble is one company: trailing P/E across, revenue growth up, bubble sized by market cap. Up and to the left is growth going cheap; down and to the right is a premium price on a slowing business. A company missing either figure is not drawn.",
+  peerrev:   "Filed quarterly revenue for each company, indexed to 100 at the first quarter the set shares, so a giant and a challenger fit one chart. This is growth in what the companies actually booked, not share price.",
+  peernews:  "The freshest stories tagged with any ticker in the peer set. A competitor's news is often this company's news a quarter early — a rival's terrible earnings can mark weather the whole industry is standing in.",
   drawdown:  "Percent below the index's last all-time high (the running peak in available price history). The pink line sits at 0% on new highs and falls as the index pulls back. Pastel green bands behind the line mark drawdown depths that were reached or exceeded on about 1%, 5%, 10%, 25%, and 50% of trading days over the last 25 years (or as much history as is cached): higher probability bands are lighter green, rarer deep drawdowns are darker. The left axis labels those probabilities; the right axis shows drawdown percent.",
 };
 
@@ -1760,6 +1816,426 @@ function drawPE(){
     alt: "Price to earnings against the industry",
     idle,
   });
+}
+
+/* ---- Industry: the competitor set ----------------------------------------
+   The tab's real job: this company against the handful of companies it is
+   actually measured against. get_industry_peers proposes the set (curated
+   rivals first, then the same industry by size), the reader edits it, and
+   the choice is kept per ticker in localStorage. get_peer_compare feeds
+   every chart from one call; a peer whose prices are not cached yet is
+   warmed through the same request_prices path the page already uses. */
+const PEERS = { symbol: null, sugg: [], chosen: null, custom: false,
+                data: null, news: null, loading: false, warmAsked: {}, poll: 0 };
+const PEER_COLOURS = ["var(--c-blue)", "#e2635a", "#3fa76e", "#d9a400",
+                      "#8a63d2", "#2aa7b8", "#c05a2e"];
+const MAX_PEERS = 6;
+
+const peerLsKey = sym => "ta-peers-" + sym;
+function peerStored(sym){
+  try {
+    const v = JSON.parse(localStorage.getItem(peerLsKey(sym)));
+    return Array.isArray(v) ? v.filter(s => typeof s === "string").slice(0, MAX_PEERS) : null;
+  } catch { return null; }
+}
+function peerStore(sym, arr){
+  try {
+    if (arr) localStorage.setItem(peerLsKey(sym), JSON.stringify(arr));
+    else localStorage.removeItem(peerLsKey(sym));
+  } catch {}
+}
+
+async function loadPeers(){
+  const sym = S.company && S.company.ticker;
+  if (!sym || !HOSTED || !document.getElementById("peer-chips")) return;
+  if (PEERS.symbol === sym && (PEERS.data || PEERS.loading)) { renderPeers(); return; }
+  PEERS.symbol = sym; PEERS.loading = true;
+  PEERS.sugg = []; PEERS.chosen = null; PEERS.data = null; PEERS.news = null;
+  PEERS.warmAsked = {}; clearTimeout(PEERS.poll);
+  wirePeerPicker();
+  try {
+    const d = await API.peers(sym);
+    if (PEERS.symbol !== sym) return;
+    PEERS.sugg = (d && d.peers) || [];
+    const scope = document.getElementById("peer-scope");
+    if (scope && d && (d.industry || d.sector)) {
+      scope.textContent = `Suggested from well-known rivals and the `
+        + `${d.industry || d.sector} ${d.industry ? "industry" : "sector"} — `
+        + `drop any, add any listed company.`;
+    }
+  } catch { PEERS.sugg = []; }
+  const stored = peerStored(sym);
+  PEERS.custom = !!stored;
+  PEERS.chosen = stored || PEERS.sugg.slice(0, 4).map(p => p.symbol);
+  await refreshPeerData();
+}
+
+async function refreshPeerData(){
+  const sym = PEERS.symbol;
+  PEERS.loading = true;
+  renderPeerChips();                       // the set responds immediately
+  try {
+    const rows = await API.peerCompare([sym, ...PEERS.chosen]);
+    if (PEERS.symbol !== sym) return;
+    PEERS.data = rows || [];
+  } catch { if (PEERS.symbol !== sym) return; PEERS.data = []; }
+  PEERS.loading = false;
+  renderPeers();
+  warmColdPeers();
+  loadPeerNews();
+}
+
+/** A peer added from search may never have been opened, so its prices are
+    not cached. Ask the worker once per symbol, then poll the compare call
+    until the fetch lands or patience runs out (~40s). */
+function warmColdPeers(){
+  const cold = (PEERS.data || []).filter(r => !r.warm && !PEERS.warmAsked[r.symbol]);
+  if (!cold.length) return;
+  cold.forEach(r => {
+    PEERS.warmAsked[r.symbol] = 1;
+    API.requestPrices(r.symbol).catch(() => {});
+  });
+  let tries = 0;
+  const sym = PEERS.symbol;
+  const tick = async () => {
+    if (PEERS.symbol !== sym || !document.getElementById("peer-chips")) return;
+    if (tries++ >= 8) return;
+    let rows = null;
+    try { rows = await API.peerCompare([sym, ...PEERS.chosen]); } catch {}
+    if (PEERS.symbol !== sym) return;
+    if (rows) { PEERS.data = rows; renderPeers(); }
+    if (!rows || rows.some(r => !r.warm)) PEERS.poll = setTimeout(tick, 5000);
+  };
+  PEERS.poll = setTimeout(tick, 4000);
+}
+
+async function loadPeerNews(){
+  const sym = PEERS.symbol;
+  if (!document.getElementById("peer-news")) return;
+  try {
+    const rows = await API.peerNews([sym, ...PEERS.chosen]);
+    if (PEERS.symbol !== sym) return;
+    PEERS.news = rows || [];
+  } catch { if (PEERS.symbol !== sym) return; PEERS.news = []; }
+  renderPeerNews();
+}
+
+function peerAdd(raw){
+  const p = String(raw || "").trim().toUpperCase();
+  if (!p || !/^[A-Z][A-Z.\-]{0,9}$/.test(p)) return;
+  if (p === PEERS.symbol || PEERS.chosen.includes(p)) return;
+  const scope = document.getElementById("peer-scope");
+  if (PEERS.chosen.length >= MAX_PEERS) {
+    if (scope) scope.textContent =
+      `Six competitors is the most the charts can hold — remove one first.`;
+    return;
+  }
+  PEERS.chosen = [...PEERS.chosen, p];
+  PEERS.custom = true;
+  peerStore(PEERS.symbol, PEERS.chosen);
+  refreshPeerData();
+}
+
+function peerDrop(p){
+  PEERS.chosen = PEERS.chosen.filter(x => x !== p);
+  PEERS.custom = true;
+  peerStore(PEERS.symbol, PEERS.chosen);
+  refreshPeerData();
+}
+
+function peerResetChoice(){
+  peerStore(PEERS.symbol, null);
+  PEERS.custom = false;
+  PEERS.chosen = PEERS.sugg.slice(0, 4).map(p => p.symbol);
+  refreshPeerData();
+}
+
+function wirePeerPicker(){
+  const input = document.getElementById("peer-q");
+  if (input && input.dataset.wired !== "1") {
+    input.dataset.wired = "1";
+    wireCorrSuggest(input, t => { peerAdd(t); input.value = ""; }, "peer-ac");
+    input.addEventListener("keydown", ev => {
+      const ac = document.getElementById("peer-ac");
+      if (ev.key === "Enter" && !(ac && ac.classList.contains("open"))) {
+        ev.preventDefault(); peerAdd(input.value); input.value = "";
+      }
+    });
+  }
+  const reset = document.getElementById("peer-reset");
+  if (reset) reset.onclick = peerResetChoice;
+  const chips = document.getElementById("peer-chips");
+  if (chips) chips.onclick = ev => {
+    const x = ev.target.closest("[data-p]");
+    if (x) return peerDrop(x.dataset.p);
+    const add = ev.target.closest("[data-add]");
+    if (add) peerAdd(add.dataset.add);
+  };
+}
+
+/** What a symbol is called, from whichever payload knows. */
+function peerName(sym){
+  const inData = (PEERS.data || []).find(r => r.symbol === sym);
+  if (inData && inData.name) return inData.name;
+  const inSugg = (PEERS.sugg || []).find(p => p.symbol === sym);
+  return (inSugg && inSugg.name) || "";
+}
+
+function renderPeerChips(){
+  const host = document.getElementById("peer-chips");
+  if (!host || !PEERS.chosen) return;
+  const chip = (sym, me) => {
+    const name = peerName(sym);
+    return `<span class="pchip${me ? " me" : ""}"><b>${esc(sym)}</b>` +
+      (name ? `<span class="pnm" title="${esc(name)}">${esc(name)}</span>` : "") +
+      (me ? "" : `<button type="button" class="x" data-p="${esc(sym)}"
+                    aria-label="Remove ${esc(sym)}">×</button>`) +
+      `</span>`;
+  };
+  const spare = (PEERS.sugg || [])
+    .filter(p => p.symbol !== PEERS.symbol && !PEERS.chosen.includes(p.symbol))
+    .slice(0, Math.max(0, MAX_PEERS - PEERS.chosen.length));
+  host.innerHTML = chip(PEERS.symbol, true)
+    + PEERS.chosen.map(s => chip(s, false)).join("")
+    + spare.map(p => `<button type="button" class="pchip addp" data-add="${esc(p.symbol)}"
+        title="${esc(p.name || "")}">+ ${esc(p.symbol)}</button>`).join("")
+    + (!PEERS.chosen.length && !spare.length
+        ? `<div class="note">No peer suggestions available — add one by name.</div>` : "");
+  const reset = document.getElementById("peer-reset");
+  if (reset) reset.hidden = !PEERS.custom;
+}
+
+function renderPeers(){
+  wirePeerPicker();          // idempotent; the panel DOM is rebuilt per render
+  renderPeerChips();
+  renderPeerPerf();
+  renderPeerTable();
+  renderPeerScatter();
+  renderPeerRev();
+  wireHelp();
+  hydratePageLogos();
+}
+
+function renderPeerPerf(){
+  const host = document.getElementById("peer-perf");
+  if (!host) return;
+  const rows = (PEERS.data || []).filter(r => (r.closes || []).length >= 2);
+  if (rows.length < 2) {
+    host.innerHTML = `<div class="note">${
+      PEERS.loading ? `<span class="load"></span> &nbsp;Loading peer prices…`
+      : (PEERS.data || []).some(r => !r.warm)
+        ? `Fetching prices for the peer set — a moment…`
+        : `Not enough price history across the set yet.`}</div>`;
+    return;
+  }
+  const base = rows.find(r => r.symbol === PEERS.symbol) || rows[0];
+  const dates = base.closes.map(c => c.d);
+  const series = rows.map((r, i) => {
+    const by = {};
+    (r.closes || []).forEach(c => { by[c.d] = c.c; });
+    let c0 = null;
+    const pts = dates.map(d => {
+      const v = by[d];
+      if (v != null && c0 === null) c0 = v;
+      return { v: v != null && c0 ? v / c0 * 100 : null,
+               label: shortDate(d), full: longDate(d) };
+    });
+    return { name: r.symbol, colour: PEER_COLOURS[i % PEER_COLOURS.length], pts };
+  });
+  linePlot(host, series, {
+    id: "peerperf", fmtY: v => v.toFixed(0),
+    fmtV: v => sign(v - 100) + (v - 100).toFixed(1) + "%",
+    alt: "One-year performance of the peer set, rebased to 100",
+    idle: "Weekly closes, rebased to 100 at the start.",
+  });
+}
+
+/** Four filed quarters against the four before them. */
+function peerRevGrowth(r){
+  const q = (r.revenue || []).filter(x => x && x.r > 0);
+  if (q.length < 8) return null;
+  const sum = a => a.reduce((t, x) => t + x.r, 0);
+  const last4 = sum(q.slice(-4)), prev4 = sum(q.slice(-8, -4));
+  return prev4 > 0 ? (last4 / prev4 - 1) * 100 : null;
+}
+
+function renderPeerTable(){
+  const host = document.getElementById("peer-table");
+  const verdict = document.getElementById("peer-verdict");
+  if (!host) return;
+  const rows = PEERS.data || [];
+  if (!rows.length) {
+    host.innerHTML = `<div class="note">${PEERS.loading
+      ? `<span class="load"></span> &nbsp;Loading…` : `No peer data yet.`}</div>`;
+    if (verdict) verdict.hidden = true;
+    return;
+  }
+  const cell = (v, fmt, tone) => v === null || v === undefined || Number.isNaN(v)
+    ? `<td class="num">—</td>`
+    : `<td class="num ${tone ? (v >= 0 ? "up" : "down") : ""}">${fmt(v)}</td>`;
+  const yr = r => {
+    const c = r.closes || [];
+    return c.length >= 2 && c[0].c > 0 ? (c[c.length - 1].c / c[0].c - 1) * 100 : null;
+  };
+  const offHigh = r => r.quote && r.quote.yearHigh > 0 && r.quote.price != null
+    ? (r.quote.price / r.quote.yearHigh - 1) * 100 : null;
+  const upside = r => r.quote && r.quote.price > 0 && r.target && +r.target.median > 0
+    ? (+r.target.median / r.quote.price - 1) * 100 : null;
+  host.innerHTML = `<table class="otab">
+    <thead><tr><th>Company</th>
+      <th class="num">Mkt cap</th><th class="num">P/E</th>
+      <th class="num">Div yield</th><th class="num">Rev growth</th>
+      <th class="num">1Y</th><th class="num">Off 52-w high</th>
+      <th class="num">Street upside</th><th class="num">Next earnings</th></tr></thead>
+    <tbody>${rows.map(r => {
+      const q = r.quote || {};
+      const logo = window.TickerLogos ? window.TickerLogos.chip(r.symbol, "") : "";
+      return `<tr${r.symbol === PEERS.symbol ? ` class="me"` : ""}>
+        <td class="co">${logo}<b>${esc(r.symbol)}</b>${
+          r.name ? ` <span style="color:var(--ink-3)">${esc(r.name)}</span>` : ""}${
+          r.warm ? "" : ` <span style="color:var(--ink-3)">· fetching…</span>`}</td>
+        ${cell(q.cap, v => money(v, 1))}
+        ${cell(q.pe > 0 ? q.pe : null, v => v.toFixed(1))}
+        ${cell(q.divYield > 0 ? q.divYield * 100 : null, v => v.toFixed(2) + "%")}
+        ${cell(peerRevGrowth(r), v => sign(v) + v.toFixed(1) + "%", true)}
+        ${cell(yr(r), v => sign(v) + v.toFixed(1) + "%", true)}
+        ${cell(offHigh(r), v => v.toFixed(1) + "%", true)}
+        ${cell(upside(r), v => sign(v) + v.toFixed(1) + "%", true)}
+        <td class="num">${r.nextEarnings ? esc(shortDate(r.nextEarnings)) : "—"}</td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+
+  // One sentence the table adds up to: the P/E against the peer median, and
+  // where the growth ranks. Skipped whenever either side lacks the figures.
+  if (verdict) {
+    verdict.hidden = true;
+    const mine = rows.find(r => r.symbol === PEERS.symbol);
+    const peers = rows.filter(r => r !== mine);
+    const pes = peers.map(r => r.quote && r.quote.pe > 0 ? r.quote.pe : null)
+                     .filter(v => v !== null).sort((a, b) => a - b);
+    const myPe = mine && mine.quote && mine.quote.pe > 0 ? mine.quote.pe : null;
+    if (myPe && pes.length >= 2) {
+      const med = pes.length % 2 ? pes[(pes.length - 1) / 2]
+        : (pes[pes.length / 2 - 1] + pes[pes.length / 2]) / 2;
+      const prem = (myPe / med - 1) * 100;
+      let s = `<b>${esc(PEERS.symbol)}</b> trades at ${myPe.toFixed(1)}× earnings — `
+        + `${Math.abs(prem) < 2 ? "in line with" : prem > 0
+            ? `a ${prem.toFixed(0)}% premium to` : `a ${(-prem).toFixed(0)}% discount to`} `
+        + `the peer median of ${med.toFixed(1)}×`;
+      const myG = mine ? peerRevGrowth(mine) : null;
+      const gs = peers.map(peerRevGrowth).filter(v => v !== null);
+      if (myG !== null && gs.length >= 2) {
+        const faster = gs.filter(g => myG > g).length;
+        s += `, growing revenue faster than ${faster} of ${gs.length} peers`;
+      }
+      verdict.innerHTML = s + `.`;
+      verdict.hidden = false;
+    }
+  }
+}
+
+function renderPeerScatter(){
+  const host = document.getElementById("peer-scatter");
+  if (!host) return;
+  const rows = (PEERS.data || []).map((r, i) => ({
+    sym: r.symbol,
+    pe: r.quote && r.quote.pe > 0 ? r.quote.pe : null,
+    g: peerRevGrowth(r),
+    cap: r.quote ? r.quote.cap : null,
+    colour: PEER_COLOURS[i % PEER_COLOURS.length],
+    me: r.symbol === PEERS.symbol,
+  })).filter(r => r.pe !== null && r.g !== null);
+  if (rows.length < 2) {
+    host.innerHTML = `<div class="note">Needs a trailing P/E and two years of
+      filed revenue for at least two of the set.</div>`;
+    return;
+  }
+  const W = 620, H = MOBILE_MQ.matches ? 340 : 280,
+        ml = 10, mr = 46, mt = 14, mb = 30;
+  const pw = W - ml - mr, ph = H - mt - mb;
+  const xs = rows.map(r => r.pe), ys = rows.map(r => r.g);
+  const xPad = (Math.max(...xs) - Math.min(...xs)) * 0.15 || 2;
+  const yPad = (Math.max(...ys) - Math.min(...ys)) * 0.15 || 2;
+  const x0 = Math.max(0, Math.min(...xs) - xPad), x1 = Math.max(...xs) + xPad;
+  const y0 = Math.min(...ys) - yPad, y1 = Math.max(...ys) + yPad;
+  const x = v => ml + (v - x0) / (x1 - x0) * pw;
+  const y = v => mt + ph - (v - y0) / (y1 - y0) * ph;
+  const caps = rows.map(r => r.cap || 0);
+  const capMax = Math.max(...caps, 1);
+  const rad = c => 7 + 13 * Math.sqrt((c || 0) / capMax);
+  const xt = bandTicks(x0, x1, 5), yt = bandTicks(y0, y1, 5);
+  host.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" class="lchart" role="img"
+         aria-label="Trailing P/E against revenue growth, bubble sized by market cap">
+      ${yt.map(t => `<line x1="${ml}" x2="${W - mr}" y1="${y(t).toFixed(1)}"
+          y2="${y(t).toFixed(1)}" stroke="var(--rule-2)" stroke-width="1"/>
+        <text x="${W - mr + 6}" y="${(y(t) + 3.5).toFixed(1)}" class="ax">${t.toFixed(0)}%</text>`).join("")}
+      ${xt.map(t => `<text x="${x(t).toFixed(1)}" y="${H - 8}" class="ax"
+          text-anchor="middle">${t.toFixed(0)}×</text>`).join("")}
+      ${rows.map(r => {
+        const cx = x(r.pe).toFixed(1), cy = y(r.g).toFixed(1), rr = rad(r.cap).toFixed(1);
+        return `<g><title>${esc(r.sym)}: P/E ${r.pe.toFixed(1)}×, revenue ${
+            sign(r.g)}${r.g.toFixed(1)}%, cap ${money(r.cap, 1)}</title>
+          <circle cx="${cx}" cy="${cy}" r="${rr}" fill="${r.colour}"
+            opacity="${r.me ? .85 : .55}" stroke="${r.colour}" stroke-width="1.4"/>
+          <text x="${cx}" y="${(+cy - rad(r.cap) - 4).toFixed(1)}" class="ax"
+            text-anchor="middle" style="fill:var(--ink);font-weight:${r.me ? 700 : 400};
+            stroke:var(--card);stroke-width:3;paint-order:stroke">${esc(r.sym)}</text></g>`;
+      }).join("")}
+    </svg>
+    <div class="lread">Cheap and growing sits top-left; expensive and slowing
+      sits bottom-right. Hover a bubble for the figures.</div>`;
+}
+
+function renderPeerRev(){
+  const host = document.getElementById("peer-rev");
+  if (!host) return;
+  const rows = (PEERS.data || [])
+    .map((r, i) => ({ r, i, q: (r.revenue || []).filter(x => x && x.r > 0) }))
+    .filter(x => x.q.length >= 3);
+  if (rows.length < 2) {
+    host.innerHTML = `<div class="note">Needs filed revenue for at least two
+      of the set — foreign filers and funds report none.</div>`;
+    return;
+  }
+  // The quarter axis is the union of everyone's period ends; each company is
+  // indexed to 100 at its own first quarter on the chart.
+  const ends = [...new Set(rows.flatMap(x => x.q.map(p => p.e)))].sort();
+  const series = rows.map(x => {
+    const by = {};
+    x.q.forEach(p => { by[p.e] = p.r; });
+    let r0 = null;
+    const pts = ends.map(e => {
+      const v = by[e];
+      if (v != null && r0 === null) r0 = v;
+      return { v: v != null && r0 ? v / r0 * 100 : null,
+               label: shortDate(e), full: `${longDate(e)} · ${money(by[e], 1)}` };
+    });
+    return { name: x.r.symbol, colour: PEER_COLOURS[x.i % PEER_COLOURS.length], pts };
+  });
+  linePlot(host, series, {
+    id: "peerrev", fmtY: v => v.toFixed(0),
+    fmtV: v => sign(v - 100) + (v - 100).toFixed(0) + "%",
+    alt: "Filed quarterly revenue, indexed to the first shared quarter",
+    idle: "Quarterly revenue as filed, indexed to 100.",
+  });
+}
+
+function renderPeerNews(){
+  const host = document.getElementById("peer-news");
+  if (!host) return;
+  const rows = PEERS.news || [];
+  if (!rows.length) {
+    host.innerHTML = `<div class="note">No recent stories across this peer set.</div>`;
+    return;
+  }
+  host.innerHTML = rows.map(n => `
+    <div class="pnews-row">
+      <span class="sym">${esc(n.symbol || "")}</span>
+      <a href="${esc(n.url || "#")}" target="_blank" rel="noopener noreferrer">${esc(n.title || "")}</a>
+      <span class="src">${esc(n.publisher || "")}${
+        n.published ? ` · ${esc(shortDate(String(n.published).slice(0, 10)))}` : ""}</span>
+    </div>`).join("");
 }
 
 /* ---- 3. monthly seasonality ---------------------------------------------- */
@@ -4328,8 +4804,8 @@ function drawCorrelation(){
 
 /** Same suggestion list as the header search, on the correlation box: typing
     "Tesla" should offer TSLA rather than requiring the ticker to be known. */
-function wireCorrSuggest(input, onPick){
-  const ac = document.getElementById("corr-ac");
+function wireCorrSuggest(input, onPick, acId){
+  const ac = document.getElementById(acId || "corr-ac");
   if (!ac) return () => {};
   let items = [], idx = -1, timer = null;
   const close = () => {
@@ -4921,10 +5397,74 @@ function render(){
       ${earningsMarkup()}
     </div>
 
-    <!-- Industry: the two charts that read this company against the companies
-         it competes with. They were the head of the Overview tab, under
-         everything the company says about itself. -->
+    <!-- Industry: the company against the companies it actually competes
+         with. A curated or same-industry peer set leads; the sector-fund
+         benchmark that used to be the whole tab closes it. -->
     <div class="mtab-panel" data-mtab="industry" id="mtab-industry" role="tabpanel">
+      <h3 class="grouphead">Against its competitors</h3>
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>Competitor set ${helpIcon("peers")}</h2>
+          <p id="peer-scope">Preselected rivals — drop any, add any listed company.</p>
+        </div></div>
+        <div class="peer-chips" id="peer-chips"><div class="note">
+          <span class="load"></span> &nbsp;Finding competitors…</div></div>
+        <div class="peer-add">
+          <div class="peer-field">
+            <input type="text" id="peer-q" placeholder="Add a competitor…"
+                   autocomplete="off" role="combobox" aria-expanded="false"
+                   aria-controls="peer-ac" aria-label="Company to add to the peer set">
+            <div class="ac" id="peer-ac" role="listbox"></div>
+          </div>
+          <button type="button" id="peer-reset" hidden>Reset to suggested</button>
+        </div>
+      </section>
+
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>Performance, one year ${helpIcon("peerperf")}</h2>
+          <p>Weekly closes, everything rebased to 100</p>
+        </div></div>
+        <div class="lwrap" id="peer-perf"><div class="note">
+          <span class="load"></span> &nbsp;Loading peer prices…</div></div>
+      </section>
+
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>Head to head ${helpIcon("peertable")}</h2>
+          <p>The company first, then its peers by size</p>
+        </div></div>
+        <div class="peer-scroll" id="peer-table"></div>
+        <p class="note peer-verdict" id="peer-verdict" hidden></p>
+      </section>
+
+      <div class="pairrow">
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>Growth vs valuation ${helpIcon("peerscatter")}</h2>
+            <p>P/E against revenue growth; bubble is market cap</p>
+          </div></div>
+          <div class="lwrap" id="peer-scatter"></div>
+        </section>
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>Revenue, indexed ${helpIcon("peerrev")}</h2>
+            <p>Filed quarterly revenue, first shared quarter = 100</p>
+          </div></div>
+          <div class="lwrap" id="peer-rev"></div>
+        </section>
+      </div>
+
+      <div class="acol"><section class="card panel">
+        <div class="phead"><div>
+          <h2>Around the industry ${helpIcon("peernews")}</h2>
+          <p>Stories across the whole peer set — a rival's quarter is this
+             company's read-through</p>
+        </div></div>
+        <div class="scroll own-scroll" id="peer-news"><div class="note">
+          <span class="load"></span> &nbsp;Loading industry news…</div></div>
+      </section></div>
+
       <div id="industry-extras" hidden>
         <h3 class="grouphead">Industry benchmark</h3>
         <div class="pairrow">
@@ -6068,7 +6608,7 @@ function selectTab(id, opts){
     try { renderBuilder(); } catch {}
   }
   if (id === "earnings") loadEarnings();
-  if (id === "industry") marketPanels();
+  if (id === "industry") { marketPanels(); loadPeers(); }
   if (id === "ownership") {
     loadAnalyst();
     loadOwnershipTrades();
