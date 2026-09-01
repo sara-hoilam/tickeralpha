@@ -1838,10 +1838,16 @@ def earnings_calendar(start: dt.date | None = None,
 # spellings in turn and keeps the first that answers with rows rather than
 # betting the feature on one guess. A 402 here is ordinary: 13F data sits above
 # the entry tiers.
+# Spellings are tried in order and the first that answers wins. The symbol
+# goes in the query string on stable, but v3 puts it in the path -- these two
+# were the only legacy call sites in the file, so there was no working example
+# to copy and both were written the stable way.
 _HOLDER_ENDPOINTS = (
+    ("institutional-ownership/symbol-positions-summary", None),
     ("institutional-ownership/symbol-ownership", None),
     ("institutional-ownership/extract-analytics/holder", None),
     ("institutional-holder", V3_BASE),
+    ("institutional-holder/{symbol}", V3_BASE),
 )
 
 # FMP has used every one of these for the same column.
@@ -1870,6 +1876,69 @@ def _as_float(v):
         return None
 
 
+# Which spelling answered, per kind, and when to stop asking. Without this a
+# plan that carries no 13F data pays five failed requests for every symbol of
+# every price refresh, forever; and a plan that does carry it pays for the
+# dead spellings ahead of the live one on every call.
+_13F_LIVE: dict[str, tuple] = {}
+_13F_DEAD_UNTIL: dict[str, float] = {}
+_13F_RETRY_SECONDS = 6 * 3600
+
+
+def _13f_order(kind: str, endpoints):
+    """Endpoints to try, best-known first."""
+    live = _13F_LIVE.get(kind)
+    if not live:
+        return list(endpoints)
+    return [live] + [e for e in endpoints if e != live]
+
+
+def reset_13f_cache() -> None:
+    """Forget what answered last time -- for the diagnostic, which wants to
+    ask every spelling rather than the one that already works."""
+    _13F_LIVE.clear()
+    _13F_DEAD_UNTIL.clear()
+
+
+def _13f_get(path: str, base, symbol: str, **params):
+    """One 13F attempt. A path containing {symbol} carries it as a path
+    segment, which is how the v3 endpoints are addressed; everything else
+    passes it as a query parameter."""
+    if "{symbol}" in path:
+        return _get(path.format(symbol=symbol), _base=base, **params)
+    return _get(path, _base=base, symbol=symbol, **params)
+
+
+def ownership_probe(symbol: str) -> list[dict]:
+    """Ask every spelling of the two 13F endpoints and report what each said.
+
+    The company page cannot tell "nobody has fetched this yet" from "the plan
+    does not carry 13F data" -- both leave the panel empty, and the worker
+    only logs the difference in passing. This reports it directly, so one
+    command answers which it is.
+    """
+    out = []
+    for kind, endpoints, extra in (
+            ("holders", _HOLDER_ENDPOINTS, {"limit": 60}),
+            ("ownership", _OWNERSHIP_ENDPOINTS, {"includeCurrentQuarter": "true"})):
+        for path, base in endpoints:
+            row = {"kind": kind, "path": path,
+                   "base": (base or BASE).rsplit("/", 1)[-1]}
+            try:
+                rows = _13f_get(path, base, symbol, **extra)
+            except MarketError as exc:
+                row["error"] = str(exc)[:160]
+            else:
+                if isinstance(rows, list):
+                    row["rows"] = len(rows)
+                    if rows and isinstance(rows[0], dict):
+                        row["keys"] = sorted(rows[0])[:12]
+                else:
+                    row["error"] = f"not a list: {type(rows).__name__}"
+            out.append(row)
+    return out
+
+
 def institutional_holders(symbol: str, limit: int = 60) -> list[dict]:
     """Institutions holding one ticker, largest position first.
 
@@ -1878,10 +1947,12 @@ def institutional_holders(symbol: str, limit: int = 60) -> list[dict]:
     carries on, because a holders list is an addition to a company page rather
     than a precondition for one.
     """
+    if time.time() < _13F_DEAD_UNTIL.get("holders", 0):
+        raise MarketError("institutional holders: no endpoint answered recently")
     last_error = None
-    for path, base in _HOLDER_ENDPOINTS:
+    for path, base in _13f_order("holders", _HOLDER_ENDPOINTS):
         try:
-            rows = _get(path, _base=base, symbol=symbol, limit=limit) or []
+            rows = _13f_get(path, base, symbol, limit=limit) or []
         except MarketError as exc:
             last_error = exc
             continue
@@ -1906,8 +1977,10 @@ def institutional_holders(symbol: str, limit: int = 60) -> list[dict]:
             })
         if out:
             out.sort(key=lambda x: x["shares"], reverse=True)
+            _13F_LIVE["holders"] = (path, base)
             return out[:limit]
 
+    _13F_DEAD_UNTIL["holders"] = time.time() + _13F_RETRY_SECONDS
     raise MarketError(
         f"institutional holders for {symbol}: no endpoint answered"
         + (f" ({last_error})" if last_error else ""))
@@ -1919,6 +1992,7 @@ def institutional_holders(symbol: str, limit: int = 60) -> list[dict]:
 # path and key spelling, so both are tried and the first that answers with
 # dated rows wins.
 _OWNERSHIP_ENDPOINTS = (
+    ("institutional-ownership/symbol-positions-summary", None),
     ("institutional-ownership/symbol-ownership", None),
     ("institutional-ownership/symbol-ownership", V4_BASE),
 )
@@ -1942,11 +2016,13 @@ def institutional_ownership(symbol: str, quarters: int = 40) -> list[dict]:
     no spelling answers — like the holders list, this is an addition to the
     page, not a precondition, and the caller only logs it.
     """
+    if time.time() < _13F_DEAD_UNTIL.get("ownership", 0):
+        raise MarketError("institutional ownership: no endpoint answered recently")
     last_error = None
-    for path, base in _OWNERSHIP_ENDPOINTS:
+    for path, base in _13f_order("ownership", _OWNERSHIP_ENDPOINTS):
         try:
-            rows = _get(path, _base=base, symbol=symbol,
-                        includeCurrentQuarter="true") or []
+            rows = _13f_get(path, base, symbol,
+                            includeCurrentQuarter="true") or []
         except MarketError as exc:
             last_error = exc
             continue
@@ -1971,8 +2047,10 @@ def institutional_ownership(symbol: str, quarters: int = 40) -> list[dict]:
             })
         if out:
             out.sort(key=lambda x: x["date"])
+            _13F_LIVE["ownership"] = (path, base)
             return out[-quarters:]
 
+    _13F_DEAD_UNTIL["ownership"] = time.time() + _13F_RETRY_SECONDS
     raise MarketError(
         f"institutional ownership for {symbol}: no endpoint answered"
         + (f" ({last_error})" if last_error else ""))
