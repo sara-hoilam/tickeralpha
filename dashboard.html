@@ -1866,8 +1866,8 @@ function drawPE(){
    every chart from one call; a peer whose prices are not cached yet is
    warmed through the same request_prices path the page already uses. */
 const PEERS = { symbol: null, sugg: [], chosen: null, custom: false,
-                data: null, news: null, loading: false, warmAsked: {}, poll: 0,
-                range: "1Y" };
+                data: null, news: null, loading: false, warmAsked: {},
+                poll: 0, polling: false, range: "1Y" };
 const PEER_COLOURS = ["var(--c-blue)", "#e2635a", "#3fa76e", "#d9a400",
                       "#8a63d2", "#2aa7b8", "#c05a2e"];
 const MAX_PEERS = 6;
@@ -1889,10 +1889,14 @@ function peerStore(sym, arr){
 async function loadPeers(){
   const sym = S.company && S.company.ticker;
   if (!sym || !HOSTED || !document.getElementById("peer-chips")) return;
-  if (PEERS.symbol === sym && (PEERS.data || PEERS.loading)) { renderPeers(); return; }
+  if (PEERS.symbol === sym && (PEERS.data || PEERS.loading)) {
+    renderPeers();
+    warmColdPeers();          // a peer still cold when the tab was left
+    return;
+  }
   PEERS.symbol = sym; PEERS.loading = true;
   PEERS.sugg = []; PEERS.chosen = null; PEERS.data = null; PEERS.news = null;
-  PEERS.warmAsked = {}; clearTimeout(PEERS.poll);
+  PEERS.warmAsked = {}; clearTimeout(PEERS.poll); PEERS.polling = false;
   wirePeerPicker();
   try {
     const d = await API.peers(sym);
@@ -1928,24 +1932,33 @@ async function refreshPeerData(){
 
 /** A peer added from search may never have been opened, so its prices are
     not cached. Ask the worker once per symbol, then poll the compare call
-    until the fetch lands or patience runs out (~40s). */
+    until the fetch lands. The worker drains its queue on a 20-second loop
+    and serves other requests first, so two cold peers can take minutes,
+    not seconds: the poll starts eager, relaxes, and holds on for about
+    four minutes. Leaving and re-entering the tab starts it again. */
 function warmColdPeers(){
-  const cold = (PEERS.data || []).filter(r => !r.warm && !PEERS.warmAsked[r.symbol]);
-  if (!cold.length) return;
-  cold.forEach(r => {
-    PEERS.warmAsked[r.symbol] = 1;
-    API.requestPrices(r.symbol).catch(() => {});
-  });
+  (PEERS.data || [])
+    .filter(r => !r.warm && !PEERS.warmAsked[r.symbol])
+    .forEach(r => {
+      PEERS.warmAsked[r.symbol] = 1;
+      API.requestPrices(r.symbol).catch(() => {});
+    });
+  if (!(PEERS.data || []).some(r => !r.warm)) return;
+  if (PEERS.polling) return;
+  PEERS.polling = true;
   let tries = 0;
   const sym = PEERS.symbol;
   const tick = async () => {
-    if (PEERS.symbol !== sym || !document.getElementById("peer-chips")) return;
-    if (tries++ >= 8) return;
+    if (PEERS.symbol !== sym || !document.getElementById("peer-chips")) {
+      PEERS.polling = false; return;
+    }
+    if (tries++ >= 24) { PEERS.polling = false; return; }
     let rows = null;
     try { rows = await API.peerCompare([sym, ...PEERS.chosen]); } catch {}
-    if (PEERS.symbol !== sym) return;
+    if (PEERS.symbol !== sym) { PEERS.polling = false; return; }
     if (rows) { PEERS.data = rows; renderPeers(); }
-    if (!rows || rows.some(r => !r.warm)) PEERS.poll = setTimeout(tick, 5000);
+    if (rows && rows.every(r => r.warm)) { PEERS.polling = false; return; }
+    PEERS.poll = setTimeout(tick, tries < 6 ? 5000 : 12000);
   };
   PEERS.poll = setTimeout(tick, 4000);
 }
@@ -2093,24 +2106,37 @@ function renderPeerPerf(){
   }
   const base = rows.find(r => r.symbol === PEERS.symbol) || rows[0];
   const dates = clip(base).map(c => c.d);
+  // Each ticker's weekly samples are struck from its own cached bars, so two
+  // series rarely share exact dates -- one lands on Tuesdays, another on
+  // Fridays. Matching by nearest date (within a trading week) keeps every
+  // peer on the chart instead of silently dropping the misaligned ones.
+  const asDay = d => Math.round(new Date(d + "T00:00:00Z").getTime() / 864e5);
   const series = rows.map((r, i) => {
-    const by = {};
-    clip(r).forEach(c => { by[c.d] = c.c; });
-    let c0 = null;
+    const cl = clip(r);
+    let j = 0, c0 = null;
     const pts = dates.map(d => {
-      const v = by[d];
+      const day = asDay(d);
+      while (j + 1 < cl.length && asDay(cl[j + 1].d) <= day) j++;
+      let v = null, gap = 6;
+      for (const c of [cl[j], cl[j + 1]]) {
+        if (!c) continue;
+        const g = Math.abs(asDay(c.d) - day);
+        if (g < gap) { gap = g; v = c.c; }
+      }
       if (v != null && c0 === null) c0 = v;
       return { v: v != null && c0 ? v / c0 * 100 : null,
                label: shortDate(d), full: longDate(d) };
     });
     return { name: r.symbol, colour: PEER_COLOURS[i % PEER_COLOURS.length], pts };
   });
+  const waiting = (PEERS.data || []).filter(r => !r.warm).map(r => r.symbol);
   linePlot(host, series, {
     id: "peerperf", H: 320, floatTip: true,
     fmtY: v => v.toFixed(0),
     fmtV: v => sign(v - 100) + (v - 100).toFixed(1) + "%",
     alt: "Performance of the peer set, rebased to 100",
-    idle: "Weekly closes, rebased to 100 at the start of the range.",
+    idle: "Weekly closes, rebased to 100 at the start of the range."
+      + (waiting.length ? ` Fetching prices for ${waiting.join(", ")}…` : ""),
   });
 }
 
@@ -2248,7 +2274,17 @@ function renderPeerScatter(){
       }).join("")}
     </svg>
     <div class="lread">Cheap and growing sits top-left; expensive and slowing
-      sits bottom-right. Hover a bubble for the figures.</div>`;
+      sits bottom-right. Hover a bubble for the figures.${(() => {
+        // Say who is missing and why, so an absent bubble reads as a fact
+        // about the company rather than a broken chart.
+        const out = (PEERS.data || [])
+          .filter(r => !rows.some(x => x.sym === r.symbol))
+          .map(r => `${esc(r.symbol)} (${
+            !r.warm ? "prices still fetching"
+            : !(r.quote && r.quote.pe > 0) ? "no trailing P/E — loss-making"
+            : "needs two years of filed revenue"})`);
+        return out.length ? ` Not drawn: ${out.join(", ")}.` : "";
+      })()}</div>`;
 }
 
 function renderPeerRev(){
