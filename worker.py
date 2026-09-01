@@ -749,6 +749,7 @@ def check_ownership(symbol: str) -> None:
     if not market.configured():
         log("FMP_API_KEY is not set; nothing to ask")
         return
+    market.reset_13f_cache()          # ask everything, not the cached winner
     log(f"{sym}: asking each 13F endpoint")
     for r in market.ownership_probe(sym):
         detail = (f"{r['rows']} rows" if "rows" in r else f"ERROR {r.get('error')}")
