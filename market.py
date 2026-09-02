@@ -1350,8 +1350,13 @@ def _as_day(value) -> dt.date | None:
         return None
 
 
-# Markets Today only surfaces material trades.
-MIN_INSIDER_AMOUNT = 1_000_000       # $1M absolute Form 4 value
+# Markets Today only surfaces material trades. $1M kept a table that ranks
+# the whole market readable, but it also threw away most of what an officer
+# actually does: a chief executive putting a few hundred thousand dollars of
+# their own money into their own company is a smaller number and a better
+# signal than a scheduled seven-figure sale. The floor is applied after the
+# pull, so lowering it costs no extra vendor bandwidth -- only rows stored.
+MIN_INSIDER_AMOUNT = 200_000         # $200K absolute Form 4 value
 MIN_INSIDER_SHARES_PCT = 0.01        # or ≥1% of shares outstanding
 
 # FMP's Form 4 feed carries some unusable `price` values -- WHLR has come

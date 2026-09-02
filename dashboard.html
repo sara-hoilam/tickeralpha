@@ -1353,8 +1353,8 @@ const API = {
     : Promise.resolve(null),
 
   /* One company's own Form 4s, with no materiality floor. get_trades applies
-     the $1M rule the market-wide table needs; on a company's own page that
-     rule is what hides an officer buying their own stock. */
+     the materiality floor the market-wide table needs; on a company's own
+     page that floor is what hides an officer buying their own stock. */
   symbolInsiders: symbol => HOSTED
     ? rpc("get_symbol_insiders", { p_symbol: symbol, p_days: 90 })
     : Promise.resolve(null),
@@ -1532,7 +1532,7 @@ const HELP = {
   nextrep:   "The next scheduled announcement and the consensus going into it. Companies confirm dates a few weeks ahead, so a date further out than that can still move.",
   ownhist:   "Total institutional position through time, from quarterly 13F filings: each bar is every filed position added up at that quarter end, and the line is the share of the company those positions amount to, against shares outstanding. 13F is a quarterly filing with up to a 45-day lag, so this chart has one point per quarter — there is no daily series to show. Quarters where the feed leaves the percentage blank are computed against today's share count, which drifts a little for companies that buy back or issue heavily.",
   holders:   "Institutions holding the stock, from their quarterly 13F filings with the SEC, largest position first. Funds managing over $100M must file within 45 days of each quarter end, so the picture is accurate as of the reporting date rather than today. A percentage is the position measured against shares outstanding.",
-  insiders:  "Form 4 filings by officers, directors and 10% owners of this company over the last 90 days. Only filings worth more than $1M, or more than 1% of shares outstanding, are listed -- the routine grants and tax withholdings below that line would bury the rest.",
+  insiders:  "Form 4 filings by officers, directors and 10% owners of this company over the last 90 days. Every open-market purchase and sale is listed, whatever its size -- on one company's page a chief executive buying a few hundred thousand dollars of their own stock is the point, not noise. Awards, option exercises and shares withheld for tax are left out: they are compensation being settled, not anyone deciding to trade. While the filings are still being read, the table shows the market-wide feed instead, which carries only filings above $200K or 1% of shares outstanding.",
   congress:  "Trades in this ticker disclosed by members of Congress under the STOCK Act, over the last 90 days. Members report a band rather than a figure, and may file up to 45 days after the trade, so the disclosure date is not the trade date.",
   houses:    "The most recent action from each institution covering the company. One row per firm, newest first, so a bank that reiterates weekly does not crowd out the rest.",
   peers:     "Who this company is measured against. The set starts from a curated list of well-known rivals, backed by every company filed under the same industry, largest first. Remove any name, add any listed company; the choice is remembered on this device for this ticker.",
@@ -3357,8 +3357,9 @@ function drawOwnership(){
 /** Ask the worker for this company's own filings, and wait for them.
 
     Until that fetch lands the table is showing the market-wide table's view,
-    which is filtered to $1M filings -- so the difference between "nothing was
-    filed" and "nothing large was filed" is not visible yet. */
+    which carries only filings above the market-wide materiality floor -- so
+    the difference between "nothing was filed" and "nothing large was filed"
+    is not visible yet. */
 async function ensureSymbolInsiders(sym){
   if (OWN.complete || OWN.asked || !HOSTED) return;
   OWN.asked = true;

@@ -329,7 +329,7 @@ tr[aria-expanded=true] .caret{transform:rotate(180deg)}
 
   <h2 class="sect">Where insiders are trading</h2>
   <p class="sect-sub" id="ins-sub">Officers and directors trading their own company's stock —
-     bought or sold on the open market, above $1M or 1% of shares outstanding.
+     bought or sold on the open market, above $200K or 1% of shares outstanding.
      Click a company for who was buying and selling.</p>
   <div class="ins-grid">
     <section class="panel">
@@ -522,6 +522,7 @@ const S = {
   // both read whichever is current, so the period control means the same
   // thing on each. insWindowed goes false if 0060 is not applied yet.
   insByDays: new Map(), insWindowed: true, insFlow: "all", insDays: 90,
+  insMin: 200000,
   // Ticker search. insExtra holds companies fetched because the query named a
   // ticker outside the leaders — searching should reach the whole window, not
   // just the thirty rows that happened to rank.
@@ -580,6 +581,9 @@ async function pageTrades(kind, want, symbols, days){
     const d = await rpc("get_trades", { p_limit: 100, p_offset: off, p_days: days || 90,
                                         p_kind: kind, ...(symbols ? { p_symbols: symbols } : {}) });
     const rows = (kind === "insider" ? d.insiders : d.congress) || [];
+    // The floor lives in the database; the page reports whatever it is told
+    // rather than repeating a number that then goes out of date.
+    if (d && d.minInsiderAmount != null) S.insMin = +d.minInsiderAmount;
     out.push(...rows);
     const total = kind === "insider" ? d.insidersTotal : d.congressTotal;
     if (!rows.length || (total != null && out.length >= total)) break;
@@ -1009,10 +1013,18 @@ function wireSearch(){
 const INS_BARS = 12;          // was 13
 const INS_ROWS = 30;          // leaders fetched; ten show, the rest scroll
 
+/** The materiality floor, written the way a reader says it. */
+const insFloorText = () => {
+  const v = S.insMin || 200000;
+  return v >= 1e6 ? `$${(v / 1e6).toFixed(v % 1e6 ? 1 : 0)}M`
+                  : `$${Math.round(v / 1e3)}K`;
+};
+
 /* One aggregate per window, from the database.
 
    The chart used to be aggregated in the browser from 600 get_trades rows.
-   5,851 filings clear the materiality floor in ninety days and get_trades
+   Thousands of filings clear the materiality floor in ninety days -- 5,851 at
+   the old $1M bar, several times that at $200K -- and get_trades
    returns them newest first, so those 600 covered six days -- every period
    button redrew the same six days, and any company whose last filing fell
    outside that sliver could not appear at all. The table meanwhile read
@@ -1197,8 +1209,8 @@ function paintInsiders(){
   const sub = document.getElementById("ins-sub");
   if (sub && S.insWindowed) sub.innerHTML = `Officers and directors trading their own
     company's stock — bought or sold on the open market over the last
-    ${S.insDays} days, above $1M or 1% of shares outstanding. Click a company
-    for who was buying and selling.`;
+    ${S.insDays} days, above ${insFloorText()} or 1% of shares outstanding.
+    Click a company for who was buying and selling.`;
   if (!rows.length) {
     const q = S.insQ.trim().toUpperCase();
     const msg = S.insSearching ? `<span class="load"></span>`
