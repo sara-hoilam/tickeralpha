@@ -21,6 +21,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py long-closes [T...] 10y closes for the correlation heatmap
     python worker.py ownership TICKER   why an Ownership tab is empty
     python worker.py peers TICKER       what FMP knows about a ticker's peers
+    python worker.py insiders [T...]    fill insider requests, or named symbols
     python worker.py alpha [DATE] [--force]  run the Alpha of the Day scan
     python worker.py alpha-results      backfill past picks' next-day returns
     python worker.py stats              coverage summary
@@ -904,6 +905,40 @@ def refresh_industry_pe() -> bool:
     return True
 
 
+def fetch_symbol_insiders(symbol: str) -> int:
+    """One company's own Form 4s, unfiltered, into its own table.
+
+    The market-wide pull keeps only filings over $1M -- the right floor for a
+    table ranking the whole market, and the reason a chief executive's
+    open-market purchase could be missing from that company's own page.
+    """
+    sym = symbol.upper()
+    try:
+        rows = market.symbol_insider_trades(sym, limit=100)
+    except market.MarketError as exc:
+        log(f"  insiders {sym}: {exc}")
+        if _fmp_limited(exc):
+            _pause_fmp(f"insiders {sym}")
+            return 0
+        # Record the attempt so the queue does not spin on a bad symbol.
+        store.replace_symbol_insiders(sym, [])
+        return 0
+    n = store.replace_symbol_insiders(sym, rows)
+    log(f"  insiders {sym}: {len(rows)} filings, {n} stored")
+    return n
+
+
+def drain_insider_requests(max_items: int = 4) -> int:
+    """Fill the insider requests the company pages have queued."""
+    if not market.configured() or time.time() < _FMP_PAUSED_UNTIL:
+        return 0
+    done = 0
+    for sym in store.pending_symbol_insiders(max_items):
+        fetch_symbol_insiders(sym)
+        done += 1
+    return done
+
+
 def drain_prices(max_items: int = 5) -> int:
     """Fetch prices for the companies whose report pages have been opened.
 
@@ -1437,6 +1472,8 @@ def run() -> None:
                 continue
             if drain_intraday():
                 continue
+            if drain_insider_requests():
+                continue
             if drain_long_closes():
                 continue
             if drain_analyst():
@@ -1624,7 +1661,15 @@ def main(argv: list[str]) -> int:
         for t in argv[1:]:
             check_ownership(t)
 
+    elif cmd == "insiders":
+        if len(argv) > 1:
+            for t in argv[1:]:
+                fetch_symbol_insiders(t)
+        else:
+            log(f"filled {drain_insider_requests(25)} insider request(s)")
+
     elif cmd == "peers":
+
         # Does this plan carry FMP's own peer list? The Industry tab's
         # competitor set falls back to "the largest companies filed under the
         # same industry", which is wrong for anything the curated list does
