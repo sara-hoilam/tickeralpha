@@ -67,12 +67,48 @@ def is_trading_day(day: dt.date) -> bool:
 # Scoring constants
 # ---------------------------------------------------------------------------
 
-W = {"hist": 25, "val": 15, "smart": 20, "fund": 15, "street": 15, "mom": 10}
+# Everything except `event` moves at the pace of quarters: a drawdown, a P/E,
+# a revenue trend and a consensus target are all much the same on Tuesday as
+# they were on Monday, which is why two consecutive mornings produced two
+# nearly identical boards. `event` is the part that knows what happened this
+# week, and it is weighted to matter.
+W = {"hist": 20, "val": 12, "smart": 16, "fund": 12, "street": 12, "mom": 8,
+     "event": 20}
 
 FAMILY_LABEL = {
     "hist": "Price vs own history", "val": "Valuation vs peers",
     "smart": "Smart money", "fund": "Fundamentals",
     "street": "The Street", "mom": "Momentum & season",
+    "event": "Catalyst & news",
+}
+
+# Only big news. A headline is significant when it names something that
+# changes what the company is worth -- a deal, a number, a regulator, a
+# lawsuit -- not when it merely mentions the ticker. Categories rather than
+# counts: six wires covering one acquisition are one event, not six.
+BIG_NEWS = {
+    "deal": ("acquir", "merger", "to buy", "takeover", "buyout", "all-cash",
+             "agrees to buy", "agreed to acquire", "bid for"),
+    "guidance": ("raises guidance", "cuts guidance", "lowers guidance",
+                 "raises outlook", "cuts outlook", "profit warning",
+                 "warns on", "guidance cut", "guidance raise"),
+    "results": ("beats estimates", "misses estimates", "tops estimates",
+                "quarterly results", "earnings beat", "earnings miss",
+                "posts loss", "record revenue", "results beat", "results miss"),
+    "legal": ("lawsuit", "settlement", "probe", "investigation", "subpoena",
+              "sec charges", "antitrust", "indict"),
+    "leadership": ("steps down", "resigns", "new chief executive",
+                   "names ceo", "ceo change", "ousted"),
+    "capital": ("buyback", "share repurchase", "raises dividend",
+                "cuts dividend", "suspends dividend", "stock split",
+                "spinoff", "spin-off", "secondary offering"),
+    "regulatory": ("fda approval", "fda rejects", "recall", "clearance",
+                   "tariff", "sanction", "export ban"),
+    "restructuring": ("layoff", "job cuts", "restructuring", "bankruptcy",
+                      "chapter 11", "plant closure"),
+    "activist": ("activist investor", "short seller", "13d filing"),
+    "contract": ("wins contract", "awarded contract", "multiyear deal",
+                 "partnership with"),
 }
 
 # Headline tone words. NEG drags and gates at >=3 in a week; SEVERE
@@ -91,7 +127,13 @@ SEVERE_WORDS = (
 
 MIN_CAP = 10e9              # small caps move on air; below $10B stay out
 CG_EVENT_DAYS = 21          # a congress disclosure this old is still an event
-COOLDOWN_DAYS = 14
+# How long a name rests. REPEAT_DAYS covers every slot on the board: the old
+# cooldown read only returned headline picks, so the eight candidates under
+# each day's pick were never held back and came round again the next morning.
+REPEAT_DAYS = 7
+PICK_COOLDOWN_DAYS = 14     # and longer before it may lead again
+JOLT_MIN = 4.0              # a move worth calling a move, in percent
+MOVE_STALE_DAYS = 4         # a three-day move read off older bars is not one
 SHORTLIST = 30              # names per side that get the decade-history pass
 LONG_FETCH_BUDGET = 25      # FMP decade-closes fetches per night
 RATIOS_FETCH_BUDGET = 80    # FMP ratios-ttm fetches per night (P/E backfill)
@@ -122,6 +164,16 @@ def _pct(sorted_vals: list[float], v: float) -> float:
     # as "a P/E in its 109th percentile" -- and a name at the top of its own
     # record is exactly the name that headline is written for.
     return 100.0 * below / len(sorted_vals)
+
+
+def _news_big(titles: list) -> int:
+    """How many *kinds* of significant story broke, not how many outlets ran
+    one. Wide coverage is measured separately, against the universe."""
+    low = [str(t).lower() for t in (titles or []) if t]
+    if not low:
+        return 0
+    return sum(1 for words in BIG_NEWS.values()
+               if any(w in t for t in low for w in words))
 
 
 def _ordinal(n: float) -> str:
@@ -358,6 +410,31 @@ def digest(r: dict, today: dt.date) -> dict | None:
     news = r.get("news") or {}
     neg7, severe7 = _news_tone(news.get("titles") or [])
 
+    # The catalyst window: three days of headlines, the last print, and the
+    # jolt in the tape. A three-day move is only a three-day move if the bars
+    # it came from are current -- a cached series can be weeks old.
+    n3 = r.get("news3") or {}
+    n3_titles = n3.get("titles") or []
+    move3d = None
+    as_of = r.get("move3dAsOf")
+    if r.get("move3d") is not None and as_of:
+        try:
+            fresh = (today - dt.date.fromisoformat(str(as_of)[:10])).days <= MOVE_STALE_DAYS
+        except ValueError:
+            fresh = False
+        if fresh:
+            move3d = float(r["move3d"])
+    le = r.get("lastEarnings") or {}
+    since_earn = earn_surprise = None
+    if le.get("date"):
+        try:
+            since_earn = (today - dt.date.fromisoformat(str(le["date"])[:10])).days
+        except ValueError:
+            since_earn = None
+        act, est = le.get("epsActual"), le.get("epsEstimated")
+        if act is not None and est:
+            earn_surprise = (float(act) - float(est)) / abs(float(est)) * 100.0
+
     an = r.get("analyst") or {}
     target = (an.get("target") or {})
     tgt = target.get("median") or target.get("consensus")
@@ -411,6 +488,12 @@ def digest(r: dict, today: dt.date) -> dict | None:
         "earn_days": earn_days,
         "season": _season_pct(r.get("monthly"), today.month),
         "season_month": today.month,
+        "chg1d": q.get("changePct"),
+        "move3d": move3d,
+        "news3": int(n3.get("stories") or 0),
+        "big_news": _news_big(n3_titles),
+        "since_earn": since_earn,
+        "earn_surprise": earn_surprise,
         "has_long": bool(r.get("longCloses")),
         "long_to": (r.get("longCloses") or {}).get("to"),
         "dd_stats": None,          # stage 2 fills this for the shortlist
@@ -420,6 +503,51 @@ def digest(r: dict, today: dt.date) -> dict | None:
 # ---------------------------------------------------------------------------
 # Family scores
 # ---------------------------------------------------------------------------
+
+def _event_score(d: dict, ctx: dict, sell: bool) -> tuple[float, bool]:
+    """How much is happening to this name right now, and whether anything is.
+
+    Returns (score, thin). A quiet name scores a neutral 50 and is marked
+    thin, so it is not punished for having no catalyst -- it simply cannot
+    win on one it does not have.
+    """
+    score_, had = 50.0, False
+
+    if d["big_news"]:
+        had = True
+        score_ += min(20.0, 9.0 * d["big_news"])
+    if d["news3"] and ctx.get("news3") and _pct(ctx["news3"], d["news3"]) >= 85:
+        had = True
+        score_ += 5.0
+
+    # A print just delivered is the largest re-rating moment a stock gets;
+    # one a few days out is a scheduled one. Inside two days belongs to the
+    # gates -- an idea published the night before earnings is a coin toss.
+    if d["since_earn"] is not None and d["since_earn"] <= 3:
+        had = True
+        score_ += 14.0
+        if d["earn_surprise"] is not None:
+            # A beat helps the buy case and hurts the sell case; a miss the
+            # other way round.
+            helps = (d["earn_surprise"] > 0) != sell
+            score_ += ((8.0 if helps else -6.0)
+                       * min(1.0, abs(d["earn_surprise"]) / 20.0))
+    elif d["earn_days"] is not None and 2 < d["earn_days"] <= 10:
+        had = True
+        score_ += 9.0
+
+    # The jolt itself, over whichever window saw more of it.
+    moves = [m for m in (d["chg1d"], d["move3d"]) if m is not None]
+    jolt = max(moves, key=abs) if moves else None
+    if jolt is not None and abs(jolt) >= JOLT_MIN:
+        had = True
+        # A dislocation is worth something to the side that fades it: a sharp
+        # drop is a buy candidate's opening, a sharp run is a sell's.
+        helps = (jolt < 0) if not sell else (jolt > 0)
+        score_ += (16.0 if helps else -12.0) * min(1.0, abs(jolt) / 12.0)
+
+    return max(0.0, min(100.0, score_)), not had
+
 
 def score(d: dict, ctx: dict) -> dict:
     """Buy and sell composites for one digest, against universe context.
@@ -499,6 +627,11 @@ def score(d: dict, ctx: dict) -> dict:
         thin.append("mom")
     fams["mom"] = max(0.0, min(100.0, mom))
 
+    ev_buy, ev_thin = _event_score(d, ctx, sell=False)
+    fams["event"] = ev_buy
+    if ev_thin:
+        thin.append("event")
+
     total = sum(W.values())
     buy = sum(W[f] * fams[f] for f in W) / total
     buy -= 4.0 * min(2, d["neg7"])          # light news drag, not a wall
@@ -515,6 +648,7 @@ def score(d: dict, ctx: dict) -> dict:
         "street": 100.0 - fams["street"],
         "mom": 50.0 + (25.0 * math.tanh(max(0.0, d["ext_pct"]) / 0.2)
                        if d["ext_pct"] is not None else 0.0),
+        "event": _event_score(d, ctx, sell=True)[0],
     }
     sell = sum(W[f] * sell_f[f] for f in W) / total
     sell += 3.0 * min(2, d["neg7"])
@@ -523,7 +657,8 @@ def score(d: dict, ctx: dict) -> dict:
                    or d["ins_cluster_sell"] or d["neg7"] >= 3)
     sell_thin = [f for f in ("hist", "val", "fund", "street")
                  if f in thin] + (["smart"] if not had_smart else []) \
-                + (["mom"] if d["ext_pct"] is None else [])
+                + (["mom"] if d["ext_pct"] is None else []) \
+                + (["event"] if ev_thin else [])
 
     return {"buy": buy, "sell": sell, "fams": fams, "sell_f": sell_f,
             "thin": thin, "sell_thin": sell_thin, "sell_anchor": sell_anchor}
@@ -574,8 +709,11 @@ def build_ctx(digests: list[dict]) -> dict:
     ups = sorted(d["upside"] for d in digests if d.get("upside") is not None)
     gaps = sorted(d["pe"] / (peer_pe.get(d["industry"]) or median_pe)
                   for d in digests if d.get("pe") and d["pe"] > 0)
+    # Wide coverage means something only against the market's own baseline: a
+    # mega-cap is in the news every day of its life.
+    news3 = sorted(d["news3"] for d in digests if d.get("news3"))
     return {"peer_pe": peer_pe, "median_pe": median_pe,
-            "dds": dds, "ups": ups, "gaps": gaps}
+            "dds": dds, "ups": ups, "gaps": gaps, "news3": news3}
 
 
 # ---------------------------------------------------------------------------
@@ -755,6 +893,24 @@ def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
     if d["neg7"]:
         chips.append({"t": "down", "l": "Bearish stories 7d",
                       "v": str(d["neg7"])})
+    ch_moves = [(m, w) for m, w in ((d.get("chg1d"), "1d"),
+                                    (d.get("move3d"), "3d"))
+                if m is not None]
+    ch_jolt, ch_win = (max(ch_moves, key=lambda x: abs(x[0]))
+                       if ch_moves else (None, ""))
+    if ch_jolt is not None and abs(ch_jolt) >= JOLT_MIN:
+        chips.append({"t": "down" if ch_jolt < 0 else "up",
+                      "l": f"Move {ch_win}", "v": f"{ch_jolt:+.1f}%"})
+    if d["big_news"]:
+        chips.append({"t": "mut", "l": "Big news 3d",
+                      "v": f"{d['big_news']} stor{'y' if d['big_news'] == 1 else 'ies'}"})
+    if d["since_earn"] is not None and d["since_earn"] <= 3:
+        chips.append({"t": "mut", "l": "Reported",
+                      "v": "today" if d["since_earn"] == 0
+                           else f"{d['since_earn']}d ago"})
+    elif d["earn_days"] is not None and 2 < d["earn_days"] <= 10:
+        chips.append({"t": "mut", "l": "Earnings in",
+                      "v": f"{d['earn_days']} days"})
 
     # The series come first because what a name may *claim* depends on what
     # can be drawn beside the claim. Each `have` entry mirrors the matching
@@ -897,6 +1053,14 @@ def _claims(d: dict, s: dict, side: str, have: dict) -> list[dict]:
     thin = s["sell_thin" if side == "SELL" else "thin"]
     out: list[dict] = []
 
+    # The move, over whichever window saw more of it. The price chart beside
+    # the sentence already draws it, so these claims name no chart of their
+    # own -- which also leaves the carousel free to illustrate them.
+    moves = [(m, w) for m, w in ((d.get("chg1d"), "in a session"),
+                                 (d.get("move3d"), "in three sessions"))
+             if m is not None]
+    jolt, window = max(moves, key=lambda x: abs(x[0])) if moves else (None, "")
+
     def add(fam, chart, lead, tail=None, bonus=0.0):
         # A family with no evidence behind it scores a flat 50; letting it
         # lead would dress up an absence as an argument.
@@ -924,6 +1088,18 @@ def _claims(d: dict, s: dict, side: str, have: dict) -> list[dict]:
                 f"{d['ins_buyers']} {name} insiders bought their own stock "
                 f"inside a month",
                 f"{d['ins_buyers']} insiders bought inside a month")
+        if jolt is not None and jolt <= -JOLT_MIN:
+            add("event", None,
+                f"{name} has fallen {abs(jolt):.0f}% {window}",
+                f"it is down {abs(jolt):.0f}% {window}", bonus=3)
+        if d["since_earn"] is not None and d["since_earn"] <= 3:
+            said = ("beating" if (d["earn_surprise"] or 0) > 0 else "missing"
+                    ) if d["earn_surprise"] is not None else None
+            add("event", None,
+                f"{name} reported "
+                + (f"this week, {said} on earnings" if said else "this week"),
+                f"it reported "
+                + (f"{said} on earnings" if said else "this week"))
         if dds and dds["rarity"] >= 90 and dds["years"] >= RARITY_MIN_YEARS:
             pct = 100 - dds["rarity"]
             share = f"only {pct:.0f}%" if pct >= 1 else "fewer than 1%"
@@ -971,6 +1147,15 @@ def _claims(d: dict, s: dict, side: str, have: dict) -> list[dict]:
                 f"its {_ordinal(d['pe_own_pct'])} percentile",
                 f"its P/E sits in its own {_ordinal(d['pe_own_pct'])} percentile",
                 bonus=4)
+        if jolt is not None and jolt >= JOLT_MIN:
+            add("event", None,
+                f"{name} has run {jolt:.0f}% {window}",
+                f"it is up {jolt:.0f}% {window}", bonus=3)
+        if (d["since_earn"] is not None and d["since_earn"] <= 3
+                and (d["earn_surprise"] or 0) < 0):
+            add("event", None,
+                f"{name} missed on earnings this week",
+                "it missed on earnings this week")
         if d["ins_cluster_sell"]:
             add("smart", None,
                 f"{d['ins_sellers']} {name} insiders each sold more than "
@@ -1132,16 +1317,41 @@ def run_scan(day: dt.date | None = None, force: bool = False) -> bool:
         d = scored[sym][0]
         scored[sym] = (d, score(d, ctx))
 
-    # Today's own stored pick must not cool itself down: a --force re-run of
-    # the same day should be free to reach the same conclusion.
-    cooldown = {p["symbol"] for p in
-                (store.rpc("get_alpha_track_record",
-                           {"p_days": COOLDOWN_DAYS}) or [])
-                if p.get("day") != day.isoformat()}
+    # What has already been posted, in any slot. The read this used before
+    # returned headline picks only, so the eight candidates under each day's
+    # pick were never held back and came round again the next morning --
+    # which is what made two consecutive boards look like one.
+    #
+    # Today's own stored ideas must not cool themselves down: a --force
+    # re-run of the same day should be free to reach the same conclusion.
+    today_iso = day.isoformat()
+    posted, led = {}, {}
+    for row in (store.rpc("alpha_recent_symbols",
+                          {"p_days": max(REPEAT_DAYS, PICK_COOLDOWN_DAYS)}) or []):
+        sym = row.get("symbol")
+        if not sym:
+            continue
+        if row.get("lastDay") and row["lastDay"] != today_iso:
+            posted[sym] = row["lastDay"]
+        if row.get("lastPickDay") and row["lastPickDay"] != today_iso:
+            led[sym] = row["lastPickDay"]
+
+    def _rested(iso: str) -> int:
+        try:
+            return (day - dt.date.fromisoformat(str(iso)[:10])).days
+        except (TypeError, ValueError):
+            return 999
+
+    # Any slot rests a week; leading again takes a fortnight.
+    cooldown = {s for s, iso in posted.items() if _rested(iso) < REPEAT_DAYS}
+    pick_cooldown = cooldown | {s for s, iso in led.items()
+                                if _rested(iso) < PICK_COOLDOWN_DAYS}
+    log(f"resting: {len(cooldown)} posted in {REPEAT_DAYS}d, "
+        f"{len(pick_cooldown)} barred from leading")
 
     best_buy = None
     for d, s in sorted(scored.values(), key=lambda x: -x[1]["buy"]):
-        if d["symbol"] in cooldown or buy_gates(d):
+        if d["symbol"] in pick_cooldown or buy_gates(d):
             continue
         if len(_strong(s["fams"], s["thin"])) < 2:
             continue
@@ -1150,7 +1360,7 @@ def run_scan(day: dt.date | None = None, force: bool = False) -> bool:
 
     best_sell = None
     for d, s in sorted(scored.values(), key=lambda x: -x[1]["sell"]):
-        if d["symbol"] in cooldown or not s["sell_anchor"]:
+        if d["symbol"] in pick_cooldown or not s["sell_anchor"]:
             continue
         if (d["cap"] or 0) < MIN_CAP:
             continue
@@ -1199,6 +1409,10 @@ def run_scan(day: dt.date | None = None, force: bool = False) -> bool:
         cand_s.append((d, s))
     start_b = 2 if winner == "BUY" else 1
     start_s = 2 if winner == "SELL" else 1
+    if len(cand_b) < 4 or len(cand_s) < 4:
+        log(f"candidates: {len(cand_b)} buys, {len(cand_s)} sells cleared the "
+            f"{REPEAT_DAYS}-day rest — showing a shorter board rather than "
+            "repeating a name")
     for i, (d, s) in enumerate(cand_b):
         ideas.append(build_idea(d, s, "BUY", start_b + i, False,
                                 closes_by_sym.get(d["symbol"])))

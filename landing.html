@@ -3242,6 +3242,7 @@ function niceScale(lo, hi, want){
 const FAMILY_LABEL = {
   hist: "Price vs own history", val: "Valuation vs peers", smart: "Smart money",
   fund: "Fundamentals", street: "The Street", mom: "Momentum & season",
+  event: "Catalyst & news",
 };
 const money = v => v >= 1e9 ? `$${(v/1e9).toFixed(1)}B`
   : v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : `$${Math.round(v/1e3)}K`;
@@ -3647,16 +3648,20 @@ function peChart(hist, peer, own, tone){
 }
 
 /* The weighting behind every score, shown on hover/focus of the number. */
-const WEIGHTS = [["Price vs own history", 25], ["Smart money", 20],
-                 ["Valuation vs peers", 15], ["Fundamentals", 15],
-                 ["The Street", 15], ["Momentum & season", 10]];
+const WEIGHTS = [["Price vs own history", 20], ["Catalyst & news", 20],
+                 ["Smart money", 16], ["Valuation vs peers", 12],
+                 ["Fundamentals", 12], ["The Street", 12],
+                 ["Momentum & season", 8]];
 const WEIGHTS_HTML = `<span class="wgt" role="tooltip">
   <h5>How the score is weighted</h5>
   ${WEIGHTS.map(([l, w]) => `<span class="wr"><span>${l}</span><b>${w}%</b></span>`).join("")}
   <p>Each family is scored 0–100 across the universe, then blended by these
-     weights. A family with no data behind it scores a neutral 50 and cannot
-     count toward conviction. A screen over public data by fixed rules — not
-     investment advice.</p></span>`;
+     weights. Catalyst &amp; news reads the last three days: significant
+     headlines, a print just delivered or a few days out, and a sharp move in
+     the tape. A family with no data behind it scores a neutral 50 and cannot
+     count toward conviction. A name rests a week after it appears here, and a
+     fortnight before it can lead again. A screen over public data by fixed
+     rules — not investment advice.</p></span>`;
 
 /* ---- slides ------------------------------------------------------------- */
 
