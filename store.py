@@ -215,6 +215,13 @@ def replace_trades(insiders: list[dict], congress: list[dict]) -> int:
                {"p_insiders": insiders, "p_congress": congress}) or 0
 
 
+def append_trades(insiders: list[dict], congress: list[dict],
+                  reset: bool = False) -> int:
+    return rpc("append_trades", {"p_insiders": insiders,
+                                 "p_congress": congress,
+                                 "p_reset": reset}) or 0
+
+
 def replace_politicians(rows: list[dict]) -> int:
     return rpc("replace_politicians", {"p_rows": rows}) or 0
 

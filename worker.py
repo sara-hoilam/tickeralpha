@@ -211,6 +211,27 @@ def seed(limit: int = 500) -> None:
 # Backfill queue
 # ---------------------------------------------------------------------------
 
+# How much of the ninety-day tape is kept. Around 5,900 filings cleared the
+# old $1M floor; $200K admits several times that, and the cap is what stops a
+# heavy window from being written at all rather than in part.
+INSIDER_STORE_CAP = 40000
+CONGRESS_STORE_CAP = 6000
+TRADE_WRITE_CHUNK = 4000
+
+
+def write_trades(insiders: list[dict], congress: list[dict]) -> int:
+    """Replace the market-wide tape, a few thousand rows at a time."""
+    n = 0
+    first = True
+    for i in range(0, max(len(insiders), 1), TRADE_WRITE_CHUNK):
+        n += store.append_trades(insiders[i:i + TRADE_WRITE_CHUNK], [],
+                                 reset=first)
+        first = False
+    for i in range(0, len(congress), TRADE_WRITE_CHUNK):
+        store.append_trades([], congress[i:i + TRADE_WRITE_CHUNK], reset=False)
+    return n
+
+
 def drain_backfill(max_items: int = 25) -> int:
     done = 0
     while done < max_items:
@@ -1171,11 +1192,19 @@ def refresh_sections(do_trades: bool = True) -> bool:
         # Persist the full 90-day material pulls. Tables still request 7 / 14
         # days via get_trades; flow charts and fallbacks need the longer set.
         # No congress amount floor (MIN_CONGRESS_AMOUNT = 0).
-        ins_store = ins_all[:8000]
-        con_store = con_all[:3500]
-        store.replace_trades(ins_store, con_store)
+        # A $200K floor admits several times what $1M did, so the ninety-day
+        # tape no longer fits in one write. Chunks keep each request small;
+        # the first carries the reset, so the tables are never left empty for
+        # a reader who arrives mid-refresh.
+        ins_store = ins_all[:INSIDER_STORE_CAP]
+        con_store = con_all[:CONGRESS_STORE_CAP]
+        written = write_trades(ins_store, con_store)
         log(f"  trades pulled: {len(ins_all)} insider / {len(con_all)} congress "
-            f"over {flow_days}d; stored {len(ins_store)} / {len(con_store)}")
+            f"over {flow_days}d; stored {written} / {len(con_store)}")
+        if len(ins_all) >= INSIDER_STORE_CAP:
+            log(f"  trades: the pull filled the {INSIDER_STORE_CAP}-row cap — "
+                "the oldest days of the window were dropped, raise "
+                "INSIDER_STORE_CAP")
     except market.MarketError as exc:
         log(f"  trades: {exc}")
         ins = con = []
