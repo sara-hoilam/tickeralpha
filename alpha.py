@@ -132,6 +132,12 @@ CG_EVENT_DAYS = 21          # a congress disclosure this old is still an event
 # each day's pick were never held back and came round again the next morning.
 REPEAT_DAYS = 7
 PICK_COOLDOWN_DAYS = 14     # and longer before it may lead again
+# A P/E is a price over an earnings number, and both ends go wrong: a company
+# earning almost nothing prints a ratio in the hundreds, and a quote that has
+# not refreshed against fresh earnings prints one that never existed. Past
+# this the figure says nothing about how a company is valued, so the scan
+# treats it as no P/E at all rather than as an expensive one.
+PE_MAX = 100.0
 JOLT_MIN = 4.0              # a move worth calling a move, in percent
 MOVE_STALE_DAYS = 4         # a three-day move read off older bars is not one
 SHORTLIST = 30              # names per side that get the decade-history pass
@@ -164,6 +170,15 @@ def _pct(sorted_vals: list[float], v: float) -> float:
     # as "a P/E in its 109th percentile" -- and a name at the top of its own
     # record is exactly the name that headline is written for.
     return 100.0 * below / len(sorted_vals)
+
+
+def _sane_pe(pe) -> float | None:
+    """The ratio, or None when it is not one worth reading."""
+    try:
+        v = float(pe)
+    except (TypeError, ValueError):
+        return None
+    return v if 0 < v <= PE_MAX else None
 
 
 def _news_big(titles: list) -> int:
@@ -252,10 +267,11 @@ def _season_pct(monthly: list, month: int) -> float | None:
 
 def _pe_own_pct(pe_history: list, pe: float | None) -> float | None:
     """Where today's P/E sits in the company's own stored record (0..100)."""
-    if not pe or pe <= 0:
+    pe = _sane_pe(pe)
+    if pe is None:
         return None
-    vals = sorted(p.get("pe") for p in (pe_history or [])
-                  if p.get("pe") and p.get("pe") > 0)
+    vals = sorted(v for v in (_sane_pe(p.get("pe")) for p in (pe_history or []))
+                  if v is not None)
     if len(vals) < 12:            # three years of quarters, minimum
         return None
     return _pct(vals, pe)
@@ -464,7 +480,7 @@ def digest(r: dict, today: dt.date) -> dict | None:
     return {
         "symbol": r["symbol"], "name": r.get("name") or r["symbol"],
         "industry": r.get("industry") or r.get("sector") or "—",
-        "price": price, "cap": cap, "pe": q.get("pe"),
+        "price": price, "cap": cap, "pe": _sane_pe(q.get("pe")),
         "year_high": q.get("yearHigh"), "avg200": avg200,
         "dd_1y": (1.0 - price / q["yearHigh"]) if q.get("yearHigh") else None,
         "ext_pct": ext_pct,
@@ -572,7 +588,7 @@ def score(d: dict, ctx: dict) -> dict:
     fams["hist"] = max(0.0, min(100.0, hist))
 
     peer_pe = ctx["peer_pe"].get(d["industry"]) or ctx["median_pe"]
-    if d.get("pe") and d["pe"] > 0 and peer_pe:
+    if d.get("pe") and peer_pe:
         gap = d["pe"] / peer_pe
         val = 0.6 * (100 - _pct(ctx["gaps"], gap)) + 0.4 * (
             100 - d["pe_own_pct"] if d.get("pe_own_pct") is not None else 50)
@@ -696,7 +712,7 @@ def build_ctx(digests: list[dict]) -> dict:
     by_ind: dict[str, list[float]] = {}
     pes = []
     for d in digests:
-        if d.get("pe") and 0 < d["pe"] < 400:
+        if d.get("pe"):            # digest has already discarded the absurd
             by_ind.setdefault(d["industry"], []).append(d["pe"])
             pes.append(d["pe"])
     median_pe = sorted(pes)[len(pes) // 2] if pes else 22.0
@@ -929,9 +945,10 @@ def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
                        "target": t.get("target"), "d": t.get("published")}
                       for t in d.get("street_rows", [])
                       if t.get("target")][:5] or None
-    pe_history = ([{"d": p["d"], "pe": round(p["pe"], 1)}
+    pe_history = ([{"d": p["d"], "pe": round(_sane_pe(p.get("pe")), 1)}
                    for p in d.get("pe_hist", [])
-                   if p.get("d") and p.get("pe")][-40:] or None)
+                   if p.get("d") and _sane_pe(p.get("pe")) is not None][-40:]
+                  or None)
     have = {
         "drawdown": len(dd_series or []) > 10,
         "ma": len(ma_series or []) > 20,

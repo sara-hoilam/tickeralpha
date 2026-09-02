@@ -1352,6 +1352,16 @@ const API = {
     ? rpc("get_symbol_ownership", { p_symbol: symbol })
     : Promise.resolve(null),
 
+  /* One company's own Form 4s, with no materiality floor. get_trades applies
+     the $1M rule the market-wide table needs; on a company's own page that
+     rule is what hides an officer buying their own stock. */
+  symbolInsiders: symbol => HOSTED
+    ? rpc("get_symbol_insiders", { p_symbol: symbol, p_days: 90 })
+    : Promise.resolve(null),
+  requestInsiders: symbol => HOSTED
+    ? rpc("request_symbol_insiders", { p_symbol: symbol })
+    : Promise.resolve(null),
+
   peers: symbol => HOSTED
     ? rpc("get_industry_peers", { p_symbol: symbol })
     : Promise.resolve(null),
@@ -3226,7 +3236,8 @@ async function loadEarnings(){
    filings, the congressional disclosures, and the houses covering it. The
    trades come from the same get_trades the portfolio page reads, narrowed to
    this one symbol. */
-const OWN = { symbol: null, insiders: null, congress: null, loading: false };
+const OWN = { symbol: null, insiders: null, congress: null, loading: false,
+              complete: false, asked: false, poll: 0 };
 const HELD = { symbol: null, data: null, loading: false, failed: false };
 const OWNH = { symbol: null, data: null, loading: false, failed: false, range: "5Y" };
 // 13F is filed quarterly, so the only honest period is a quarter; the picker
@@ -3319,10 +3330,14 @@ function drawOwnership(){
           <td>${ownWho(r.person, r.title)}</td>
           <td>${ownSide(r.side)}</td>
           <td class="num col-shares">${esc(ownShares(r.shares))}</td>
-          <td class="num">${esc(r.amount == null ? "—" : money(Math.abs(r.amount), 1))}</td>
+          <td class="num"${r.price ? ` title="at $${(+r.price).toFixed(2)} a share"` : ""}>${
+            esc(r.amount == null ? "—" : money(Math.abs(r.amount), 1))}</td>
         </tr>`).join("")}</tbody></table>`
-    : `<div class="note">No insider filing over $1M — or over 1% of shares
-       outstanding — for ${esc(sym)} in the last 90 days.</div>`;
+    : OWN.complete
+      ? `<div class="note">No open-market insider purchase or sale filed for
+         ${esc(sym)} in the last 90 days.</div>`
+      : `<div class="note"><span class="load"></span> &nbsp;Reading
+         ${esc(sym)}'s Form 4 filings…</div>`;
 
   con.innerHTML = OWN.congress.length
     ? `<table class="otab">
@@ -3337,6 +3352,33 @@ function drawOwnership(){
     : `<div class="note">No congressional disclosure naming ${esc(sym)} in the
        last 90 days.</div>`;
   wireHelp();
+}
+
+/** Ask the worker for this company's own filings, and wait for them.
+
+    Until that fetch lands the table is showing the market-wide table's view,
+    which is filtered to $1M filings -- so the difference between "nothing was
+    filed" and "nothing large was filed" is not visible yet. */
+async function ensureSymbolInsiders(sym){
+  if (OWN.complete || OWN.asked || !HOSTED) return;
+  OWN.asked = true;
+  try { await API.requestInsiders(sym); } catch { return; }
+  let tries = 0;
+  const tick = async () => {
+    if (OWN.symbol !== sym || !document.getElementById("own-insiders")) return;
+    if (tries++ >= 12) return;                   // ~2 minutes, then give up
+    let d = null;
+    try { d = await API.symbolInsiders(sym); } catch {}
+    if (OWN.symbol !== sym) return;
+    if (d && d.complete) {
+      OWN.insiders = d.trades || [];
+      OWN.complete = true;
+      drawOwnership();
+      return;
+    }
+    OWN.poll = setTimeout(tick, tries < 4 ? 4000 : 10000);
+  };
+  OWN.poll = setTimeout(tick, 3500);
 }
 
 /** Who owns the company, as filed. Shares are worth more than dollars here:
@@ -3603,12 +3645,18 @@ async function loadOwnershipTrades(){
   OWN.symbol = sym;
   OWN.loading = true;
   OWN.insiders = OWN.congress = null;
+  OWN.complete = false; OWN.asked = false;
+  clearTimeout(OWN.poll);
   try {
-    const d = await API.trades(sym);
+    // get_trades still serves the congressional side, which is market-wide by
+    // nature; the insider side comes from this company's own filings.
+    const [d, own] = await Promise.all([API.trades(sym), API.symbolInsiders(sym)]);
     if (OWN.symbol !== sym) return;              // another company was opened
-    OWN.insiders = (d && d.insiders) || [];
+    OWN.insiders = (own && own.trades) || (d && d.insiders) || [];
+    OWN.complete = !!(own && own.complete);
     OWN.congress = (d && d.congress) || [];
     drawOwnership();
+    ensureSymbolInsiders(sym);
   } catch {
     if (OWN.symbol !== sym) return;
     OWN.insiders = OWN.congress = null;

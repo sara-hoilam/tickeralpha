@@ -1446,6 +1446,72 @@ def _trade_list_max_pages(days: int) -> int:
     return 100
 
 
+_SYMBOL_INSIDER_ENDPOINTS = (
+    ("insider-trading/search", None),
+    ("insider-trading", V4_BASE),
+)
+
+
+def symbol_insider_trades(symbol: str, limit: int = 100) -> list[dict]:
+    """Every open-market Form 4 this company has filed lately.
+
+    Deliberately unfiltered. The market-wide pull keeps only filings over
+    $1M because it ranks the whole market's tape and would otherwise be all
+    noise; on a single company's page the opposite is true -- an officer
+    buying a few hundred thousand dollars of their own stock on the open
+    market is the whole story, and a floor written for a leaderboard is what
+    hid it.
+
+    Codes are read the same way as the market-wide pull: P is a purchase and
+    S a sale, and every other Form 4 code is compensation plumbing.
+    """
+    sym = symbol.upper()
+    last: MarketError | None = None
+    rows: list | None = None
+    for path, base in _SYMBOL_INSIDER_ENDPOINTS:
+        try:
+            got = _get(path, base, symbol=sym, page=0, limit=min(limit, 100))
+        except MarketError as exc:
+            last = exc
+            continue
+        if isinstance(got, list):
+            rows = got
+            break
+    if rows is None:
+        raise last or MarketError(f"{sym}: no insider endpoint answered")
+
+    out: list[dict] = []
+    for r in rows:
+        filed = _as_day(r.get("filingDate"))
+        if filed is None:
+            continue
+        shares = float(r.get("securitiesTransacted") or 0)
+        price = float(r.get("price") or 0)
+        if price > MAX_PLAUSIBLE_SHARE_PRICE:
+            continue
+        code = str(r.get("transactionType")
+                   or r.get("acquisitionOrDisposition") or "").upper()
+        if code.startswith("P"):
+            buy = True
+        elif code.startswith("S"):
+            buy = False
+        else:
+            continue
+        out.append({
+            "filed": filed.isoformat(),
+            "traded": (_as_day(r.get("transactionDate")).isoformat()
+                       if _as_day(r.get("transactionDate")) else None),
+            "person": _insider_person_name(r.get("reportingName")),
+            "title": _insider_title(r.get("typeOfOwner")),
+            "side": "Buy" if buy else "Sell",
+            "shares": shares,
+            "price": price or None,
+            "amount": (shares * price) if price else None,
+        })
+    out.sort(key=lambda x: (x["filed"], abs(x["amount"] or 0)), reverse=True)
+    return out
+
+
 def insider_trades(days: int = 7, store_cap: int = 400,
                    collapse: bool = True) -> list[dict]:
     """Form 4 filings from the last `days`.
