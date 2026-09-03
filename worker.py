@@ -22,7 +22,8 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py ownership TICKER   why an Ownership tab is empty
     python worker.py peers TICKER       what FMP knows about a ticker's peers
     python worker.py insiders [T...]    fill insider requests, or named symbols
-    python worker.py queue              why a price refresh has not landed
+    python worker.py queue [TICKER]     which charts are behind, and why
+    python worker.py prices-probe T...  what the price feed returns right now
     python worker.py alpha [DATE] [--force]  run the Alpha of the Day scan
     python worker.py alpha-results      backfill past picks' next-day returns
     python worker.py stats              coverage summary
@@ -636,10 +637,35 @@ def fetch_prices(symbol: str) -> bool:
                 pass
             _pause_fmp(f"prices {sym}")
             return False
-        # Mark it finished anyway, or the queue spins on a bad symbol.
+        # Mark it finished anyway, or the queue spins on a bad symbol -- but
+        # record why, or the row reads as a clean success in the queue.
+        try:
+            store.note_price_attempt(sym, str(exc))
+        except store.StoreError:
+            pass
         store.upsert_prices(sym, [], None, None)
         return False
-    store.upsert_prices(sym, bars, q, bars[-1]["d"] if bars else None)
+
+    # An empty answer is not a refresh. upsert_prices skips the bars write
+    # when the array is empty -- deliberately, so a bad fetch cannot erase a
+    # good chart -- but it still marks the request done, and this function
+    # used to carry on and return True. The result was a symbol whose request
+    # was "done" with no attempts and no error while its bars stood still:
+    # the page saw stale data, asked again, the worker succeeded again, and
+    # nothing moved. That is the shape of a chart stuck on 14 August.
+    if not bars:
+        log(f"  prices {sym}: the feed returned no daily bars")
+        try:
+            store.note_price_attempt(sym, "feed returned no daily bars")
+        except store.StoreError:
+            pass
+        # The quote is still worth keeping, and writing it clears the request
+        # so the queue does not spin; the recorded attempt is what makes the
+        # silence visible in `worker.py queue`.
+        store.upsert_prices(sym, [], q, None)
+        return False
+
+    store.upsert_prices(sym, bars, q, bars[-1]["d"])
 
     # Keep the summary quote in sync too. fetch_prices writes quote_detail for
     # the company page; without this, a watchlisted symbol that was never on
@@ -1710,19 +1736,69 @@ def main(argv: list[str]) -> int:
             check_ownership(t)
 
     elif cmd == "queue":
-        # Which requests are waiting, how often each has been tried and what
-        # it said when it failed -- the answer to "why is this chart stale".
-        st = store.price_queue_state(int(argv[1]) if len(argv) > 1 else 20)
-        print(f"waiting: {st.get('waiting', 0)}   "
+        # Two questions, and the second is the one that matters: what is
+        # queued, and what is actually behind. A chart can be stale with
+        # nothing queued and nothing failed -- that is what a fetch returning
+        # no bars and being recorded as a success looks like.
+        sym = argv[1].upper() if len(argv) > 1 and not argv[1].isdigit() else None
+        fresh = store.stale_price_symbols(40)
+        print(f"last session: {fresh.get('lastSession', '?')}   "
+              f"cached: {fresh.get('cached', 0)}   "
+              f"behind it: {fresh.get('behind', 0)}")
+        for r in fresh.get("rows", [])[:20]:
+            print(f"  {r.get('symbol', '?'):<10} "
+                  f"as of {r.get('asOf') or '—'} "
+                  f"({r.get('sessionsBehind', 0)} sessions behind, "
+                  f"written {str(r.get('writtenAt') or '—')[:16]}"
+                  f"{', queued' if r.get('queued') else ''})")
+
+        st = store.price_queue_state(20, sym)
+        print(f"\nqueue — waiting: {st.get('waiting', 0)}   "
               f"tried twice or more: {st.get('stuck', 0)}")
         for r in st.get("rows", []):
+            # When the request was last marked done is the fact that splits
+            # "the worker fetched and got nothing back" (done today, bars
+            # weeks old) from "nobody has asked since" (done weeks ago).
             state = "done" if r.get("doneAt") else "waiting"
-            print(f"  {r.get('symbol', '?'):<8} {state:<8} "
+            when = str(r.get("doneAt") or r.get("requestedAt") or "—")[:16]
+            print(f"  {r.get('symbol', '?'):<10} {state:<8} {when}  "
                   f"attempts={r.get('attempts', 0)} "
                   f"bars as of {r.get('barsAsOf') or '—'} "
-                  f"(fetched {str(r.get('barsUpdatedAt') or '—')[:16]})")
+                  f"(written {str(r.get('barsUpdatedAt') or '—')[:16]})")
             if r.get("lastError"):
-                print(f"           last error: {r['lastError'][:120]}")
+                print(f"             last error: {r['lastError'][:140]}")
+
+    elif cmd == "prices-probe":
+        # What the feed says right now, without writing anything. The queue
+        # can only report that a fetch finished; this reports what it
+        # returned, which is the difference between "nobody asked" and "the
+        # answer was empty".
+        if len(argv) < 2:
+            print("usage: python worker.py prices-probe TICKER [TICKER ...]")
+            return 2
+        for t in argv[1:]:
+            sy = t.upper()
+            print(f"--- {sy} ---")
+            try:
+                bars = market.daily(sy, 300)
+            except Exception as exc:
+                print(f"    daily: {type(exc).__name__}: {exc}")
+            else:
+                if bars:
+                    print(f"    daily: {len(bars)} bars, "
+                          f"{bars[0]['d']} → {bars[-1]['d']}, "
+                          f"last close {bars[-1].get('c')}")
+                else:
+                    print("    daily: EMPTY — the endpoint answered with no bars, "
+                          "which is what leaves a chart frozen")
+            try:
+                q = market.quote_detail(sy) or {}
+            except Exception as exc:
+                print(f"    quote: {type(exc).__name__}: {exc}")
+            else:
+                print(f"    quote: price {q.get('price')} "
+                      f"prev close {q.get('previous_close')} "
+                      f"pe {q.get('pe')} name {q.get('name')!r}")
 
     elif cmd == "insiders":
 

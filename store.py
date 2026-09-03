@@ -299,8 +299,13 @@ def note_price_attempt(symbol: str, error: str | None = None) -> dict:
                {"p_symbol": symbol, "p_error": error}) or {}
 
 
-def price_queue_state(limit: int = 20) -> dict:
-    return rpc("price_queue_state", {"p_limit": limit}) or {}
+def price_queue_state(limit: int = 20, symbol: str | None = None) -> dict:
+    return rpc("price_queue_state",
+               {"p_limit": limit, "p_symbol": symbol}) or {}
+
+
+def stale_price_symbols(limit: int = 50) -> dict:
+    return rpc("stale_price_symbols", {"p_limit": limit}) or {}
 
 
 def pending_symbol_insiders(limit: int = 5) -> list[str]:
