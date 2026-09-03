@@ -2751,50 +2751,16 @@ async function loadTickerNews(){
         <h4>${esc(a.title)}</h4>
         <p>${esc((a.summary || "").slice(0, 150))}</p>
       </a>`;
-    // Desktop: render twice so the drift below can wrap without a seam.
-    // Mobile: no auto-scroll — one list, manual scroll only.
-    const mobile = MOBILE_MQ.matches;
-    host.innerHTML = `<div id="conews-a">${arts.map(item).join("")}</div>` +
-      (mobile ? "" : `<div aria-hidden="true">${arts.map(item).join("")}</div>`);
-    if (!mobile) requestAnimationFrame(() => driftNews(host));
+    // One list, newest story first, and it stays where the reader leaves it.
+    // This used to drift upward on its own and was rendered twice so the
+    // drift could wrap without a seam; a feed that moves under the eye is
+    // hard to read and impossible to come back to.
+    host.innerHTML = arts.map(item).join("");
+    host.scrollTop = 0;
   } catch (e) {
     host.innerHTML = `<div class="note">Could not render the news: ${esc(e.message)}</div>`;
     console.error("[news]", e);
   }
-}
-
-/** Scroll the list slowly, yielding the moment a reader takes hold of it.
-    Only a real gesture counts: the drift moves content under a resting
-    cursor, and treating that as intent would stop the feed for good.
-    Mobile never calls this — news stays still for thumb scrolling. */
-function driftNews(wrap){
-  if (MOBILE_MQ.matches) return;
-  const copy = document.getElementById("conews-a");
-  if (!copy || wrap.dataset.drifting) return;
-  wrap.dataset.drifting = "1";
-
-  let held = 0, last = 0, pos = 1;
-  const SPEED = 16, HOLD = 1500;
-  const hold = () => { held = Date.now() + HOLD; pos = wrap.scrollTop; };
-  ["wheel", "touchstart", "touchmove", "pointerdown", "keydown"].forEach(e =>
-    wrap.addEventListener(e, hold, { passive: true }));
-
-  function frame(now){
-    requestAnimationFrame(frame);
-    const dt = last ? Math.min(100, now - last) : 0;
-    last = now;
-    const one = copy.offsetHeight;
-    if (!one || one <= wrap.clientHeight) return;   // nothing to scroll
-
-    if (Date.now() < held) pos = wrap.scrollTop;
-    else pos += SPEED * dt / 1000;
-
-    if (pos >= one * 2 - wrap.clientHeight) pos -= one;
-    else if (pos < 1) pos += one;
-    if (Math.abs(wrap.scrollTop - pos) > 0.01) wrap.scrollTop = pos;
-  }
-  wrap.scrollTop = pos;
-  requestAnimationFrame(frame);
 }
 
 
