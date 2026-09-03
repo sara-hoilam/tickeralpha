@@ -22,6 +22,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py ownership TICKER   why an Ownership tab is empty
     python worker.py peers TICKER       what FMP knows about a ticker's peers
     python worker.py insiders [T...]    fill insider requests, or named symbols
+    python worker.py queue              why a price refresh has not landed
     python worker.py alpha [DATE] [--force]  run the Alpha of the Day scan
     python worker.py alpha-results      backfill past picks' next-day returns
     python worker.py stats              coverage summary
@@ -626,7 +627,13 @@ def fetch_prices(symbol: str) -> bool:
         if _fmp_limited(exc):
             # The account is refused, not the symbol. Leave the request
             # pending and back off; marking it done here is what silenced the
-            # queue for twelve hours after the bandwidth cap lifted.
+            # queue for twelve hours after the bandwidth cap lifted. The
+            # attempt is still recorded, so the row waits its turn rather than
+            # being re-tried on every pass from the head of the queue.
+            try:
+                store.note_price_attempt(sym, str(exc))
+            except store.StoreError:
+                pass
             _pause_fmp(f"prices {sym}")
             return False
         # Mark it finished anyway, or the queue spins on a bad symbol.
@@ -974,8 +981,20 @@ def drain_prices(max_items: int = 5) -> int:
         return 0
     done = 0
     for sym in store.pending_prices(max_items):
-        if fetch_prices(sym):
-            done += 1
+        # One symbol must never take the batch with it. An exception here used
+        # to propagate out of the drain, leaving the row pending with its
+        # original requested_at -- which, under a strict FIFO, is the head of
+        # the queue. It was then retried every twenty seconds forever, and
+        # five of those starved every other request behind them.
+        try:
+            if fetch_prices(sym):
+                done += 1
+        except Exception as exc:
+            log(f"  prices {sym}: {type(exc).__name__}: {exc}")
+            try:
+                store.note_price_attempt(sym, f"{type(exc).__name__}: {exc}")
+            except store.StoreError as noted:
+                log(f"  prices {sym}: could not record the attempt: {noted}")
         if time.time() < _FMP_PAUSED_UNTIL:
             break                       # the account just got refused; stop
     return done
@@ -1690,7 +1709,23 @@ def main(argv: list[str]) -> int:
         for t in argv[1:]:
             check_ownership(t)
 
+    elif cmd == "queue":
+        # Which requests are waiting, how often each has been tried and what
+        # it said when it failed -- the answer to "why is this chart stale".
+        st = store.price_queue_state(int(argv[1]) if len(argv) > 1 else 20)
+        print(f"waiting: {st.get('waiting', 0)}   "
+              f"tried twice or more: {st.get('stuck', 0)}")
+        for r in st.get("rows", []):
+            state = "done" if r.get("doneAt") else "waiting"
+            print(f"  {r.get('symbol', '?'):<8} {state:<8} "
+                  f"attempts={r.get('attempts', 0)} "
+                  f"bars as of {r.get('barsAsOf') or '—'} "
+                  f"(fetched {str(r.get('barsUpdatedAt') or '—')[:16]})")
+            if r.get("lastError"):
+                print(f"           last error: {r['lastError'][:120]}")
+
     elif cmd == "insiders":
+
         if len(argv) > 1:
             for t in argv[1:]:
                 fetch_symbol_insiders(t)
