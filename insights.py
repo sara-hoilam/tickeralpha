@@ -82,6 +82,9 @@ MAX_TOKENS = 8000
 # the top of the table goes over; anything below the cut appears in the run
 # log with the reason it scored where it did.
 MAX_CANDIDATES = 12
+# Calls per model before the run falls back to salvaging what came back.
+ATTEMPTS = int(os.environ.get("INSIGHTS_ATTEMPTS", "3"))
+
 MIN_INSIGHTS = 3
 MAX_INSIGHTS = 5
 
@@ -216,14 +219,50 @@ def read_rpc(fn: str, args: dict | None = None):
 # validation of "did it make this number up" into a substring test rather
 # than a judgement call. Keep the wording aligned with the front end.
 
-def fmt_num(v) -> str | None:
+# The releases FMP reports in thousands. Its economic calendar gives initial
+# claims as "206", meaning 206,000 -- so a brief that quotes the fact verbatim
+# says claims "landed at 206", which is not a number anyone recognises, and a
+# brief that writes what it means says 206,000 and is rejected for quoting a
+# figure that is not in the facts. That cost a whole run: the model asked for
+# the sensible wording twice and the validator refused it twice. The unit
+# belongs on the fact, so both problems go away at the source.
+#
+# The list is deliberately short: a release it guesses wrong about is out by a
+# factor of a thousand, which is far worse than one that reads awkwardly, so
+# anything ambiguous -- JOLTS openings, housing starts, reported in millions
+# by some feeds and thousands by others -- is left as the feed sends it.
+_THOUSANDS_EVENT = re.compile(
+    r"jobless claims|initial claims|continuing claims"
+    r"|nonfarm payroll|non-farm payroll|private payroll"
+    r"|adp employment|challenger job cuts", re.I)
+
+
+def econ_scale(event: str, value) -> float | None:
+    """The release's value in the unit a reader would recognise.
+
+    Only the count releases are scaled, and only when the figure still looks
+    like a count in thousands: if the feed ever starts sending 206000 for the
+    same event, the magnitude guard leaves it alone rather than turning it
+    into 206 million.
+    """
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    if _THOUSANDS_EVENT.search(event or "") and abs(f) < 100_000:
+        return f * 1000
+    return f
+
+
+def fmt_count(v) -> str | None:
+    """A whole count with thousands separators: 206000 -> "206,000"."""
     try:
         f = float(v)
     except (TypeError, ValueError):
         return None
-    if f == int(f) and abs(f) < 1e15:
-        return str(int(f))
-    return f"{f:.2f}".rstrip("0").rstrip(".")
+    if f == int(f):
+        return f"{int(f):,}"
+    return f"{f:,.2f}".rstrip("0").rstrip(".")
 
 
 def fmt_pct(v) -> str | None:
@@ -863,10 +902,12 @@ def build_candidates(brief: dict, caps: list, gainers: list, losers: list,
         # into prose, and an abbreviation's full stop reads as a sentence end
         # to both a reader and the two-sentence check.
         facts = []
+        event_name = str(e.get("event") or "")
         for label, value in (("estimate", e.get("estimate")),
                              ("previous", e.get("previous")),
                              ("actual", e.get("actual"))):
-            n = fmt_num(value)
+            scaled = econ_scale(event_name, value)
+            n = fmt_count(scaled) if scaled is not None else None
             if n is not None:
                 facts.append(f"{label} {n}")
         impact = str(e.get("impact") or "").lower()
@@ -1208,7 +1249,7 @@ def user_message(day: dt.date, candidates: list[dict], complaint: str = "") -> s
 
 
 # ---------------------------------------------------------------------------
-# Validation -- any failure discards the whole run
+# Validation -- a failed gate discards the insight, and usually the run
 # ---------------------------------------------------------------------------
 
 class Rejected(Exception):
@@ -1340,8 +1381,108 @@ def _haystack(cand: dict) -> str:
     return " ".join(bits)
 
 
-def validate(payload, candidates: list[dict]) -> list[dict]:
-    """Return the accepted insights, or raise Rejected naming the gate."""
+
+def _check_insight(r: dict, cand: dict, global_hay: str,
+                 global_values: list[float]) -> None:
+    """The gates one insight has to pass on its own account.
+
+    Separated from the whole-brief gates below so a single bad insight can be
+    dropped without discarding the four good ones beside it.
+    """
+    text = f"{r['headline']} {r['body']}"
+    hay = _haystack(cand)
+
+    # 3. Number provenance. Bare years pass; every other figure has to
+    #    come from somewhere in the candidate list.
+    hay_values = _numbers_in(hay)
+    for tok in _NUM_TOKEN.findall(text):
+        if re.fullmatch(r"(19|20)\d{2}", tok):
+            continue
+        if _number_is_sourced(tok, hay, hay_values):
+            continue
+        if _number_is_sourced(tok, global_hay, global_values):
+            continue
+        raise Rejected(f"number: '{tok}' in {r['source_id']} is not in "
+                       f"that candidate's facts")
+
+    # 4. Symbol integrity.
+    allowed = {str(s).upper() for s in (cand.get("symbols") or [])}
+    for s in (r.get("symbols") or []):
+        if str(s).upper() not in allowed:
+            raise Rejected(f"symbol: '{s}' is not one of "
+                           f"{r['source_id']}'s symbols")
+    for tok in _CAPS_TOKEN.findall(r["body"]):
+        # The token runs to a word boundary, so a hyphenated compound
+        # hands over the joining hyphen with it: "a US-backed venture"
+        # arrives as "US-", "U.S.-based" as "U.S.-", "AI-driven" as
+        # "AI-". No ticker begins or ends in a joiner, and each of those
+        # spellings is a word already known not to be one -- but only
+        # once the joiner is off. Two runs of a good brief were thrown
+        # away for "US-" before this stripped it.
+        #
+        # Only the outside is stripped: BRK.B and BF-B carry theirs in
+        # the middle, and those are real symbols.
+        core = tok.strip(".-")
+        if not core:
+            continue
+        # "U.S." arrives as "U.S"; dotted abbreviations are the same
+        # words as their undotted forms, not tickers.
+        if core in NOT_TICKERS or core.replace(".", "") in NOT_TICKERS:
+            continue
+        if core.upper() in allowed or tok.upper() in allowed:
+            continue
+        # Headlines carry tickers of their own, and quoting one back is
+        # sourced -- from the cited candidate or any sibling.
+        if tok in hay or tok in global_hay or core in hay or core in global_hay:
+            continue
+        raise Rejected(f"symbol: '{tok}' in {r['source_id']} is not a "
+                       f"ticker from that candidate")
+
+    # 5. Advice language.
+    low = text.lower()
+    for phrase in BANNED:
+        pattern = (r"\b" + re.escape(phrase) + r"\b" if " " not in phrase
+                   else re.escape(phrase))
+        if re.search(pattern, low):
+            raise Rejected(f"advice: '{phrase}' appears in {r['source_id']}")
+
+    # 6. A cause needs a source. Where the candidate carries no headline
+    #    we do not know why the move happened, and a plausible-sounding
+    #    reason is the one kind of fabrication the other gates cannot
+    #    see -- it contains no invented number and no unknown ticker.
+    has_headline = any(str(f).lower().startswith("headline")
+                       for f in (cand.get("facts") or []))
+    if not has_headline and cand["kind"] != "news":
+        claim = _CAUSAL.search(r["body"])
+        if claim and not _CAUSAL_OK.search(r["body"]):
+            raise Rejected(
+                f"cause: {r['source_id']} carries no headline, so "
+                f"'{claim.group(0)}' in the body attributes a reason we "
+                f"have no source for")
+
+    # 7. Length.
+    if len(r["headline"]) > HEADLINE_MAX:
+        raise Rejected(f"length: headline is {len(r['headline'])} chars in "
+                       f"{r['source_id']} (max {HEADLINE_MAX})")
+    if not (BODY_MIN <= len(r["body"]) <= BODY_MAX):
+        raise Rejected(f"length: body is {len(r['body'])} chars in "
+                       f"{r['source_id']} (want {BODY_MIN}-{BODY_MAX})")
+    if _sentence_count(r["body"]) != 2:
+        raise Rejected(f"length: body is not two sentences in "
+                       f"{r['source_id']}")
+
+
+def validate(payload, candidates: list[dict],
+             salvage: bool = False) -> list[dict]:
+    """Return the accepted insights, or raise Rejected naming the gate.
+
+    With ``salvage`` set, an insight that fails a gate of its own is dropped
+    and the rest are kept, provided enough survive and the whole-brief gates
+    still hold. A run that ends with no brief at all is the worst outcome
+    available -- the page then says the brief has not been written yet -- and
+    it is not worth accepting because one of five insights quoted a figure
+    the checker could not find.
+    """
     by_id = {c["id"]: c for c in candidates}
 
     # 1. Shape.
@@ -1377,89 +1518,30 @@ def validate(payload, candidates: list[dict]) -> list[dict]:
     global_hay = " ".join(_haystack(c) for c in candidates)
     global_values = _numbers_in(global_hay)
 
+    # Each insight is judged on its own, then the brief as a whole.
+    kept, dropped = [], []
     for r in rows:
-        cand = by_id[r["source_id"]]
-        text = f"{r['headline']} {r['body']}"
-        hay = _haystack(cand)
-
-        # 3. Number provenance. Bare years pass; every other figure has to
-        #    come from somewhere in the candidate list.
-        hay_values = _numbers_in(hay)
-        for tok in _NUM_TOKEN.findall(text):
-            if re.fullmatch(r"(19|20)\d{2}", tok):
-                continue
-            if _number_is_sourced(tok, hay, hay_values):
-                continue
-            if _number_is_sourced(tok, global_hay, global_values):
-                continue
-            raise Rejected(f"number: '{tok}' in {r['source_id']} is not in "
-                           f"that candidate's facts")
-
-        # 4. Symbol integrity.
-        allowed = {str(s).upper() for s in (cand.get("symbols") or [])}
-        for s in (r.get("symbols") or []):
-            if str(s).upper() not in allowed:
-                raise Rejected(f"symbol: '{s}' is not one of "
-                               f"{r['source_id']}'s symbols")
-        for tok in _CAPS_TOKEN.findall(r["body"]):
-            # The token runs to a word boundary, so a hyphenated compound
-            # hands over the joining hyphen with it: "a US-backed venture"
-            # arrives as "US-", "U.S.-based" as "U.S.-", "AI-driven" as
-            # "AI-". No ticker begins or ends in a joiner, and each of those
-            # spellings is a word already known not to be one -- but only
-            # once the joiner is off. Two runs of a good brief were thrown
-            # away for "US-" before this stripped it.
-            #
-            # Only the outside is stripped: BRK.B and BF-B carry theirs in
-            # the middle, and those are real symbols.
-            core = tok.strip(".-")
-            if not core:
-                continue
-            # "U.S." arrives as "U.S"; dotted abbreviations are the same
-            # words as their undotted forms, not tickers.
-            if core in NOT_TICKERS or core.replace(".", "") in NOT_TICKERS:
-                continue
-            if core.upper() in allowed or tok.upper() in allowed:
-                continue
-            # Headlines carry tickers of their own, and quoting one back is
-            # sourced -- from the cited candidate or any sibling.
-            if tok in hay or tok in global_hay or core in hay or core in global_hay:
-                continue
-            raise Rejected(f"symbol: '{tok}' in {r['source_id']} is not a "
-                           f"ticker from that candidate")
-
-        # 5. Advice language.
-        low = text.lower()
-        for phrase in BANNED:
-            pattern = (r"\b" + re.escape(phrase) + r"\b" if " " not in phrase
-                       else re.escape(phrase))
-            if re.search(pattern, low):
-                raise Rejected(f"advice: '{phrase}' appears in {r['source_id']}")
-
-        # 6. A cause needs a source. Where the candidate carries no headline
-        #    we do not know why the move happened, and a plausible-sounding
-        #    reason is the one kind of fabrication the other gates cannot
-        #    see -- it contains no invented number and no unknown ticker.
-        has_headline = any(str(f).lower().startswith("headline")
-                           for f in (cand.get("facts") or []))
-        if not has_headline and cand["kind"] != "news":
-            claim = _CAUSAL.search(r["body"])
-            if claim and not _CAUSAL_OK.search(r["body"]):
-                raise Rejected(
-                    f"cause: {r['source_id']} carries no headline, so "
-                    f"'{claim.group(0)}' in the body attributes a reason we "
-                    f"have no source for")
-
-        # 7. Length.
-        if len(r["headline"]) > HEADLINE_MAX:
-            raise Rejected(f"length: headline is {len(r['headline'])} chars in "
-                           f"{r['source_id']} (max {HEADLINE_MAX})")
-        if not (BODY_MIN <= len(r["body"]) <= BODY_MAX):
-            raise Rejected(f"length: body is {len(r['body'])} chars in "
-                           f"{r['source_id']} (want {BODY_MIN}-{BODY_MAX})")
-        if _sentence_count(r["body"]) != 2:
-            raise Rejected(f"length: body is not two sentences in "
-                           f"{r['source_id']}")
+        try:
+            _check_insight(r, by_id[r["source_id"]], global_hay, global_values)
+        except Rejected as exc:
+            if not salvage:
+                raise
+            dropped.append(str(exc))
+            continue
+        kept.append(r)
+    if dropped:
+        for why in dropped:
+            print(f"[insights] dropped one insight: {why}")
+        if len(kept) < MIN_INSIGHTS:
+            raise Rejected(f"salvage: only {len(kept)} of {len(rows)} insights "
+                           f"passed, and a brief needs {MIN_INSIGHTS} "
+                           f"({'; '.join(dropped)})")
+        # Ranks are the reading order and must stay 1..n with no gap.
+        # Copies, so renumbering never edits the caller's payload -- a
+        # salvage attempt has to leave the answer it read exactly as it was.
+        rows = [dict(r) for r in sorted(kept, key=lambda r: int(r["rank"]))]
+        for i, r in enumerate(rows, 1):
+            r["rank"] = i
 
     # 8. Attention. When a story-class candidate -- a topic, theme, or
     #    heavily-covered name -- scores at or near the top of the table, a
@@ -1531,31 +1613,74 @@ class Refused(Exception):
     pass
 
 
+# A gate the model keeps tripping needs more than the failure text back. The
+# number gate is the one worth spelling out: the model is not inventing a
+# figure, it is tidying one -- writing the claims count in full, dropping a
+# separator, converting a unit -- and the fix is to copy the characters.
+_COMPLAINT_HINTS = (
+    ("number:", "Copy each figure exactly as the facts spell it. Do not "
+                "rescale a value, add or remove a thousands separator, or "
+                "convert a unit. Where the facts give no figure for what you "
+                "want to say, write the sentence without one."),
+    ("cause:",  "Only a candidate whose facts include a headline can support "
+                "a reason. For the others, say what happened without saying "
+                "why."),
+    ("length:", "Two sentences, and count the characters before you answer."),
+)
+
+
+def _complaint(exc: Rejected) -> str:
+    text = str(exc)
+    for prefix, hint in _COMPLAINT_HINTS:
+        if text.startswith(prefix):
+            return f"{text}\n{hint}"
+    return text
+
+
 def generate(day: dt.date, candidates: list[dict]) -> tuple[list[dict], dict]:
-    """One call, one retry on a rejected result, and a model fallback."""
+    """Up to three calls per model, then a salvaged brief before giving up."""
     models = [MODEL] + ([FALLBACK_MODEL] if FALLBACK_MODEL else [])
     complaint = ""
     last: Rejected | None = None
+    # Every answer that came back, in the order it arrived. A rejected
+    # payload is usually four good insights and one that tripped a gate, and
+    # that is worth keeping if nothing better arrives.
+    answers: list[tuple[dict, dict]] = []
 
     for model in models:
-        # Two calls is the hard ceiling per model: one attempt, one retry
-        # carrying the validator's complaint back to the model.
-        for attempt in range(2):
+        # Three calls per model: two rejections in a row used to end the run
+        # with no brief at all, and they were often two different mistakes
+        # rather than one the model could not fix.
+        for attempt in range(ATTEMPTS):
             try:
                 payload, usage = call_model(day, candidates, model, complaint)
             except Refused as exc:
                 print(f"[insights] {model} declined the request ({exc})")
                 break                      # a retry would decline the same way
+            answers.append((payload, usage))
             try:
                 rows = validate(payload, candidates)
             except Rejected as exc:
                 last = exc
-                complaint = str(exc)
+                complaint = _complaint(exc)
                 print(f"[insights] rejected (attempt {attempt + 1}, {model}): {exc}")
                 print(f"[insights] rejected text: "
                       f"{json.dumps(payload)[:1200]}")
                 continue
             return rows, usage
+
+    # Nothing passed whole. A shorter brief made of the insights that did
+    # pass beats no brief: the page would otherwise say the brief has not
+    # been written, all day, because of one bad line in five.
+    for payload, usage in answers:
+        try:
+            rows = validate(payload, candidates, salvage=True)
+        except Rejected as exc:
+            print(f"[insights] not salvageable: {exc}")
+            continue
+        print(f"[insights] salvaged {len(rows)} insights from a rejected "
+              f"answer; the failed ones were dropped.")
+        return rows, usage
 
     raise SystemExit(f"insights: no acceptable result "
                      f"({last if last else 'the model declined'})")
