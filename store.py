@@ -294,6 +294,15 @@ def reports_due(symbols: list[str], hours: int = 12) -> list[str]:
     return rpc("reports_due", {"p_symbols": symbols, "p_hours": hours}) or []
 
 
+def note_price_attempt(symbol: str, error: str | None = None) -> dict:
+    return rpc("note_price_attempt",
+               {"p_symbol": symbol, "p_error": error}) or {}
+
+
+def price_queue_state(limit: int = 20) -> dict:
+    return rpc("price_queue_state", {"p_limit": limit}) or {}
+
+
 def pending_symbol_insiders(limit: int = 5) -> list[str]:
     return rpc("pending_symbol_insiders", {"p_limit": limit}) or []
 
