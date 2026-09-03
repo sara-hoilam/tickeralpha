@@ -3312,6 +3312,7 @@ function priceChart(series, marks, tone){
     a bar without a baseline is just a floating rectangle, so this one gets
     gridlines, a zero rule and labelled ticks like every other chart here. */
 function peBars(own, peer, tone){
+  own = sanePe(own); peer = sanePe(peer);
   if (!own || !peer) return null;
   const W = 470, H = 168, ml = 8, mr = 46, mt = 18, mb = 30;
   const plotH = H - mt - mb;
@@ -3523,7 +3524,19 @@ function seasonalityChart(season, month){
 
 /** Quarterly revenue from SEC filings, last eight quarters. */
 function revenueChart(rev, tone){
-  const rows = (rev || []).filter(x => x && x.r > 0).slice(-8);
+  // The claim beside this chart is a year-on-year one -- "grown revenue in 8
+  // of its last 8 quarters" counts each quarter against the same quarter a
+  // year earlier. On a seasonal business the levels then fall through the
+  // year while every one of those comparisons is still up, which reads as a
+  // contradiction. So each bar carries a notch at the quarter it is measured
+  // against: clearing the notch is the growth the sentence is claiming.
+  const all = (rev || []).filter(x => x && x.r > 0);
+  const rows = all.slice(-8);
+  const base = all.length - rows.length;
+  const yearAgo = i => {
+    const p = all[base + i - 4];
+    return p && p.r > 0 ? p.r : null;
+  };
   if (rows.length < 4) return null;
   const W = 470, H = 168, ml = 8, mr = 52, mt = 16, mb = 24;
   const col = tone === "down" ? "var(--down)" : "var(--accent)";
@@ -3542,6 +3555,15 @@ function revenueChart(rev, tone){
     const cx = ml + slot * (i + 0.5), x = cx - bw / 2;
     const yv = Y(row.r), h = Math.max(zero - yv, r);
     s += `<path d="M${x.toFixed(1)} ${zero} L${x.toFixed(1)} ${(yv+r).toFixed(1)} Q${x.toFixed(1)} ${yv.toFixed(1)} ${(x+r).toFixed(1)} ${yv.toFixed(1)} L${(x+bw-r).toFixed(1)} ${yv.toFixed(1)} Q${(x+bw).toFixed(1)} ${yv.toFixed(1)} ${(x+bw).toFixed(1)} ${(yv+r).toFixed(1)} L${(x+bw).toFixed(1)} ${zero} Z" fill="${col}"${i === rows.length - 1 ? "" : ` opacity=".55"`}></path>`;
+    const ago = yearAgo(i);
+    if (ago != null && ago <= top){
+      const ny = Y(ago);
+      // Only where it lands on the bar; a notch above the bar would read as
+      // part of the bar rather than as the level it fell short of.
+      s += `<line x1="${(x - 2).toFixed(1)}" x2="${(x + bw + 2).toFixed(1)}"
+             y1="${ny.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="var(--ink-2)"
+             stroke-width="1.4" opacity=".75"></line>`;
+    }
     const q = row.e ? `Q${Math.floor((+row.e.slice(5,7) - 1) / 3) + 1}’${row.e.slice(2,4)}` : "";
     if (i === 0 || i === rows.length - 1 || i === Math.floor(rows.length / 2))
       s += `<text x="${cx.toFixed(1)}" y="${H-7}" font-size="9" fill="var(--ink-3)" text-anchor="middle" font-family="IBM Plex Mono,monospace">${q}</text>`;
@@ -3550,14 +3572,16 @@ function revenueChart(rev, tone){
   });
   s += `<line x1="${ml}" x2="${W-mr}" y1="${zero}" y2="${zero}" stroke="var(--rule)" stroke-width="1"></line>`;
   const tip = rows.map((row, i) => {
-    const prev = i >= 4 ? rows[i - 4] : null;
-    const yoy = prev && prev.r ? ((row.r / prev.r - 1) * 100) : null;
+    const prev = yearAgo(i);
+    const yoy = prev ? ((row.r / prev - 1) * 100) : null;
     return { x: +(ml + slot * (i + 0.5)).toFixed(1), y: +Y(row.r).toFixed(1),
       t: row.e ? `Quarter to ${fmtDay(row.e)}` : "Quarter",
       r: [["Revenue", fmtRev(row.r)],
           ...(yoy != null ? [["vs a year ago", `${yoy > 0 ? "+" : ""}${yoy.toFixed(1)}%`]] : [])] };
   });
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Revenue by quarter"${tipData("Revenue", tip)}>${s}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img"
+    aria-label="Revenue by quarter; each bar notched at the same quarter a year earlier"${
+    tipData("Revenue", tip)}>${s}</svg>`;
 }
 
 /** Who on the Street says what: one row per house, dot at its target,
@@ -3606,7 +3630,8 @@ function targetChart(rowsIn, range, price){
 
 /** The company's own P/E record against its index peers' median. */
 function peChart(hist, peer, own, tone){
-  const pts = (hist || []).filter(p => p && p.pe > 0);
+  const pts = (hist || []).filter(p => p && sanePe(p.pe));
+  peer = sanePe(peer); own = sanePe(own);
   const W = 470, H = 168, ml = 8, mr = 52, mt = 16, mb = 12;
   if (pts.length < 8) return peBars(own, peer, tone);
   const vals = pts.map(p => p.pe).concat(peer ? [peer] : []);
@@ -3738,6 +3763,12 @@ function wireChartTips(root){
 
 /* The second chart, per idea. Six kinds are available; which one an idea
    gets is decided for the whole day at once by assignCharts below. */
+/* A ratio past this is a broken earnings number, not an expensive company --
+   CrowdStrike arrived at 6111x. The scan stopped scoring on those, but the
+   page renders payloads stored before it did, so it checks for itself. */
+const PE_MAX = 100;
+const sanePe = v => (v > 0 && v <= PE_MAX) ? +v : null;
+
 const CHART_KINDS = {
   drawdown: { fam: "hist", title: "Drawdown from 10-year high",
               has: ev => (ev.ddSeries || []).length > 10 },
@@ -3750,7 +3781,8 @@ const CHART_KINDS = {
   revenue:  { fam: "fund", title: "Revenue by quarter",
               has: ev => (ev.revSeries || []).length >= 4 },
   pe:       { fam: "val", title: "P/E vs its record &amp; peers",
-              has: ev => (ev.peHistory || []).length >= 8 || !!(ev.ownPe && ev.peerPe) },
+              has: ev => (ev.peHistory || []).filter(p => p && sanePe(p.pe)).length >= 8
+                      || !!(sanePe(ev.ownPe) && sanePe(ev.peerPe)) },
 };
 const LEAD_TO_KIND = { drawdown: "drawdown", ma: "ma", seasonality: "seasonality",
                        targets: "targets", revenue: "revenue", pe: "pe" };
