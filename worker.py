@@ -23,6 +23,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py peers TICKER       what FMP knows about a ticker's peers
     python worker.py insiders [T...]    fill insider requests, or named symbols
     python worker.py queue [TICKER]     which charts are behind, and why
+    python worker.py sweep-prices       bring every cached chart up to date now
     python worker.py prices-probe T...  what the price feed returns right now
     python worker.py alpha [DATE] [--force]  run the Alpha of the Day scan
     python worker.py alpha-results      backfill past picks' next-day returns
@@ -1102,6 +1103,8 @@ WARM_TOP_CAP = int(os.environ.get("WARM_TOP_CAP", "50"))
 WARM_MOVERS = int(os.environ.get("WARM_MOVERS", "25"))
 WARM_BATCH = int(os.environ.get("WARM_BATCH", "4"))
 WARM_STALE_HOURS = int(os.environ.get("WARM_STALE_HOURS", "12"))
+# The nightly sweep: how many behind-the-session charts to top up per pass.
+PRICE_SWEEP_BATCH = int(os.environ.get("PRICE_SWEEP_BATCH", "25"))
 
 _mover_symbols: list[str] = []      # written by refresh_market
 _warm_pool: list[str] = []          # rebuilt each market cycle
@@ -1159,6 +1162,81 @@ def warm_reports(batch: int = WARM_BATCH) -> int:
     if done:
         log(f"warm: {done} fetched, {len(due) - done} still due "
             f"of {len(_warm_pool)} front-table names")
+    return done
+
+
+_sweep_idle_until = 0.0             # nothing behind: stop asking for a while
+
+
+def sweep_prices(batch: int = PRICE_SWEEP_BATCH) -> int:
+    """Top up every cached chart that is behind the last session.
+
+    The warm pool keeps ~75 large caps and movers fresh and a visit refreshes
+    the page being looked at; nothing kept the other eight hundred cached
+    names current, and the Alpha scan, the peer charts and the screeners
+    read them straight from the table. This asks each one for only the bars
+    it is missing -- from its newest stored day, so a name one session behind
+    costs a few hundred bytes -- and merges them in. Indexes take their own
+    path, which refreshes the whole history they keep.
+
+    Runs in the quiet slot after the warm pass, a batch per poll, and goes
+    idle for a while once nothing is due. After the 22:00 UTC cutover every
+    cached name is due again, so the catch-up runs itself each evening.
+    """
+    global _sweep_idle_until
+    if not market.configured():
+        return 0
+    if time.time() < _FMP_PAUSED_UNTIL or time.time() < _sweep_idle_until:
+        return 0
+    try:
+        due = store.price_sweep_due(batch)
+    except store.StoreError as exc:
+        log(f"  price sweep unavailable (apply 0084_price_sweep.sql): {exc}")
+        _sweep_idle_until = time.time() + 3600
+        return 0
+    if not due:
+        _sweep_idle_until = time.time() + 900
+        return 0
+    done = 0
+    for row in due:
+        sym = str(row.get("symbol") or "").upper()
+        if not sym:
+            continue
+        try:
+            if sym in market.INDEXES:
+                if fetch_index_prices(sym):
+                    done += 1
+                continue
+            since = None
+            as_of = row.get("asOf")
+            if as_of:
+                # A few days back, so a corrected close replaces the stored one.
+                since = dt.date.fromisoformat(str(as_of)[:10]) - dt.timedelta(days=5)
+            bars = market.daily(sym, since=since)
+            out = store.merge_price_bars(sym, bars)
+            if out.get("merged"):
+                done += 1
+            else:
+                log(f"  sweep {sym}: {out.get('reason', 'nothing merged')}")
+        except market.MarketError as exc:
+            if _fmp_limited(exc):
+                _pause_fmp(f"sweep {sym}")
+                break
+            log(f"  sweep {sym}: {exc}")
+            try:
+                store.merge_price_bars(sym, [])     # stamp the try; retry tomorrow
+            except store.StoreError:
+                pass
+        except store.StoreError:
+            raise
+        except Exception as exc:
+            log(f"  sweep {sym}: {type(exc).__name__}: {exc}")
+            try:
+                store.merge_price_bars(sym, [])     # same: once a night, not every pass
+            except store.StoreError:
+                pass
+    if done:
+        log(f"price sweep: {done} of {len(due)} charts brought up to date")
     return done
 
 
@@ -1559,6 +1637,12 @@ def run() -> None:
                 warm_reports()
             except store.StoreError as exc:
                 log(f"warm pass failed (continuing): {exc}")
+            # Then the long tail: every other cached chart, brought up to the
+            # last session a batch at a time.
+            try:
+                sweep_prices()
+            except store.StoreError as exc:
+                log(f"price sweep failed (continuing): {exc}")
 
             today = dt.date.today()
             if last_sweep_day != today and dt.datetime.now().hour >= 22:
@@ -1744,12 +1828,14 @@ def main(argv: list[str]) -> int:
         fresh = store.stale_price_symbols(40)
         print(f"last session: {fresh.get('lastSession', '?')}   "
               f"cached: {fresh.get('cached', 0)}   "
-              f"behind it: {fresh.get('behind', 0)}")
+              f"behind it: {fresh.get('behind', 0)}   "
+              f"due for the sweep now: {fresh.get('dueNow', '?')}")
         for r in fresh.get("rows", [])[:20]:
             print(f"  {r.get('symbol', '?'):<10} "
                   f"as of {r.get('asOf') or '—'} "
                   f"({r.get('sessionsBehind', 0)} sessions behind, "
-                  f"written {str(r.get('writtenAt') or '—')[:16]}"
+                  f"written {str(r.get('writtenAt') or '—')[:16]}, "
+                  f"swept {str(r.get('sweptAt') or 'never')[:16]}"
                   f"{', queued' if r.get('queued') else ''})")
 
         st = store.price_queue_state(20, sym)
@@ -1767,6 +1853,20 @@ def main(argv: list[str]) -> int:
                   f"(written {str(r.get('barsUpdatedAt') or '—')[:16]})")
             if r.get("lastError"):
                 print(f"             last error: {r['lastError'][:140]}")
+
+    elif cmd == "sweep-prices":
+        # The whole backlog now, pass after pass, instead of a batch per poll.
+        total = 0
+        for _ in range(200):
+            if not store.price_sweep_due(1):
+                break
+            total += sweep_prices(int(argv[1]) if len(argv) > 1 else 50)
+            if time.time() < _FMP_PAUSED_UNTIL:
+                print("the feed refused the account; stopping for now")
+                break
+        rep = store.stale_price_symbols(1)
+        print(f"swept {total}; still behind the last session: "
+              f"{rep.get('behind', '?')} of {rep.get('cached', '?')} cached")
 
     elif cmd == "prices-probe":
         # What the feed says right now, without writing anything. The queue
