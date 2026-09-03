@@ -23,32 +23,13 @@
      saves the DNS + TCP + TLS setup that otherwise sits in front of the first
      byte of data. The origin is already public in config.js. -->
 <link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root {
-  color-scheme: light;
-  --ground:#eef0f3; --card:#ffffff; --sunk:#f6f7f9;
-  --ink:#111820; --ink-2:#4a5866; --ink-3:#78889a;
-  --rule:#dde2e8; --rule-2:#eaeef2;
-  --accent:#1e4fbf; --accent-soft:#e6ecfb;
-  --up:#0b7a4b; --down:#c0392e;
-  --up-soft:#e3f4ec; --down-soft:#fbe9e7;
-  --shadow:0 1px 2px rgba(17,24,32,.06), 0 6px 20px -12px rgba(17,24,32,.22);
-  --r:10px;
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --ground:#0d1219; --card:#151c25; --sunk:#111821;
-  --ink:#e7edf4; --ink-2:#a3b1c0; --ink-3:#77879a;
-  --rule:#232d3a; --rule-2:#1c2531;
-  --accent:#6e9bff; --accent-soft:#1a2740;
-  --up:#38b37d; --down:#f0736a;
-  --up-soft:#12291f; --down-soft:#2b1614;
-  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.8);
-}
+
+
 *{box-sizing:border-box;margin:0;padding:0}
 body{
-  font-family:"IBM Plex Sans",system-ui,sans-serif;
+  font-family:var(--font-sans);
   background:var(--ground); color:var(--ink);
   font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
 }
@@ -66,7 +47,7 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:22px 28px 72px}
 
 .pagehead{display:flex;justify-content:space-between;align-items:center;gap:14px;
   margin-bottom:14px;flex-wrap:wrap}
-.pagehead h1{font-family:"IBM Plex Serif",Georgia,serif;font-size:26px;font-weight:600;
+.pagehead h1{font-family:var(--font-sans);font-size:23px;font-weight:600;
   letter-spacing:-.02em;margin:0}
 .week-nav{display:flex;align-items:center;gap:8px}
 .week-nav button{
@@ -93,7 +74,7 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:22px 28px 72px}
 .daycard .avatars span{
   width:18px;height:18px;border-radius:50%;font-size:7px;font-weight:700;color:#fff;
   display:grid;place-items:center;margin-left:-5px;border:1.5px solid var(--card);
-  font-family:"IBM Plex Mono",monospace;
+  font-family:var(--font-mono);
 }
 .daycard .avatars span:first-child{margin-left:0}
 .daycard .n{font-size:10.5px;color:var(--ink-3);margin-left:auto;white-space:nowrap}
@@ -109,9 +90,9 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:22px 28px 72px}
 .ecard .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .ecard .who{display:flex;gap:10px;align-items:center;min-width:0}
 .ecard .dot{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
-  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;color:#fff}
+  font-family:var(--font-mono);font-size:11px;font-weight:700;color:#fff}
 .ecard .name{font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ecard .tick{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-3)}
+.ecard .tick{font-family:var(--font-mono);font-size:12px;color:var(--ink-3)}
 .ecard .meta{text-align:right;font-size:12.5px;color:var(--ink-2);flex-shrink:0}
 .ecard .meta b{display:block;color:var(--ink);font-weight:600}
 .ecard ul{margin:12px 0 0;padding-left:1.1em;color:var(--ink-2);font-size:13px}
@@ -140,7 +121,7 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:22px 28px 72px}
 .wl-ac div{padding:8px 10px;cursor:pointer;display:flex;gap:8px;border-bottom:1px solid var(--rule-2)}
 .wl-ac div:last-child{border-bottom:0}
 .wl-ac div:hover{background:var(--accent-soft)}
-.wl-ac b{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--accent);min-width:48px}
+.wl-ac b{font-family:var(--font-mono);font-size:12px;color:var(--accent);min-width:48px}
 .wl-ac span{font-size:12px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .rows{max-height:min(70vh,640px);overflow-y:auto;scrollbar-width:thin}
@@ -165,15 +146,15 @@ thead th:first-child{text-align:left;padding-left:12px}
    flush into each other -- a price and the date beside it read as one number
    -- while the headers above them sat correctly spaced. */
 tbody td{padding:8px 12px 8px 0;border-bottom:1px solid var(--rule-2);text-align:right;
-  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
-tbody td:first-child{text-align:left;padding-left:12px;font-family:"IBM Plex Sans",sans-serif;
+  font-family:var(--font-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+tbody td:first-child{text-align:left;padding-left:12px;font-family:var(--font-sans);
   overflow:hidden}
 tbody td:last-child{padding-right:12px}
 tbody tr{cursor:pointer}
 tbody tr:hover td{background:var(--sunk)}
 .sym{display:flex;align-items:center;gap:8px;min-width:0}
 .dot{width:22px;height:22px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
-  font-family:"IBM Plex Mono",monospace;font-size:8.5px;font-weight:600;color:#fff}
+  font-family:var(--font-mono);font-size:8.5px;font-weight:600;color:#fff}
 .symtext{min-width:0;display:flex;flex-direction:column;gap:1px}
 .tickline{display:flex;align-items:center;gap:5px}
 .tick{font-weight:600}

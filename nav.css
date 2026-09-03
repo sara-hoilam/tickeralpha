@@ -1,9 +1,68 @@
 /* ===========================================================================
-   Ticker Alpha — shared navigation.
+   Ticker Alpha — shared design tokens and navigation.
 
-   Uses the pages' own design tokens, so it inherits whichever theme the page
-   is in rather than carrying its own palette.
+   Every page loads this before its own stylesheet, so the tokens below are
+   the one place the palette, the type and the shape of the interface are
+   decided. A page adds only what is particular to it -- the colours a
+   drawdown band or a Sankey ribbon needs -- and inherits the rest.
+
+   Type and geometry are shared across themes; only colour is chosen twice.
+   The categorical slots are validated: both sets clear the lightness band,
+   the chroma floor, adjacent-pair separation under deuteranopia, protanopia
+   and tritanopia, the normal-vision floor and 3:1 against their own surface.
+   The slot order is the same in both themes, because colour follows the
+   series, not the theme.
 =========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* surfaces and ink */
+  --ground:#f5f5f7; --card:#ffffff; --sunk:#f1f1f4;
+  --ink:#0d0d11; --ink-2:#55555f; --ink-3:#8a8a95;
+  --rule:#e4e4e9; --rule-2:#eeeef1;
+  --accent:#2563eb; --accent-soft:#e8eefd;
+
+  /* direction: reserved, never reused as a series colour */
+  --up:#0d7a46; --down:#cf3025;
+  --up-soft:#e6f5ed; --down-soft:#fceceb;
+
+  /* the categorical order: blue, pink, amber, emerald, violet, sky,
+     orange, teal. Assigned in this order and never cycled. */
+  --s1:#2563eb; --s2:#d9308a; --s3:#b87709; --s4:#0d9668;
+  --s5:#7c4dee; --s6:#0f8fcc; --s7:#da6410; --s8:#0e9a8d;
+
+  --shadow:0 1px 2px rgba(13,13,17,.05), 0 8px 24px -16px rgba(13,13,17,.22);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ground:#0a0a0c; --card:#141417; --sunk:#1a1a1e;
+  --ink:#f4f4f6; --ink-2:#a1a1ac; --ink-3:#74747f;
+  --rule:#26262c; --rule-2:#1e1e23;
+  --accent:#3b82f6; --accent-soft:#16213c;
+
+  --up:#22c55e; --down:#f26a62;
+  --up-soft:#0f2a1b; --down-soft:#2c1614;
+
+  /* Not the light steps brightened: a saturated tint glares on near-black,
+     so these are chosen mid-tone and validated against #141417. */
+  --s1:#3b82f6; --s2:#db2777; --s3:#c1840d; --s4:#0fa97b;
+  --s5:#8b5cf6; --s6:#1b92ce; --s7:#e06a12; --s8:#0e9c90;
+
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 12px 32px -18px rgba(0,0,0,.85);
+}
+
+:root {
+  /* type and geometry: one set, both themes */
+  --font-sans:"Inter","IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;
+  --r:14px;          /* cards */
+  --r-2:10px;        /* inputs, pills */
+  --r-3:8px;         /* chips, small tiles */
+}
+
 
 /* ---- ticker tape --------------------------------------------------------
    Two identical runs side by side; the pair slides left by exactly one run's
@@ -39,7 +98,7 @@
 .tape-i:hover { background: var(--card); color: var(--ink); }
 .tape-s { font-weight: 600; letter-spacing: -.01em; }
 .tape-p, .tape-i .up, .tape-i .down {
-  font-family: "IBM Plex Mono", monospace; font-size: 11.5px;
+  font-family: var(--font-mono); font-size: 11.5px;
   font-variant-numeric: tabular-nums;
 }
 .tape-p { color: var(--ink-3); }
@@ -62,7 +121,7 @@
   text-decoration: none; color: var(--ink); flex-shrink: 0;
 }
 .nav-brand b {
-  font-family: "IBM Plex Serif", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 17px; font-weight: 600; letter-spacing: -.015em;
 }
 .nav-mark {
@@ -113,7 +172,7 @@
 }
 .nav-search kbd {
   position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
-  font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--ink-3);
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3);
   border: 1px solid var(--rule); border-radius: 5px; padding: 1px 6px;
   background: var(--card); pointer-events: none;
 }
@@ -130,7 +189,7 @@
 .nav-ac div:last-child { border-bottom: 0; }
 .nav-ac div:hover, .nav-ac div[aria-selected="true"] { background: var(--accent-soft); }
 .nav-ac b {
-  font-family: "IBM Plex Mono", monospace; font-size: 12.5px;
+  font-family: var(--font-mono); font-size: 12.5px;
   min-width: 58px; color: var(--accent);
 }
 .nav-ac span {
@@ -296,7 +355,7 @@
 }
 .auth-modal-x:hover { background: var(--sunk); color: var(--ink); }
 .auth-modal-card h2 {
-  font-family: "IBM Plex Serif", Georgia, serif;
+  font-family: var(--font-sans);
   font-size: 24px; font-weight: 600; letter-spacing: -.02em;
   line-height: 1.25; margin: 8px 8px 12px; color: var(--ink);
 }
@@ -363,7 +422,7 @@
 }
 /* Six digits read as a code, not a sentence. */
 .auth-modal-card .auth-email input.auth-code {
-  font-family: "IBM Plex Mono", monospace; font-size: 21px; font-weight: 600;
+  font-family: var(--font-mono); font-size: 21px; font-weight: 600;
   letter-spacing: .34em; text-align: center; padding: 12px 13px;
 }
 .auth-alt {
@@ -399,3 +458,21 @@
 @media (prefers-reduced-motion: reduce) {
   .auth-modal, .auth-modal-card { animation: none; }
 }
+
+
+/* ---- type polish ---------------------------------------------------------
+   Inter sets a little wide at interface sizes and its default figures are
+   proportional, which makes a column of numbers wander. Both are corrected
+   here rather than at every call site. Hierarchy is carried by weight and
+   ink, not by size: headings stay close to body size and separate themselves
+   by being darker and tighter. */
+body { letter-spacing:-.006em; }
+
+h1, h2, h3, h4, .grouphead { font-weight:600; letter-spacing:-.022em; }
+h1 { letter-spacing:-.03em; }
+
+/* Figures line up wherever they are read in a column. */
+.num, table, .kpi .v { font-variant-numeric:tabular-nums; }
+
+/* A unit or currency beside a figure is support, not headline. */
+.kpi .v small, .v .unit { font-weight:500; color:var(--ink-3); }
