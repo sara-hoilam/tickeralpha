@@ -900,7 +900,7 @@ def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
                       "v": f"{_ordinal(d['pe_own_pct'])} pct"})
     if d["rev_up"] is not None:
         chips.append({"t": "up" if d["rev_up"] >= d["rev_comps"] - 2 else "mut",
-                      "l": "Revenue up",
+                      "l": "Revenue up YoY",
                       "v": f"{d['rev_up']}/{d['rev_comps']} quarters"})
     if d["upside"] is not None and (d["upside"] > 0.12 or sell and d["upside"] < 0):
         chips.append({"t": "up" if d["upside"] > 0 else "down",
@@ -938,9 +938,11 @@ def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
     dd_ok = bool(dds and dds["years"] >= RARITY_MIN_YEARS)
     dd_series = _dd_series(closes) if closes and dd_ok else None
     seasonality = _seasonality(d.get("monthly_raw"))
+    # Twelve, not eight: the chart draws the last eight and needs the four
+    # before them to mark what each quarter is being compared against.
     rev_series = [{"e": q["e"], "r": q["r"]}
                   for q in (d.get("rev_q") or [])
-                  if q.get("e") and q.get("r")][-8:] or None
+                  if q.get("e") and q.get("r")][-12:] or None
     street_targets = [{"house": t.get("house"), "analyst": t.get("analyst"),
                        "target": t.get("target"), "d": t.get("published")}
                       for t in d.get("street_rows", [])
@@ -1141,9 +1143,9 @@ def _claims(d: dict, s: dict, side: str, have: dict) -> list[dict]:
                 f"at {d['peer_pe']:.0f}×")
         if d["rev_up"] is not None and d["rev_up"] >= d["rev_comps"] - 2:
             add("fund", "revenue",
-                f"{name} has grown revenue in {d['rev_up']} of its last "
-                f"{d['rev_comps']} quarters",
-                f"revenue is up in {d['rev_up']} of the last "
+                f"{name} has grown revenue year on year in {d['rev_up']} of "
+                f"its last {d['rev_comps']} quarters",
+                f"revenue is up year on year in {d['rev_up']} of the last "
                 f"{d['rev_comps']} quarters")
         if d["upside"] is not None and d["upside"] > 0.12:
             add("street", "targets",
@@ -1206,9 +1208,9 @@ def _claims(d: dict, s: dict, side: str, have: dict) -> list[dict]:
         if (d["rev_up"] is not None
                 and d["rev_up"] * 2 < d["rev_comps"]):
             add("fund", "revenue",
-                f"{name} has grown revenue in only {d['rev_up']} of its last "
-                f"{d['rev_comps']} quarters",
-                f"revenue rose in only {d['rev_up']} of "
+                f"{name} has grown revenue year on year in only {d['rev_up']} "
+                f"of its last {d['rev_comps']} quarters",
+                f"revenue rose year on year in only {d['rev_up']} of "
                 f"{d['rev_comps']} quarters")
         if d["upside"] is not None and d["upside"] < 0:
             add("street", "targets",
