@@ -236,10 +236,9 @@ tbody tr:hover td{background:var(--sunk)}
 .feedhead .bolt{width:26px;height:26px;border-radius:50%;background:#e2694a;color:#fff;
   display:grid;place-items:center;font-size:13px;flex-shrink:0}
 .feedhead h3{letter-spacing:.09em;text-transform:uppercase;font-size:12px;padding:0}
-/* The feed drifts by moving its own scroll position rather than by a CSS
-   transform, so a reader can grab it and scroll back to a story that has
-   already gone past. It picks the drift back up once they stop. The market
-   summary sits above it now, so the feed takes what height is left. */
+/* A fixed-height list the reader scrolls: newest story at the top, and it
+   stays put until they move it. The market summary sits above it, so the feed
+   takes what height is left. */
 .feedwrap{height:calc(100vh - var(--nav-h,56px) - 500px);min-height:320px;
   overflow-y:auto;position:relative;
   scrollbar-width:thin;scrollbar-color:var(--rule) transparent;overscroll-behavior:contain}
@@ -1032,7 +1031,7 @@ async function setView(v){
     tr.onclick = () => setFilter(tr.dataset.s));
 }
 
-/* ---- right rail: the scrolling feed -------------------------------------- */
+/* ---- right rail: the live feed ------------------------------------------- */
 async function loadFeed(){
   const host = document.getElementById("feed");
   let rows = [];
@@ -1045,58 +1044,14 @@ async function loadFeed(){
       <h4>${esc(a.title)}</h4>
       <p>${esc(a.summary || "")}</p></a>`;
 
-  // Rendered twice. The drift below wraps by exactly one copy's height in
-  // either direction, so the reader can scroll backwards past the start and
-  // keep finding stories instead of hitting a wall.
-  host.innerHTML = `<div id="feed-a">${rows.map(item).join("")}</div>` +
-                   `<div aria-hidden="true">${rows.map(item).join("")}</div>`;
-
-  requestAnimationFrame(() => startFeedDrift());
-}
-
-/** Auto-scroll the feed, yielding to the reader whenever they take hold. */
-function startFeedDrift(){
+  // One list, newest story first, scrolled by the reader. The feed used to
+  // drift upward on its own -- and was rendered twice so the drift could wrap
+  // without a seam -- which meant the story being read slid away mid-sentence.
+  host.innerHTML = rows.map(item).join("");
   const wrap = document.getElementById("feedwrap");
-  const copy = document.getElementById("feed-a");
-  if (!wrap || !copy) return;
-
-  const h = () => copy.offsetHeight;
-  let held = 0;                       // timestamp until which the reader has it
-  let last = 0;
-  let pos = 1;                        // kept as a float; scrollTop may round
-  const SPEED = 22;                   // px a second — slow enough to read
-  const HOLD = 1200;                  // ms of quiet before the drift resumes
-
-  // Only an actual scroll gesture takes hold. Hovering must not: the drift
-  // moves content under a resting cursor, which fires pointermove, which
-  // would renew the hold forever and stop the feed for good.
-  const hold = () => { held = Date.now() + HOLD; pos = wrap.scrollTop; };
-  ["wheel", "touchstart", "touchmove", "pointerdown", "keydown"].forEach(e =>
-    wrap.addEventListener(e, hold, { passive: true }));
-
-  function frame(now){
-    requestAnimationFrame(frame);
-    const dt = last ? Math.min(100, now - last) : 0;
-    last = now;
-    const one = h();
-    if (!one) return;
-
-    // While the reader is driving, follow them. Otherwise advance our own
-    // float — a frame's worth of drift is a fraction of a pixel, so keeping
-    // the position outside scrollTop is what makes it move at all.
-    if (Date.now() < held) pos = wrap.scrollTop;
-    else pos += SPEED * dt / 1000;
-
-    // Wrap in both directions, so scrolling up past the top lands on the
-    // second copy rather than stopping.
-    if (pos >= one * 2 - wrap.clientHeight) pos -= one;
-    else if (pos < 1) pos += one;
-
-    if (Math.abs(wrap.scrollTop - pos) > 0.01) wrap.scrollTop = pos;
-  }
-  wrap.scrollTop = pos;
-  requestAnimationFrame(frame);
+  if (wrap) wrap.scrollTop = 0;
 }
+
 
 /* ---- boot ---------------------------------------------------------------- */
 (async function boot(){

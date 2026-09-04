@@ -1319,7 +1319,13 @@ async function loadDiscover(){
 function renderDiscover(articles){
   const track = document.getElementById("discover");
   const dots = document.getElementById("discover-dots");
-  DISC.items = Array.isArray(articles) ? articles : [];
+  // Newest first. Which dozen stories arrive is the feed's decision -- it
+  // prefers the ones with a photograph worth printing -- but the order they
+  // are read in is chronological, so the first card is always the latest
+  // story rather than the best-illustrated one. The rail never advances by
+  // itself; the arrows and the dots are the only things that move it.
+  DISC.items = (Array.isArray(articles) ? articles.slice() : [])
+    .sort((a, b) => String(b.published || "").localeCompare(String(a.published || "")));
   DISC.page = 0;
   DISC.per = discoverPerPage();
 

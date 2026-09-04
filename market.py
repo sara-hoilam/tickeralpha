@@ -837,10 +837,16 @@ def quote_detail(symbol: str) -> dict | None:
     return out
 
 
-def daily(symbol: str, days: int = 300) -> list[dict]:
-    """Daily bars, oldest first, for the candlestick chart."""
+def daily(symbol: str, days: int = 300,
+          since: dt.date | None = None) -> list[dict]:
+    """Daily bars, oldest first, for the candlestick chart.
+
+    ``since`` asks for only the bars from that date on -- the nightly sweep
+    uses it to fetch the handful a stored series is missing rather than the
+    whole window again.
+    """
     end = dt.date.today()
-    start = end - dt.timedelta(days=max(30, days))
+    start = since or (end - dt.timedelta(days=max(30, days)))
     rows = _get("historical-price-eod/full", symbol=symbol,
                 **{"from": start.isoformat(), "to": end.isoformat()}) or []
     bars = [{"d": r["date"], "o": r.get("open"), "h": r.get("high"),
