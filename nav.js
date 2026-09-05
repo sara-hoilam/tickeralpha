@@ -402,6 +402,8 @@
     signedIn: () => !!(session() && session().user),
     signIn,
     showSignupModal,
+    guestWatchlistGated,
+    guestWatchlistToggle,
     recover,
     searchCompanies,
     onAuthChange(fn){ addEventListener("ta-auth", () => fn(window.TA.signedIn())); },
@@ -498,6 +500,34 @@
       `?provider=google&redirect_to=${encodeURIComponent(redirect)}`;
   }
 
+  /** Guests may follow a few names locally before the watchlist gate. */
+  const WATCH_KEY = "alphaticker-watchlist";
+  const GUEST_WATCH_LIMIT = 3;
+
+  function localWatchlistRead() {
+    try { return JSON.parse(localStorage.getItem(WATCH_KEY) || "[]"); } catch { return []; }
+  }
+
+  /** True when a signed-out visitor is trying to add beyond the grace limit. */
+  function guestWatchlistGated(sym) {
+    if (session() && session().user) return false;
+    const s = String(sym || "").toUpperCase();
+    if (!s) return false;
+    const list = localWatchlistRead();
+    if (list.includes(s)) return false;
+    return list.length >= GUEST_WATCH_LIMIT;
+  }
+
+  /** Toggle a symbol in the browser watchlist; returns true when added. */
+  function guestWatchlistToggle(sym) {
+    const s = String(sym || "").toUpperCase();
+    const list = localWatchlistRead();
+    const i = list.indexOf(s);
+    if (i >= 0) list.splice(i, 1); else list.push(s);
+    try { localStorage.setItem(WATCH_KEY, JSON.stringify([...new Set(list)])); } catch {}
+    return i < 0;
+  }
+
   /** What each gate is actually offering. A modal that names the thing the
       visitor just reached for converts; one that says "unlock the full
       potential" is wallpaper, and was what every gate used to say. Keep the
@@ -514,6 +544,7 @@
     watchlist: "Your list follows you across devices, with earnings dates.",
     report:    "Eight pages of valuation, peers and what would break the thesis.",
     earnings:  "Every company reporting, not just the first two.",
+    portfolio: "Holdings, returns and diversification — synced across devices.",
   };
 
   /** Google-only signup sheet — shown when someone reaches a gate without an
