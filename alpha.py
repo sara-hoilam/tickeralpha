@@ -1,30 +1,30 @@
 """alpha.py -- the nightly Alpha of the Day scan.
 
-Every trading morning, before the open, the worker scores the S&P 500 +
-Nasdaq-100 universe over six families of evidence -- price vs its own
-history, valuation vs peers, smart money, fundamentals, the Street, and
-momentum -- and keeps a short list: one headline pick and the runner-up
-buy and sell candidates, written to ledger.alpha_pick (migration 0073)
-for the Alpha of the Day page to read.
+Every trading morning, before the open, the worker mines opportunity
+seeds -- congress purchases, insider clusters, news catalysts, rare
+drawdowns -- across the S&P 500 + Nasdaq-100 universe (plus mid-cap
+names pulled in when a catalyst warrants it). It scores six families of
+evidence and keeps a short list: one headline pick and runner-up buy and
+sell candidates, written to ledger.alpha_pick (migration 0073) for the
+Alpha of the Day page to read.
 
-The scoring rules were tuned on a synthetic dry run before they were
-trusted with real data, and three of its lessons are load-bearing here:
+Story-first selection prefers a fresh catalyst with at least one solid
+support claim (revenue trend, valuation, Street, or price context) and
+only falls back to the old composite screen when no catalyst story clears.
+Headline captions are deterministic and chart-aligned -- never routed
+through insights.py or an LLM.
 
-  * News gates at three negative stories in a week, not one, and
-    otherwise only drags the score -- a binary gate killed every deep
-    drawdown candidate, because cheap stocks always have one bad story.
-  * A sell needs an anchor (a P/E in its own high percentiles, an
-    insider selling cluster, or a news pile-up). Without one, mediocre
-    names win sell days on blandness alone.
-  * An event outranks a state. A congress purchase disclosed this week
-    is news; "still expensive" will be true again tomorrow. So a sell
-    must clear an event-driven buy by 15 points, a stateful buy by 5.
+Load-bearing rules from the original dry run, still in force:
 
-Data comes from migration 0074's bulk read (one paged call for the
-universe) plus a fresh FMP quote sweep; the decade of daily closes that
-the drawdown-rarity number needs is fetched only for the ~50 shortlisted
-names. Missing data never invents a score: a family without evidence
-scores neutral and cannot count toward conviction.
+  * News gates at three negative stories in a week, not one.
+  * A sell needs an anchor (expensive vs own history, insider selling
+    cluster, or a news pile-up).
+  * An event outranks a state: a sell must clear an event-driven buy by
+    15 points, a stateful buy by 5.
+
+Data comes from migration 0074's bulk read plus optional seed supplements
+(migration 0085), a fresh FMP quote sweep, and decade closes for the
+shortlist. Missing data never invents a score.
 
 Standard library only, like the rest of the project.
 """
@@ -125,8 +125,21 @@ SEVERE_WORDS = (
     "delisting", "default", "bankruptcy", "chapter 11", "accounting probe",
 )
 
-MIN_CAP = 10e9              # small caps move on air; below $10B stay out
+MIN_CAP = 10e9              # default universe floor
+SEED_MIN_CAP = 1.5e9        # mid-caps with a congress/insider catalyst
+CONGRESS_SEED_MIN = 1e6     # disclosed buy worth a headline seed
 CG_EVENT_DAYS = 21          # a congress disclosure this old is still an event
+SEED_CONGRESS = "congress_buy"
+SEED_INSIDER = "insider_cluster_buy"
+SEED_NEWS = "news_catalyst"
+SEED_DIP = "rare_dip"
+SEED_TYPES = (SEED_CONGRESS, SEED_INSIDER, SEED_NEWS, SEED_DIP)
+SEED_LEAD_FAM = {
+    SEED_CONGRESS: "smart",
+    SEED_INSIDER: "smart",
+    SEED_NEWS: "event",
+    SEED_DIP: "hist",
+}
 # How long a name rests. REPEAT_DAYS covers every slot on the board: the old
 # cooldown read only returned headline picks, so the eight candidates under
 # each day's pick were never held back and came round again the next morning.
@@ -326,7 +339,7 @@ def _weekly(closes: list, years: float = 3.0) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def load_inputs() -> list[dict]:
-    """The whole universe from 0074, paged."""
+    """Index universe (0074) plus mid-cap catalyst names outside SPX/NDX."""
     rows: list[dict] = []
     offset = 0
     while True:
@@ -336,7 +349,26 @@ def load_inputs() -> list[dict]:
         if len(page) < 120:
             break
         offset += 120
-    log(f"universe: {len(rows)} names from index holdings")
+    known = {r["symbol"] for r in rows}
+    extra_syms: list[str] = []
+    try:
+        extra_syms = [s for s in (store.rpc("alpha_seed_symbols") or [])
+                      if s and s not in known]
+    except store.StoreError as exc:
+        log(f"seed symbol read skipped: {exc}")
+    if extra_syms:
+        try:
+            extra = store.rpc("alpha_scan_extra",
+                              {"p_symbols": extra_syms}) or []
+            rows.extend(extra)
+            preview = ", ".join(extra_syms[:5])
+            if len(extra_syms) > 5:
+                preview += "…"
+            log(f"seed universe: +{len(extra)} names outside indexes "
+                f"({preview})")
+        except store.StoreError as exc:
+            log(f"seed universe supplement skipped: {exc}")
+    log(f"universe: {len(rows)} names")
     return rows
 
 
@@ -410,14 +442,20 @@ def digest(r: dict, today: dt.date) -> dict | None:
     cg_people: set[str] = set()
     cg_sell_amt = 0.0
     cg_marks = []
+    cg_lead_person = None
+    cg_lead_amt = 0.0
     event_cut = (today - dt.timedelta(days=CG_EVENT_DAYS)).isoformat()
     for t in r.get("congress") or []:
         when = t.get("disclosed") or t.get("traded") or ""
         low = _amount_low(t.get("amount"))
         if t.get("side") == "Buy" and when >= event_cut:
             cg_recent_amt += low
-            if t.get("person"):
-                cg_people.add(t["person"])
+            person = t.get("person")
+            if person:
+                cg_people.add(person)
+                if low > cg_lead_amt:
+                    cg_lead_person = person
+                    cg_lead_amt = low
             cg_marks.append({"d": t.get("traded") or when,
                              "person": t.get("person"), "amt": low})
         elif t.get("side") == "Sell" and when >= event_cut:
@@ -492,6 +530,7 @@ def digest(r: dict, today: dt.date) -> dict | None:
         "monthly_raw": r.get("monthly") or [],
         "rev_q": r.get("revenue") or [],
         "cg_amt": cg_recent_amt, "cg_members": len(cg_people),
+        "cg_lead_person": cg_lead_person, "cg_lead_amt": cg_lead_amt,
         "cg_sell_amt": cg_sell_amt, "cg_marks": cg_marks[:4],
         "ins_cluster_buy": buyers >= 3 or (buyers >= 2 and buy_amt >= 2e6),
         "ins_cluster_sell": big_sellers >= 3,
@@ -680,6 +719,15 @@ def score(d: dict, ctx: dict) -> dict:
             "thin": thin, "sell_thin": sell_thin, "sell_anchor": sell_anchor}
 
 
+def seed_eligible(d: dict) -> bool:
+    """Congress or insider cluster: soft market-cap floor applies."""
+    return (d["cg_amt"] >= CONGRESS_SEED_MIN or d["ins_cluster_buy"])
+
+
+def _cap_floor(d: dict) -> float:
+    return SEED_MIN_CAP if seed_eligible(d) else MIN_CAP
+
+
 def buy_gates(d: dict) -> list[str]:
     """Reasons a name cannot be a buy today. Empty means clear."""
     why = []
@@ -689,7 +737,7 @@ def buy_gates(d: dict) -> list[str]:
         why.append(f"negative news ×{d['neg7']}")
     if d["earn_days"] is not None and 0 <= d["earn_days"] <= 2:
         why.append("earnings <2d")
-    if not d["cap"] or d["cap"] < MIN_CAP:
+    if not d["cap"] or d["cap"] < _cap_floor(d):
         why.append("size")
     if d["rev_up"] is not None and d["rev_up"] < d["rev_comps"] / 2:
         why.append("revenue shrinking")
@@ -701,7 +749,128 @@ def _strong(fams: dict, thin: list[str]) -> list[str]:
 
 
 def is_event(d: dict) -> bool:
-    return d["cg_amt"] >= 1e6 or d["ins_cluster_buy"]
+    return d["cg_amt"] >= CONGRESS_SEED_MIN or d["ins_cluster_buy"]
+
+
+def _congress_who(d: dict) -> str:
+    """Readable congress lead: prefer a named member over the generic."""
+    person = d.get("cg_lead_person")
+    if not person:
+        return "Members of Congress"
+    parts = str(person).split()
+    if len(parts) >= 2:
+        return f"{parts[0]} {parts[-1]}"
+    return str(person)
+
+
+def mine_seeds(d: dict) -> list[dict]:
+    """Opportunity seeds for one digest, strongest catalyst first."""
+    seeds: list[dict] = []
+    dds = d.get("dd_stats")
+
+    if d["cg_amt"] >= CONGRESS_SEED_MIN:
+        seeds.append({
+            "type": SEED_CONGRESS,
+            "fam": "smart",
+            "strength": min(100.0, 55.0 + 8.0 * math.log1p(d["cg_amt"] / 1e6)
+                          + (6.0 if d.get("cg_lead_person") else 0.0)),
+        })
+    if d["ins_cluster_buy"]:
+        seeds.append({
+            "type": SEED_INSIDER,
+            "fam": "smart",
+            "strength": min(100.0, 58.0 + 5.0 * d["ins_buyers"]
+                          + 3.0 * math.log1p(d["ins_buy_amt"] / 1e6)),
+        })
+
+    moves = [m for m in (d.get("chg1d"), d.get("move3d")) if m is not None]
+    jolt = max(moves, key=abs) if moves else None
+    news_strength = 50.0
+    news_hit = False
+    if d["big_news"]:
+        news_hit = True
+        news_strength += 8.0 * d["big_news"]
+    if d["since_earn"] is not None and d["since_earn"] <= 3:
+        news_hit = True
+        news_strength += 14.0
+    if jolt is not None and abs(jolt) >= JOLT_MIN:
+        news_hit = True
+        news_strength += 10.0 * min(1.0, abs(jolt) / 12.0)
+    if news_hit:
+        seeds.append({
+            "type": SEED_NEWS,
+            "fam": "event",
+            "strength": min(100.0, news_strength),
+        })
+
+    rev_ok = (d["rev_up"] is None
+              or d["rev_up"] >= d["rev_comps"] / 2)
+    if (dds and dds["rarity"] >= 88 and dds["years"] >= RARITY_MIN_YEARS
+            and rev_ok):
+        seeds.append({
+            "type": SEED_DIP,
+            "fam": "hist",
+            "strength": min(100.0, 48.0 + dds["rarity"] * 0.42),
+        })
+
+    seeds.sort(key=lambda s: -s["strength"])
+    return seeds
+
+
+def support_families(d: dict, s: dict) -> list[str]:
+    """Solid support beyond the catalyst lead."""
+    fams = s["fams"]
+    thin = s["thin"]
+    out: list[str] = []
+    if (d["rev_up"] is not None and d["rev_up"] >= d["rev_comps"] - 2
+            and "fund" not in thin and fams.get("fund", 50) >= 55):
+        out.append("fund")
+    if (d.get("pe") and d.get("peer_pe") and d["pe"] < d["peer_pe"] * 0.85
+            and "val" not in thin and fams.get("val", 50) >= 50):
+        out.append("val")
+    if (d["upside"] is not None and d["upside"] > 0.1
+            and "street" not in thin and fams.get("street", 50) >= 50):
+        out.append("street")
+    dds = d.get("dd_stats")
+    if dds and dds["dd"] >= 0.08 and "hist" not in thin:
+        out.append("hist")
+    elif (d.get("dd_1y") and d["dd_1y"] >= 0.08
+          and "hist" not in thin):
+        out.append("hist")
+    elif (d.get("ext_pct") is not None
+          and abs(d["ext_pct"]) <= MA_TOUCH_BAND):
+        out.append("hist")
+    return out
+
+
+def _claim_matches_seed(claim: dict, seed_type: str | None) -> bool:
+    if not seed_type:
+        return True
+    if seed_type in (SEED_CONGRESS, SEED_INSIDER):
+        return claim.get("seed") == seed_type
+    if seed_type == SEED_NEWS:
+        return claim.get("seed") == SEED_NEWS or (
+            claim.get("fam") == "event" and claim.get("seed") is not False)
+    if seed_type == SEED_DIP:
+        return claim.get("seed") == SEED_DIP
+    fam = SEED_LEAD_FAM.get(seed_type)
+    return claim.get("fam") == fam if fam else True
+
+
+def _last_headline_seed(day: dt.date) -> str | None:
+    """Seed type from the most recent stored headline, for diversity."""
+    try:
+        payload = store.rpc("get_alpha_day")
+    except store.StoreError:
+        return None
+    if not payload or not payload.get("ideas"):
+        return None
+    if payload.get("day") == day.isoformat():
+        return None
+    for idea in payload["ideas"]:
+        if idea.get("isPick"):
+            return (idea.get("evidence") or {}).get("seed")
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -868,7 +1037,7 @@ def _fmt_musd(v: float) -> str:
 
 
 def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
-               closes: list | None) -> dict:
+               closes: list | None, seed: str | None = None) -> dict:
     sell = side == "SELL"
     fams = s["sell_f"] if sell else s["fams"]
     chips = []
@@ -964,7 +1133,7 @@ def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
     claims = _claims(d, s, side, have)
     # A provisional sentence, so one idea built on its own still reads
     # correctly; run_scan settles the day's leads together afterwards.
-    provisional = _pick_lead(claims, {})
+    provisional = _pick_lead(claims, {}, seed)
     headline = (_compose(provisional, [c for c in claims if c is not provisional])
                 if provisional else f"{d['name']} screens well today.")
     lead_chart = provisional["chart"] if provisional else None
@@ -1019,6 +1188,7 @@ def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
         "insiderBuyers": d["ins_buyers"], "insiderBuyAmt": d["ins_buy_amt"],
         "insiderSellers": d["ins_sellers"],
         "lead": lead_chart,
+        "seed": seed,
         "priceSeries": _weekly(closes or [], 3.0) or None,
         "maSeries": ma_series,
         "avg200": d.get("avg200"),
@@ -1033,6 +1203,7 @@ def build_idea(d: dict, s: dict, side: str, rank: int, is_pick: bool,
         "families": {k: round(v) for k, v in fams.items()},
         "gates": gates, "evidence": evidence,
         "headline": headline, "price": d["price"],
+        "seed": seed,
         # Consumed by spread_leads and removed there; record_alpha_day reads
         # named keys, so it could never reach the database in any case.
         "_claims": claims,
@@ -1080,7 +1251,7 @@ def _claims(d: dict, s: dict, side: str, have: dict) -> list[dict]:
              if m is not None]
     jolt, window = max(moves, key=lambda x: abs(x[0])) if moves else (None, "")
 
-    def add(fam, chart, lead, tail=None, bonus=0.0):
+    def add(fam, chart, lead, tail=None, bonus=0.0, seed=None):
         # A family with no evidence behind it scores a flat 50; letting it
         # lead would dress up an absence as an argument.
         if fam and fam in thin:
@@ -1089,28 +1260,36 @@ def _claims(d: dict, s: dict, side: str, have: dict) -> list[dict]:
             "fam": fam, "chart": chart, "lead": lead, "tail": tail,
             "score": (fams.get(fam, 50.0) if fam else 45.0) + bonus,
             "leadable": chart is None or bool(have.get(chart)),
+            "seed": seed,
         })
 
     if side == "BUY":
-        if d["cg_amt"] >= 1e6 and d["ins_cluster_buy"]:
+        if d["cg_amt"] >= CONGRESS_SEED_MIN and d["ins_cluster_buy"]:
+            who = _congress_who(d)
             add("smart", None,
-                f"Congress and company insiders both bought {name} inside a month",
-                "Congress and its own insiders have both been buying", bonus=6)
-        if d["cg_amt"] >= 1e6:
+                f"{who} and company insiders both bought {name} inside a month",
+                "Congress and its own insiders have both been buying",
+                bonus=6, seed=SEED_CONGRESS)
+        if d["cg_amt"] >= CONGRESS_SEED_MIN:
+            who = _congress_who(d)
+            tail_who = who if d.get("cg_lead_person") else "Congress"
             add("smart", None,
-                f"Members of Congress disclosed ~{_fmt_musd(d['cg_amt'])} "
+                f"{who} disclosed ~{_fmt_musd(d['cg_amt'])} "
                 f"of {name} purchases",
-                f"Congress disclosed ~{_fmt_musd(d['cg_amt'])} of purchases",
-                bonus=3)
+                f"{tail_who} disclosed ~{_fmt_musd(d['cg_amt'])} of purchases",
+                bonus=5 if d.get("cg_lead_person") else 3,
+                seed=SEED_CONGRESS)
         if d["ins_cluster_buy"]:
             add("smart", None,
                 f"{d['ins_buyers']} {name} insiders bought their own stock "
                 f"inside a month",
-                f"{d['ins_buyers']} insiders bought inside a month")
+                f"{d['ins_buyers']} insiders bought inside a month",
+                seed=SEED_INSIDER)
         if jolt is not None and jolt <= -JOLT_MIN:
             add("event", None,
                 f"{name} has fallen {abs(jolt):.0f}% {window}",
-                f"it is down {abs(jolt):.0f}% {window}", bonus=3)
+                f"it is down {abs(jolt):.0f}% {window}", bonus=3,
+                seed=SEED_NEWS)
         if d["since_earn"] is not None and d["since_earn"] <= 3:
             said = ("beating" if (d["earn_surprise"] or 0) > 0 else "missing"
                     ) if d["earn_surprise"] is not None else None
@@ -1118,14 +1297,22 @@ def _claims(d: dict, s: dict, side: str, have: dict) -> list[dict]:
                 f"{name} reported "
                 + (f"this week, {said} on earnings" if said else "this week"),
                 f"it reported "
-                + (f"{said} on earnings" if said else "this week"))
+                + (f"{said} on earnings" if said else "this week"),
+                seed=SEED_NEWS)
+        if d["big_news"]:
+            add("event", None,
+                f"{name} has {d['big_news']} significant "
+                f"stor{'y' if d['big_news'] == 1 else 'ies'} in three days",
+                f"significant news broke this week",
+                bonus=2, seed=SEED_NEWS)
         if dds and dds["rarity"] >= 90 and dds["years"] >= RARITY_MIN_YEARS:
             pct = 100 - dds["rarity"]
             share = f"only {pct:.0f}%" if pct >= 1 else "fewer than 1%"
             add("hist", "drawdown",
                 f"{name} has been this far below its high on {share} of days "
                 f"in {dds['years']:.0f} years",
-                "it has rarely been this far below its high", bonus=4)
+                "it has rarely been this far below its high", bonus=4,
+                seed=SEED_DIP)
         if dds:
             add("hist", "drawdown",
                 f"{name} trades {dds['dd'] * 100:.0f}% below its own high",
@@ -1244,15 +1431,21 @@ def _compose(chosen: dict, others: list[dict]) -> str:
     return chosen["lead"] + (" — " + ", and ".join(tails) if tails else "") + "."
 
 
-def _pick_lead(claims: list[dict], used: dict) -> dict | None:
+def _pick_lead(claims: list[dict], used: dict,
+               seed: str | None = None) -> dict | None:
     """The claim this idea should lead with, given what the day has shown.
 
     Strongest first, except that a claim may be passed over for one within
     `LEAD_SLACK` of it whose chart the carousel has not used as often. A much
     weaker claim never wins: variety is worth a little strength, not the
-    argument itself.
+    argument itself. When `seed` is set, only claims that match the day's
+    catalyst may lead -- hist cannot steal a congress headline.
     """
     leadable = [c for c in claims if c["leadable"]]
+    if seed:
+        matched = [c for c in leadable if _claim_matches_seed(c, seed)]
+        if matched:
+            leadable = matched
     if not leadable:
         return None
     top = leadable[0]
@@ -1274,7 +1467,8 @@ def spread_leads(ideas: list[dict]) -> None:
     used: dict[str, int] = {}
     for idea in ideas:
         claims = idea.pop("_claims", None) or []
-        chosen = _pick_lead(claims, used)
+        seed = idea.get("seed")
+        chosen = _pick_lead(claims, used, seed)
         if not chosen:
             continue
         if chosen["chart"]:
@@ -1317,16 +1511,21 @@ def run_scan(day: dt.date | None = None, force: bool = False) -> bool:
     ctx = build_ctx(digests)
     scored = {d["symbol"]: (d, score(d, ctx)) for d in digests}
 
-    # Shortlist for the decade-history pass: the best coarse buys that clear
-    # the gates, and the best anchored sells.
+    # Shortlist for the decade-history pass: top composite buys/sells plus
+    # any catalyst names that might headline on a soft cap.
     buys = sorted((x for x in scored.values() if not buy_gates(x[0])),
                   key=lambda x: -x[1]["buy"])[:SHORTLIST]
     sells = sorted((x for x in scored.values()
-                    if x[1]["sell_anchor"] and (x[0]["cap"] or 0) >= MIN_CAP
+                    if x[1]["sell_anchor"] and (x[0]["cap"] or 0) >= _cap_floor(x[0])
                     and not (x[0]["earn_days"] is not None
                              and 0 <= x[0]["earn_days"] <= 2)),
                    key=lambda x: -x[1]["sell"])[:SHORTLIST]
     short = {x[0]["symbol"]: x[0] for x in buys + sells}
+    for d, s in scored.values():
+        if d["symbol"] in short:
+            continue
+        if not buy_gates(d) and mine_seeds(d):
+            short[d["symbol"]] = d
     closes_by_sym = fill_history(list(short.values()))
 
     # Precise re-score with decade drawdown facts.
@@ -1368,6 +1567,28 @@ def run_scan(day: dt.date | None = None, force: bool = False) -> bool:
     log(f"resting: {len(cooldown)} posted in {REPEAT_DAYS}d, "
         f"{len(pick_cooldown)} barred from leading")
 
+    last_lead_seed = _last_headline_seed(day)
+    if last_lead_seed:
+        log(f"yesterday's headline seed: {last_lead_seed}")
+
+    story_buys: list[tuple] = []
+    for d, s in scored.values():
+        if d["symbol"] in pick_cooldown or buy_gates(d):
+            continue
+        seeds = mine_seeds(d)
+        if not seeds:
+            continue
+        support = support_families(d, s)
+        if not support:
+            continue
+        best = seeds[0]
+        penalty = 14.0 if best["type"] == last_lead_seed else 0.0
+        rank = (best["strength"] + s["buy"] * 0.35
+                + 6.0 * len(support) - penalty)
+        story_buys.append((rank, d, s, best["type"]))
+    story_buys.sort(key=lambda x: -x[0])
+    best_story = story_buys[0][1:] if story_buys else None
+
     best_buy = None
     for d, s in sorted(scored.values(), key=lambda x: -x[1]["buy"]):
         if d["symbol"] in pick_cooldown or buy_gates(d):
@@ -1381,7 +1602,7 @@ def run_scan(day: dt.date | None = None, force: bool = False) -> bool:
     for d, s in sorted(scored.values(), key=lambda x: -x[1]["sell"]):
         if d["symbol"] in pick_cooldown or not s["sell_anchor"]:
             continue
-        if (d["cap"] or 0) < MIN_CAP:
+        if (d["cap"] or 0) < _cap_floor(d):
             continue
         if d["earn_days"] is not None and 0 <= d["earn_days"] <= 2:
             continue
@@ -1390,54 +1611,92 @@ def run_scan(day: dt.date | None = None, force: bool = False) -> bool:
         best_sell = (d, s)
         break
 
-    if best_buy and best_sell:
+    pick_seed = None
+    if best_story:
+        sd, ss, pick_seed = best_story
+        story_sym, story_seed = sd["symbol"], pick_seed
+        if best_sell and best_sell[1]["sell"] >= ss["buy"] + (
+                15.0 if pick_seed in (SEED_CONGRESS, SEED_INSIDER) else 8.0):
+            winner = "SELL"
+            pick_d, pick_s = best_sell
+            log(f"story pick {story_sym} seed={story_seed} edged by sell "
+                f"{best_sell[0]['symbol']}")
+            pick_seed = None
+        else:
+            winner = "BUY"
+            pick_d, pick_s = sd, ss
+            log(f"story pick: BUY {pick_d['symbol']} seed={pick_seed} "
+                f"({ss['buy']:.1f})")
+    elif best_buy and best_sell:
         margin = 15.0 if is_event(best_buy[0]) else 5.0
         winner = ("SELL" if best_sell[1]["sell"] >= best_buy[1]["buy"] + margin
                   else "BUY")
+        pick_d, pick_s = best_buy if winner == "BUY" else best_sell
+        log(f"composite pick: {winner} {pick_d['symbol']} "
+            f"({pick_s['buy' if winner == 'BUY' else 'sell']:.1f})")
     elif best_buy or best_sell:
         winner = "BUY" if best_buy else "SELL"
+        pick_d, pick_s = best_buy if best_buy else best_sell
+        log(f"fallback pick: {winner} {pick_d['symbol']}")
     else:
         log("no name cleared conviction and gates today; nothing stored")
         return False
 
-    pick_d, pick_s = best_buy if winner == "BUY" else best_sell
-    log(f"pick: {winner} {pick_d['symbol']} "
-        f"({pick_s['buy' if winner == 'BUY' else 'sell']:.1f})")
+    if not best_story:
+        log(f"pick: {winner} {pick_d['symbol']} "
+            f"({pick_s['buy' if winner == 'BUY' else 'sell']:.1f})")
 
-    # Candidates: the next four clean names per side, pick excluded. Ranks
-    # continue after the pick on its own side (pick=1, candidates 2..5) and
-    # start at 1 on the other.
+    def _story_candidates(side: str, limit: int) -> list[tuple]:
+        """Up to `limit` names, round-robin across seed types."""
+        buckets: dict[str, list] = {t: [] for t in SEED_TYPES}
+        buckets["composite"] = []
+        key = (lambda x: -x[1]["buy"]) if side == "BUY" else (
+            lambda x: -x[1]["sell"])
+        for d, s in sorted(scored.values(), key=key):
+            if d["symbol"] == pick_d["symbol"] or d["symbol"] in cooldown:
+                continue
+            if side == "BUY":
+                if buy_gates(d):
+                    continue
+            else:
+                if (not s["sell_anchor"] or (d["cap"] or 0) < _cap_floor(d)
+                        or (d["earn_days"] is not None
+                            and 0 <= d["earn_days"] <= 2)):
+                    continue
+            seeds = mine_seeds(d)
+            seed = seeds[0]["type"] if seeds else None
+            bucket = seed if seed in buckets else "composite"
+            buckets[bucket].append((d, s, seed))
+        picked: list[tuple] = []
+        order = list(SEED_TYPES) + ["composite"]
+        while len(picked) < limit:
+            moved = False
+            for k in order:
+                if buckets[k]:
+                    picked.append(buckets[k].pop(0))
+                    moved = True
+                    if len(picked) >= limit:
+                        break
+            if not moved:
+                break
+        return picked
+
     ideas = [build_idea(pick_d, pick_s, winner, 1, True,
-                        closes_by_sym.get(pick_d["symbol"]))]
-    cand_b: list = []
-    for d, s in sorted(scored.values(), key=lambda x: -x[1]["buy"]):
-        if len(cand_b) >= 4:
-            break
-        if (d["symbol"] == pick_d["symbol"] or d["symbol"] in cooldown
-                or buy_gates(d)):
-            continue
-        cand_b.append((d, s))
-    cand_s: list = []
-    for d, s in sorted(scored.values(), key=lambda x: -x[1]["sell"]):
-        if len(cand_s) >= 4:
-            break
-        if (d["symbol"] == pick_d["symbol"] or d["symbol"] in cooldown
-                or not s["sell_anchor"] or (d["cap"] or 0) < MIN_CAP
-                or (d["earn_days"] is not None and 0 <= d["earn_days"] <= 2)):
-            continue
-        cand_s.append((d, s))
+                        closes_by_sym.get(pick_d["symbol"]), pick_seed)]
+    cand_b = _story_candidates("BUY", 4)
+    cand_s = _story_candidates("SELL", 4)
     start_b = 2 if winner == "BUY" else 1
     start_s = 2 if winner == "SELL" else 1
     if len(cand_b) < 4 or len(cand_s) < 4:
         log(f"candidates: {len(cand_b)} buys, {len(cand_s)} sells cleared the "
             f"{REPEAT_DAYS}-day rest — showing a shorter board rather than "
             "repeating a name")
-    for i, (d, s) in enumerate(cand_b):
+    for i, (d, s, seed) in enumerate(cand_b):
         ideas.append(build_idea(d, s, "BUY", start_b + i, False,
-                                closes_by_sym.get(d["symbol"])))
-    for i, (d, s) in enumerate(cand_s):
+                                closes_by_sym.get(d["symbol"]), seed))
+    for i, (d, s, seed) in enumerate(cand_s):
         ideas.append(build_idea(d, s, "SELL", start_s + i, False,
-                                closes_by_sym.get(d["symbol"])))
+                                closes_by_sym.get(d["symbol"]), seed))
 
     # Sentences last: each idea now knows everything it could say, and the
     # day picks between them so nine slides do not make the same argument.
