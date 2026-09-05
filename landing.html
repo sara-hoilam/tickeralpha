@@ -61,6 +61,14 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
   display:flex; justify-content:space-between; align-items:baseline;
   gap:12px 24px; margin-bottom:12px; flex-wrap:nowrap;
 }
+.value-prop{
+  font-size:12.5px;color:var(--ink-3);line-height:1.45;margin:0 0 10px;
+}
+.value-prop-cta{
+  font:inherit;font-size:inherit;color:var(--accent);background:none;border:0;
+  padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px;
+}
+.value-prop-cta:hover{color:var(--ink)}
 .sumhead h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin:0;flex:0 0 auto}
 .sumhead .sub{color:var(--ink-3);font-size:12.5px;text-align:right;margin-left:auto;
   line-height:1.35;white-space:nowrap;flex:0 1 auto;min-width:0}
@@ -515,6 +523,7 @@ a.nm:hover{color:var(--accent)}
   }
   .foot{margin:18px 14px 0;padding-top:14px}
 
+  .value-prop{font-size:11.5px;margin:0 0 8px;line-height:1.4}
   .sumhead{margin:0 10px 8px;gap:6px 10px;flex-wrap:nowrap;overflow-x:auto}
   .sumhead .sub{font-size:10.5px;text-align:right;margin-left:auto;white-space:nowrap}
 
@@ -805,6 +814,11 @@ a.nm:hover{color:var(--accent)}
 </head>
 <body>
 <main>
+  <p class="value-prop" id="value-prop" hidden>
+    Browse markets, filings, news and the calendar for free.
+    <button type="button" class="value-prop-cta" id="value-prop-cta">Sign up (free)</button>
+    for a watchlist across devices, a portfolio and full research reports.
+  </p>
   <div class="sumhead">
     <h2>Market Summary</h2>
     <div class="sub" id="asof">Loading…</div>
@@ -1556,15 +1570,21 @@ async function toggleWatch(symbol, source){
       watching ? "watchlist_ticker_added" : "watchlist_ticker_removed",
       { ticker: sym, source });
   };
-  // The watchlist is the gate. This used to save to localStorage and *then*
-  // ask for an account, which meant the visitor already had what they came
-  // for and the modal was pure interruption -- the reason it converted at
-  // nothing. Now the ask comes first and the star does not move until it is
-  // answered.
+  // Guests get a few local follows before the watchlist gate. Removals always
+  // work; the modal opens only when adding would exceed the grace limit.
   if (!signedIn()) {
-    GA.track("gate_view", { gate: "watchlist", ticker: sym, source });
-    if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
-    return false;
+    if (window.TA?.guestWatchlistGated?.(sym)) {
+      GA.track("gate_view", { gate: "watchlist", ticker: sym, source });
+      if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
+      return false;
+    }
+    const watching = window.TA?.guestWatchlistToggle
+      ? window.TA.guestWatchlistToggle(sym)
+      : localWatch.toggle(sym);
+    if (watching) askWatchPrices(sym);
+    report(watching);
+    dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching } }));
+    return watching;
   }
   try {
     const d = await rpc("toggle_watchlist", { p_symbol: sym });
@@ -1759,7 +1779,6 @@ async function renderWatchlist(){
   // empty chart beside a full list looks like something failed.
   if (!S.rows.some(r => r.symbol === S.symbol)) selectSymbol(S.rows[0].symbol);
 
-  if (!signedIn()) promptSaveWatchlist(items.length);
 }
 
 /** One search field, used above the list and inside the empty state. */
@@ -4037,5 +4056,17 @@ function renderDay(payload, track){
 
 </script>
 <script src="nav.js"></script>
+<script>
+(function wireValueProp(){
+  const el = document.getElementById("value-prop");
+  if (!el) return;
+  const sync = () => { el.hidden = !!(window.TA && window.TA.signedIn()); };
+  sync();
+  if (window.TA) window.TA.onAuthChange(sync);
+  document.getElementById("value-prop-cta")?.addEventListener("click", () => {
+    window.TA?.showSignupModal?.({ reason: "nav" });
+  });
+})();
+</script>
 </body>
 </html>

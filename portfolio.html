@@ -2160,6 +2160,10 @@ function halfDonutSvg(parts, centre){
 
 /* ---- render: empty helpers ---------------------------------------------- */
 function promptSignIn(){
+  if (window.TA?.showSignupModal) {
+    window.TA.showSignupModal({ reason: "portfolio" });
+    return;
+  }
   if (window.TA && typeof window.TA.signIn === "function") window.TA.signIn();
   else {
     const btn = document.getElementById("nav-login");
@@ -2880,15 +2884,28 @@ async function loadWatchlistItems(){
 }
 
 async function toggleWatch(sym){
-  // The same watchlist gate as everywhere else: the modal says what the
-  // account buys, rather than jumping straight to Google with no explanation.
+  const s = String(sym || "").toUpperCase();
+  if (!s) return false;
   if (!signedIn()) {
-    GA.track("gate_view", { gate: "watchlist", ticker: sym, source: "watchlist" });
-    if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
-    else promptSignIn();
-    return;
+    if (window.TA?.guestWatchlistGated?.(s)) {
+      GA.track("gate_view", { gate: "watchlist", ticker: s, source: "watchlist" });
+      if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
+      else promptSignIn();
+      return false;
+    }
+    return window.TA?.guestWatchlistToggle
+      ? window.TA.guestWatchlistToggle(s)
+      : (() => {
+          let list;
+          try { list = JSON.parse(localStorage.getItem(WATCH_KEY) || "[]"); } catch { list = []; }
+          const i = list.indexOf(s);
+          if (i >= 0) list.splice(i, 1); else list.push(s);
+          try { localStorage.setItem(WATCH_KEY, JSON.stringify([...new Set(list)])); } catch {}
+          return i < 0;
+        })();
   }
-  try { await rpc("toggle_watchlist", { p_symbol: sym }); } catch {}
+  try { await rpc("toggle_watchlist", { p_symbol: s }); } catch {}
+  return true;
 }
 
 /* ---- charts -------------------------------------------------------------- */

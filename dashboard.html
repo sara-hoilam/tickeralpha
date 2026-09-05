@@ -2605,12 +2605,19 @@ async function toggleWatch(symbol, source){
       watching ? "watchlist_ticker_added" : "watchlist_ticker_removed",
       { ticker: sym, source });
   };
-  // Following a company is a gate: the ask comes before the save, not after
-  // it. See the note on the same branch in landing.html.
+  // Guests get a few local follows before the watchlist gate.
   if (!signedIn()) {
-    GA.track("gate_view", { gate: "watchlist", ticker: sym, source });
-    if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
-    return false;
+    if (window.TA?.guestWatchlistGated?.(sym)) {
+      GA.track("gate_view", { gate: "watchlist", ticker: sym, source });
+      if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
+      return false;
+    }
+    const watching = window.TA?.guestWatchlistToggle
+      ? window.TA.guestWatchlistToggle(sym)
+      : localWatch.toggle(sym);
+    report(watching);
+    dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching } }));
+    return watching;
   }
   try {
     const d = await rpc("toggle_watchlist", { p_symbol: sym });

@@ -338,11 +338,15 @@ const signedIn = () => !!(window.TA && window.TA.signedIn());
 async function toggleWatch(symbol){
   const sym = String(symbol || "").toUpperCase();
   if (!sym) return false;
-  // The ask comes before the save. See the note in landing.html.
   if (!signedIn()) {
-    GA.track("gate_view", { gate: "watchlist", ticker: sym, source: "earnings_page" });
-    if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
-    return false;
+    if (window.TA?.guestWatchlistGated?.(sym)) {
+      GA.track("gate_view", { gate: "watchlist", ticker: sym, source: "earnings_page" });
+      if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
+      return false;
+    }
+    return window.TA?.guestWatchlistToggle
+      ? window.TA.guestWatchlistToggle(sym)
+      : localWatch.toggle(sym);
   }
   try {
     const d = await rpc("toggle_watchlist", { p_symbol: sym });
