@@ -86,8 +86,8 @@ as $$
   ),
   uni as (
     select s.symbol,
-           coalesce(c.name, pd.name, s.symbol) as any_name,
-           coalesce(c.industry, pd.industry) as any_ind,
+           coalesce(c.name, s.symbol) as any_name,
+           pd.industry as any_ind,
            false as in_spx,
            false as in_ndx
     from syms s
