@@ -12,9 +12,9 @@
     "toFixed": 10
   },
   "landing.html": {
-    "font-size-px": 104,
+    "font-size-px": 101,
     "hex-colour": 23,
-    "radius-px": 31,
+    "radius-px": 30,
     "toFixed": 228
   },
   "logo.js": {
