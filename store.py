@@ -308,6 +308,16 @@ def stale_price_symbols(limit: int = 50) -> dict:
     return rpc("stale_price_symbols", {"p_limit": limit}) or {}
 
 
+def price_sweep_due(limit: int = 25) -> list[dict]:
+    """Cached symbols behind the last session and not tried tonight."""
+    return rpc("price_sweep_due", {"p_limit": limit}) or []
+
+
+def merge_price_bars(symbol: str, bars: list[dict]) -> dict:
+    """Fold fetched bars into the stored series; empty only stamps the try."""
+    return rpc("merge_price_bars", {"p_symbol": symbol, "p_bars": bars}) or {}
+
+
 def pending_symbol_insiders(limit: int = 5) -> list[str]:
     return rpc("pending_symbol_insiders", {"p_limit": limit}) or []
 
