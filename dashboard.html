@@ -83,18 +83,18 @@ body{
   font-size:14px; line-height:1.5;
   -webkit-font-smoothing:antialiased;
 }
-.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
-.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.mono{font-variant-numeric:tabular-nums;font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 
 /* ---- form controls ------------------------------------------------------- */
 .field{position:relative;display:flex;flex-direction:column;gap:3px}
-.field>label{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.field>label{font-size:var(--fs-2);color:var(--ink-3);font-weight:500}
 input,select,button{font:inherit;color:inherit}
 input[type=text],select{
   background:var(--card); border:1px solid var(--rule); border-radius:7px;
   padding:7px 10px; min-height:34px; color:var(--ink);
 }
-input[type=text]{width:230px;font-family:var(--font-mono);font-size:13px}
+input[type=text]{width:230px;font-variant-numeric:tabular-nums;font-size:13px}
 select{cursor:pointer;font-size:13px;padding-right:26px;
   appearance:none;
   background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);
@@ -115,7 +115,7 @@ select:disabled{opacity:.45;cursor:not-allowed}
 .ac div{padding:8px 11px;cursor:pointer;display:flex;gap:10px;align-items:baseline;border-bottom:1px solid var(--rule-2)}
 .ac div:last-child{border-bottom:0}
 .ac div:hover,.ac div[aria-selected=true]{background:var(--accent-soft)}
-.ac b{font-family:var(--font-mono);font-size:12.5px;min-width:62px;color:var(--accent)}
+.ac b{font-size:var(--fs-3);font-weight:600;text-transform:uppercase;min-width:62px;color:var(--ink)}
 .ac span{font-size:12.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .spacer{flex:1}
@@ -160,12 +160,12 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:24px 28px 72px}
 /* ---- KPI ----------------------------------------------------------------- */
 .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px}
 .kpi{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);padding:14px 15px;box-shadow:var(--shadow-card)}
-.kpi .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.kpi .v{font-family:var(--font-mono);font-size:25px;font-weight:600;letter-spacing:-.04em;margin-top:7px;font-variant-numeric:tabular-nums}
+.kpi .k{font-size:var(--fs-2);color:var(--ink-3);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .v{font-size:var(--fs-6);font-weight:600;letter-spacing:-.01em;margin-top:6px;font-variant-numeric:tabular-nums}
 .kpi .d{font-size:11.5px;margin-top:4px;color:var(--ink-3);display:flex;align-items:center;gap:4px}
-.kpi .d b{font-family:var(--font-mono);font-weight:600}
+.kpi .d b{font-variant-numeric:tabular-nums;font-weight:600}
 .kpi .h{font-size:11px;color:var(--ink-3);margin-top:4px;line-height:1.35}
-.kpi .h b{font-family:var(--font-mono);font-weight:600;color:var(--ink-2)}
+.kpi .h b{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink-2)}
 .up{color:var(--up)} .down{color:var(--down)}
 
 /* ---- panels -------------------------------------------------------------- */
@@ -189,7 +189,7 @@ svg{display:block;max-width:100%}
 .scroll > svg{width:100%;height:auto}
 svg text{font-family:var(--font-sans)}
 .schart{width:100%;height:auto;display:block}
-.tnum{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.tnum{font-variant-numeric:tabular-nums;font-variant-numeric:tabular-nums}
 
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:0 22px 16px}
 .legend div{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2)}
@@ -200,24 +200,23 @@ table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{padding:8px 10px;text-align:right;white-space:nowrap}
 th:first-child,td:first-child{text-align:left;white-space:normal}
 thead th{
-  font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+  font-size:var(--fs-1);color:var(--ink-3);
   font-weight:600;border-bottom:1px solid var(--rule);
 }
-tbody td{border-bottom:1px solid var(--rule-2);font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+tbody td{border-bottom:1px solid var(--rule-2);font-variant-numeric:tabular-nums;font-variant-numeric:tabular-nums}
 tbody td:first-child{font-family:var(--font-sans)}
 tbody tr.rule td{font-weight:600;border-bottom:1px solid var(--rule)}
 tbody tr.sub td:first-child{padding-left:26px;color:var(--ink-2)}
 tbody tr:hover td{background:var(--sunk)}
-.tag{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;
-  color:var(--ink-3);border:1px solid var(--rule);border-radius:4px;padding:1px 5px;margin-left:7px;vertical-align:2px}
+.tag{font-size:var(--fs-1);color:var(--ink-3);border:1px solid var(--rule);border-radius:var(--r-3);
+  padding:1px 5px;margin-left:7px;vertical-align:2px}
 
 /* ---- chart builder ------------------------------------------------------- */
 .bpad{padding:16px 22px 4px}
 .bctl{margin-top:2px}
 .bctl + .bctl{margin-top:15px}
 .bctl>label,.bctl div>label{
-  display:block;font-size:10px;letter-spacing:.11em;text-transform:uppercase;
-  color:var(--ink-3);font-weight:600;margin-bottom:5px;
+  display:block;font-size:var(--fs-2);color:var(--ink-3);font-weight:500;margin-bottom:5px;
 }
 .bctl.row{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
@@ -228,7 +227,7 @@ tbody tr:hover td{background:var(--sunk)}
 .chips button:hover{border-color:var(--accent)}
 .chips button[aria-checked=true]{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
 .axes{display:flex;gap:14px;font-size:11.5px;color:var(--ink-3);padding-bottom:8px;flex-wrap:wrap}
-.axes b{font-family:var(--font-mono);color:var(--ink-2);margin-right:3px}
+.axes b{font-variant-numeric:tabular-nums;color:var(--ink-2);margin-right:3px}
 
 /* ---- tooltip ------------------------------------------------------------- */
 #tip{
@@ -239,7 +238,7 @@ tbody tr:hover td{background:var(--sunk)}
 #tip.on{opacity:1}
 #tip b{display:block;font-size:12.5px;margin-bottom:3px}
 #tip .r{display:flex;justify-content:space-between;gap:16px;color:var(--ink-2)}
-#tip .r span:last-child{font-family:var(--font-mono);color:var(--ink);font-variant-numeric:tabular-nums}
+#tip .r span:last-child{font-variant-numeric:tabular-nums;color:var(--ink);font-variant-numeric:tabular-nums}
 
 /* ---- states -------------------------------------------------------------- */
 /* .note is shared (nav.css): one line, left-aligned, no box. */
@@ -279,7 +278,7 @@ tbody tr:hover td{background:var(--sunk)}
 .hero-eg{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:7px;
   margin-top:20px;font-size:12.5px;color:var(--ink-3)}
 .hero-eg button{background:var(--sunk);border:1px solid var(--rule);border-radius:7px;
-  padding:5px 11px;font-family:var(--font-mono);font-size:12px;font-weight:600;
+  padding:5px 11px;font-variant-numeric:tabular-nums;font-size:12px;font-weight:600;
   color:var(--ink-2);cursor:pointer}
 .hero-eg button:hover{border-color:var(--accent);color:var(--accent)}
 
@@ -288,10 +287,11 @@ tbody tr:hover td{background:var(--sunk)}
 /* The chart is the point and the numbers are the footnote, so the split is
    deliberately lopsided rather than even. */
 .pricerow{display:grid;grid-template-columns:minmax(0,1fr) 292px;gap:18px;margin-bottom:20px}
+.m-price{display:none}
 .pricerow[hidden]{display:none}
 .pricerow.waiting{grid-template-columns:minmax(0,1fr)}
 .pricechart{padding-bottom:10px}
-.pricechart .phead p{font-family:var(--font-mono);font-size:11.5px;
+.pricechart .phead p{font-size:var(--fs-2);
   color:var(--ink-3);letter-spacing:-.01em}
 #price-chart{padding:0 14px;position:relative}
 
@@ -309,7 +309,7 @@ tbody tr:hover td{background:var(--sunk)}
 .ptip-dot.up{background:var(--up)} .ptip-dot.down{background:var(--down)}
 .ptip-r{display:flex;justify-content:space-between;gap:14px;padding:2px 0}
 .ptip-r span{font-size:11.5px;color:var(--ink-3)}
-.ptip-r b{font-family:var(--font-mono);font-size:11.5px;font-weight:500;
+.ptip-r b{font-variant-numeric:tabular-nums;font-size:11.5px;font-weight:500;
   font-variant-numeric:tabular-nums;color:var(--ink)}
 .pchart{width:100%;height:auto;display:block;touch-action:none}
 .pchart .ax{font-family:var(--font-sans);font-size:var(--fs-1);fill:var(--ink-3);font-variant-numeric:tabular-nums}
@@ -317,8 +317,7 @@ tbody tr:hover td{background:var(--sunk)}
 
 .ranges{display:flex;gap:4px;flex-shrink:0}
 /* The ownership chart's cadence is a fact, not a control: 13F is quarterly. */
-.ownhist-cadence{font-size:10.5px;color:var(--ink-3);letter-spacing:.06em;
-  text-transform:uppercase;white-space:nowrap}
+.ownhist-cadence{font-size:var(--fs-2);color:var(--ink-3);white-space:nowrap}
 .ranges button{background:transparent;border:1px solid transparent;border-radius:var(--r-2);
   padding:4px 8px;font-size:var(--fs-3);font-weight:500;color:var(--ink-3);cursor:pointer;
   min-height:0}
@@ -327,7 +326,7 @@ tbody tr:hover td{background:var(--sunk)}
   color:var(--ink);font-weight:600}
 
 .pricestats{padding:16px 18px 14px;display:flex;flex-direction:column;
-  perspective:1400px;position:relative}
+  perspective:1400px;position:relative;align-self:start}
 .pflip{display:grid;flex:1;min-height:0}
 .pflip > .pface{grid-area:1/1;display:flex;flex-direction:column;
   backface-visibility:hidden;-webkit-backface-visibility:hidden;
@@ -358,21 +357,21 @@ tbody tr:hover td{background:var(--sunk)}
 /* What the shown price IS right now: last close, pre-market, after hours,
    open session, or a 24/7 market. One glance, one pill, dot coloured by
    session. Sized to wrap cleanly under the price on a phone. */
-.pq-state{display:inline-flex;align-items:center;gap:6px;margin-top:7px;
-  font-size:11.5px;font-weight:600;border-radius:99px;padding:3px 10px;
-  border:1px solid var(--rule);color:var(--ink-2);background:var(--sunk);
-  width:fit-content;max-width:100%;cursor:help}
+/* One line of text under the price, with a dot that says which session the
+   number belongs to. It used to be a bordered pill, and a red one when the
+   close was behind; a stale quote is a fact to note, not an alarm. */
+.pq-state{display:inline-flex;align-items:center;gap:6px;margin-top:8px;
+  font-size:var(--fs-2);font-weight:500;color:var(--ink-3);
+  width:fit-content;max-width:100%;cursor:help;flex-wrap:wrap}
 .pq-state i{width:7px;height:7px;border-radius:50%;background:var(--ink-3);flex-shrink:0}
-.pq-state b{font-weight:600;color:var(--ink)}
+.pq-state b{font-weight:500;color:var(--ink-2)}
 .pq-state span{font-weight:400;color:var(--ink-3)}
 .pq-state.st-open i,.pq-state.st-live i{background:var(--up)}
 .pq-state.st-pre i{background:var(--s3)}
 .pq-state.st-after i{background:var(--ink-2)}
 /* A close older than the last completed session: the reason a prev-close can
    disagree with what the reader saw elsewhere, so it is flagged, not muted. */
-.pq-state.st-behind{border-color:var(--down);background:var(--down-soft)}
 .pq-state.st-behind i{background:var(--down)}
-.pq-state.st-behind span{color:var(--down)}
 /* What the houses call it, under the price it is called on. */
 /* What the houses call it lives in the consensus block below the stats. */
 .pstats{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;margin-top:4px}
@@ -405,8 +404,7 @@ tbody tr:hover td{background:var(--sunk)}
    against. Same shape as the quote above it: a heading, a figure, the spread. */
 .wst{margin-top:15px;padding-top:14px;border-top:1px solid var(--rule)}
 .wst-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
-  font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;
-  color:var(--ink-2)}
+  font-size:var(--fs-2);font-weight:500;color:var(--ink-3)}
 .wst-h span{font-weight:500;color:var(--ink-3);white-space:nowrap}
 /* The analyst count opens the ratings. Styled as the label it replaced, with
    an underline so it reads as something you can press rather than a caption. */
@@ -453,8 +451,8 @@ tbody tr:hover td{background:var(--sunk)}
   width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;
 }
 .idx-hold .htab th{
-  text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--ink-3);font-weight:600;padding:9px 10px;border-bottom:1px solid var(--rule);
+  text-align:left;font-size:var(--fs-1);color:var(--ink-3);font-weight:500;
+  padding:9px 10px;border-bottom:1px solid var(--rule);
   position:sticky;top:0;z-index:2;white-space:nowrap;
   background-color:var(--card);background-clip:padding-box;
   box-shadow:0 1px 0 var(--rule);
@@ -462,7 +460,7 @@ tbody tr:hover td{background:var(--sunk)}
 .idx-hold .htab thead{position:relative;z-index:2}
 .idx-hold .htab td{padding:8px 10px;border-bottom:1px solid var(--rule-2);vertical-align:middle}
 .idx-hold .htab tr:hover td{background:var(--sunk)}
-.idx-hold .htab a{color:var(--accent);text-decoration:none;font-family:var(--font-mono);font-weight:600}
+.idx-hold .htab a{color:var(--ink);text-decoration:none;font-weight:600;text-transform:uppercase}
 .idx-hold .htab a:hover{text-decoration:underline}
 .idx-hold .htab .name{color:var(--ink-2);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 /* Logo beside the company name; the text keeps the ellipsis. */
@@ -470,7 +468,7 @@ tbody tr:hover td{background:var(--sunk)}
 .idx-hold .htab .hname>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .idx-hold .htab .ind{color:var(--ink-3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 .idx-hold .htab .w,.idx-hold .htab .ret{
-  font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap
+  font-variant-numeric:tabular-nums;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap
 }
 .idx-hold .htab .ret.up{color:var(--up)} .idx-hold .htab .ret.down{color:var(--down)}
 /* Show ~14 body rows; scroll for the rest. */
@@ -495,8 +493,7 @@ tbody tr:hover td{background:var(--sunk)}
   overflow:hidden;min-height:0;
 }
 .idx-pie-title{
-  font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
-  color:var(--ink-3);margin:0;
+  font-size:var(--fs-2);font-weight:500;color:var(--ink-3);margin:0;
 }
 .idx-pie-wrap{
   display:flex;align-items:center;justify-content:center;padding:4px 0 0;
@@ -511,7 +508,7 @@ tbody tr:hover td{background:var(--sunk)}
   pointer-events:none;
 }
 .idx-pie-wrap .pie-lab-pct{
-  font-family:var(--font-mono);font-size:9px;fill:var(--ink-2);
+  font-variant-numeric:tabular-nums;font-size:9px;fill:var(--ink-2);
   pointer-events:none;
 }
 .idx-pie-legend{display:flex;flex-direction:column;gap:6px;padding:2px 2px 0;font-size:12.5px}
@@ -520,7 +517,7 @@ tbody tr:hover td{background:var(--sunk)}
   font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;
 }
 .idx-pie-legend i{width:10px;height:10px;border-radius:3px;flex-shrink:0}
-.idx-pie-legend b{margin-left:auto;font-family:var(--font-mono);font-weight:600;color:var(--ink);flex-shrink:0}
+.idx-pie-legend b{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink);flex-shrink:0}
 .idx-filters{display:flex;flex-wrap:wrap;gap:8px;padding:8px 14px 4px}
 .idx-filters button{
   display:inline-flex;align-items:center;gap:7px;border:1px solid var(--rule);
@@ -575,14 +572,14 @@ tbody tr:hover td{background:var(--sunk)}
 
 .lwrap{padding:2px 14px 12px}
 .lchart{width:100%;height:auto;display:block;touch-action:none}
-.lchart .ax{font-family:var(--font-mono);font-size:9.5px;fill:var(--ink-3)}
+.lchart .ax{font-variant-numeric:tabular-nums;font-size:9.5px;fill:var(--ink-3)}
 .lchart .ax.mid{text-anchor:middle}
 .lkey,.lread{display:flex;flex-wrap:wrap;gap:6px 15px;align-items:center;
   font-size:11.5px;color:var(--ink-3);padding:7px 2px 0}
 .lkey i,.lread i{display:inline-block;width:9px;height:2.5px;border-radius:2px;
   margin-right:5px;vertical-align:2px}
 .lkey i.dash{height:0;border-top:2px dashed currentColor;background:none!important}
-.lread{min-height:19px;font-family:var(--font-mono);font-size:11px}
+.lread{min-height:19px;font-variant-numeric:tabular-nums;font-size:11px}
 /* One plain sentence per chart saying what it shows. The chart is the
    evidence; this is the finding, for the reader who does not speak chart. */
 .chart-take{padding:2px 0 8px;font-size:12.5px;color:var(--ink-2);line-height:1.45}
@@ -591,7 +588,7 @@ tbody tr:hover td{background:var(--sunk)}
 
 .swrap{padding:0 14px 14px;overflow-x:auto}
 .season{width:100%;border-collapse:separate;border-spacing:2px;font-size:11px;
-  font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  font-variant-numeric:tabular-nums;font-variant-numeric:tabular-nums}
 .season th{font-family:var(--font-sans);font-size:10.5px;font-weight:600;
   color:var(--ink-3);text-align:center;padding:4px 2px;white-space:nowrap}
 .season tbody th{text-align:right;padding-right:8px;color:var(--ink-2)}
@@ -614,7 +611,7 @@ tbody tr:hover td{background:var(--sunk)}
 .conews:last-child{border-bottom:0}
 .conews:hover{background:var(--sunk)}
 .conews .when{font-size:11px;color:var(--ink-3);margin-bottom:4px}
-.conews .tag{font-family:var(--font-mono);font-size:10.5px;color:var(--accent);font-weight:600}
+.conews .tag{font-size:var(--fs-2);color:var(--ink-2);font-weight:600;text-transform:uppercase}
 .conews h4{font-size:13.5px;font-weight:600;line-height:1.3;margin-bottom:3px}
 .conews p{font-size:12px;color:var(--ink-2);line-height:1.4}
 
@@ -703,7 +700,12 @@ body.mreport .mtab-panel.on{display:block}
     flex-wrap:wrap;gap:8px 10px;padding:0 14px;margin-bottom:4px;
   }
   .ident > div:first-child{flex:1;min-width:0}
-  .ident h1{font-size:20px;padding-right:4px}
+  .ident-with-logo > div{position:relative;flex:1;min-width:0}
+  .ident .ident-with-logo h1{font-size:20px;padding-right:44px;display:block}
+  .wstar{position:absolute;top:0;right:0;margin:0;transform:none;padding:5px 9px}
+  .wstar-n:empty{display:none}
+  .pflip-btn{display:none}
+  .pflip-hint{cursor:pointer;color:var(--ink-2)}
   .qpick{
     display:flex;justify-content:flex-end;align-items:flex-end;
     gap:5px;flex-wrap:nowrap;
@@ -743,6 +745,11 @@ body.mreport .mtab-panel.on{display:block}
   .tabctl .qpick{justify-content:flex-end}
 
   .pricerow{margin-bottom:0;gap:0}
+  .m-price{display:block;padding:6px 14px 12px;background:var(--card);
+    border-top:1px solid var(--rule)}
+  .m-price[hidden]{display:none}
+  .m-price .pqhead{padding:0;border:0}
+  .pricestats .pqhead,.pricestats .pq-state{display:none}
   .pricechart,.pricestats{
     border-radius:0;border-left:0;border-right:0;box-shadow:none;
   }
@@ -750,17 +757,24 @@ body.mreport .mtab-panel.on{display:block}
   .pricechart .phead{padding:12px 14px 0}
   /* Was 52vh, which left nothing else on screen beside it. 40vh is still a
      chart you can read and leaves room for the metrics below it. */
-  #price-chart{padding:0;min-height:40vh}
-  .pchart{width:100%;height:min(58vh,560px);max-width:none}
+  #price-chart{padding:0 6px;min-height:0}
+  .pchart{width:100%;height:auto;max-width:none}
   .chart-fs-btn{
     display:inline-grid;place-items:center;width:32px;height:32px;margin-left:6px;
     background:var(--sunk);border:1px solid var(--rule);border-radius:8px;
     color:var(--ink-2);cursor:pointer;flex-shrink:0;padding:0;
   }
-  .chart-fs-btn:hover,.chart-fs-btn:focus-visible{border-color:var(--accent);color:var(--accent)}
+  .chart-fs-btn:hover,.chart-fs-btn:focus-visible{border-color:var(--ink-3);color:var(--ink)}
   .pricestats{padding:14px}
-  .ranges{padding-right:0}
-  .ranges button{padding:6px 11px;font-size:12px}
+  /* The ranges take their own row and scroll; the two menus sit beside the
+     full-screen button on the next. Twelve wrapped controls became two rows. */
+  .pricechart .phead > div:last-child{width:100%}
+  .ranges{padding-right:0;flex-basis:100%;overflow-x:auto;scrollbar-width:none;gap:2px}
+  .ranges::-webkit-scrollbar{display:none}
+  .ranges button{padding:6px 10px;font-size:var(--fs-3);flex-shrink:0}
+  .ptools{flex:1}
+  .tpop-cols{grid-template-columns:1fr 1fr;min-width:0}
+  .tpop{min-width:min(92vw,360px)}
 
   .kpis{
     display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:0;
@@ -824,7 +838,7 @@ body.mreport .mtab-panel.on{display:block}
     max-width:28px;overflow:hidden;text-overflow:ellipsis;
   }
   .season td{padding:2px 0;font-size:7px;border-radius:2px}
-  .newswrap{height:min(70vh,640px);padding:0}
+  .newswrap{max-height:min(70vh,640px);padding:0}
 
   /* Zoom hosts no longer trap the page scroll; pinch still works via JS. */
   .zoom-host{
@@ -834,8 +848,7 @@ body.mreport .mtab-panel.on{display:block}
   .zoom-host .zoom-layer{min-height:0}
   .zoom-hint{
     position:absolute;right:10px;bottom:10px;z-index:4;
-    font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;
-    color:var(--ink-3);background:color-mix(in srgb,var(--card) 88%,transparent);
+    font-size:var(--fs-2);color:var(--ink-3);background:color-mix(in srgb,var(--card) 88%,transparent);
     border:1px solid var(--rule);border-radius:6px;padding:3px 7px;
     pointer-events:none;
   }
@@ -913,7 +926,7 @@ body.mreport .mtab-panel.on{display:block}
 .pchip{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;
   border:1px solid var(--rule);border-radius:999px;font-size:12.5px;
   background:var(--sunk);color:var(--ink)}
-.pchip b{font-family:var(--font-mono);font-weight:600;font-size:12px}
+.pchip b{font-variant-numeric:tabular-nums;font-weight:600;font-size:12px}
 .pchip .pnm{color:var(--ink-2);max-width:15ch;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .pchip.me{border-color:var(--accent);background:var(--accent-soft)}
@@ -950,7 +963,7 @@ button.pchip.addp:hover{border-color:var(--accent);color:var(--accent)}
 .pnews-row{display:flex;gap:10px;align-items:baseline;padding:9px 14px;
   border-bottom:1px solid var(--rule-2)}
 .pnews-row:last-child{border-bottom:0}
-.pnews-row .sym{font-family:var(--font-mono);font-size:11.5px;
+.pnews-row .sym{font-variant-numeric:tabular-nums;font-size:11.5px;
   color:var(--accent);min-width:52px}
 .pnews-row a{color:var(--ink);text-decoration:none;font-size:13px}
 .pnews-row a:hover{text-decoration:underline;text-underline-offset:3px}
@@ -961,11 +974,10 @@ button.pchip.addp:hover{border-color:var(--accent);color:var(--accent)}
 .atable thead{position:relative;z-index:2}
 .atable th{position:sticky;top:0;background:var(--card);z-index:2;text-align:left;
   background-clip:padding-box;box-shadow:0 1px 0 var(--rule);
-  font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
-  font-weight:600;padding:8px 14px}
+  font-size:var(--fs-1);color:var(--ink-3);font-weight:500;padding:8px 14px}
 .atable td{padding:9px 14px;border-bottom:1px solid var(--rule-2)}
 .atable tr:last-child td{border-bottom:0}
-.atable td:nth-child(2){font-family:var(--font-mono);color:var(--ink-3);
+.atable td:nth-child(2){font-variant-numeric:tabular-nums;color:var(--ink-3);
   font-size:11.5px;white-space:nowrap}
 .grade{font-weight:600}
 .grade.g-buy{color:var(--up)} .grade.g-hold{color:var(--ink-2)} .grade.g-sell{color:var(--down)}
@@ -997,16 +1009,15 @@ button.pchip.addp:hover{border-color:var(--accent);color:var(--accent)}
 .otab thead{position:relative;z-index:2}
 .otab th{position:sticky;top:0;background:var(--card);z-index:2;text-align:left;
   background-clip:padding-box;box-shadow:0 1px 0 var(--rule);white-space:nowrap;
-  font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
-  font-weight:600;padding:8px 14px}
+  font-size:var(--fs-1);color:var(--ink-3);font-weight:500;padding:8px 14px}
 .otab td{padding:9px 14px;border-bottom:1px solid var(--rule-2);vertical-align:top;
   text-align:left}
 .otab tr:last-child td{border-bottom:0}
 /* Dates, not first cells: the holders table leads with an institution's name,
    which is prose and should not be set as a figure. */
-.otab .dt{font-family:var(--font-mono);font-size:11.5px;
+.otab .dt{font-variant-numeric:tabular-nums;font-size:11.5px;
   color:var(--ink-3);white-space:nowrap}
-.otab .num{text-align:right;font-family:var(--font-mono);white-space:nowrap}
+.otab .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 /* The name leads; what the person is sits under it in the muted line, so a
    long title cannot push the figures off the card. */
 .owho{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0}
@@ -1036,11 +1047,19 @@ button.pchip.addp:hover{border-color:var(--accent);color:var(--accent)}
 .tbtn svg{width:9px;height:6px}
 .tbtn.off{opacity:.45;cursor:default}
 /* A menu naming a live choice rather than its own category. */
-.tbtn-on{color:var(--ink);border-color:var(--ink-3)}
+.tbtn-on{color:var(--ink);border-color:var(--rule)}
 .tmenu.open>.tbtn{border-color:var(--rule);color:var(--ink);background:var(--sunk)}
 .tpop{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:60;
   min-width:216px;background:var(--raised);border:1px solid var(--rule);
   border-radius:var(--r);box-shadow:var(--shadow);padding:6px;overflow:hidden}
+/* The indicator menu lays its four families side by side on a desk. */
+.tpop-cols{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:0 8px}
+.tpop-cols .tpop-h{grid-column:auto}
+.tpop-clear{display:block;width:100%;margin-top:6px;padding:8px 10px;border:0;
+  border-top:1px solid var(--rule-2);background:transparent;font:inherit;font-size:var(--fs-3);
+  color:var(--ink-2);cursor:pointer;text-align:left;border-radius:0}
+.tpop-clear:hover{color:var(--ink)}
+.tpop-clear[disabled]{color:var(--ink-3);cursor:default}
 .tmenu.open .tpop{display:block}
 .tpop-h{font-size:var(--fs-2);color:var(--ink-3);font-weight:500;padding:7px 10px 5px}
 .tpop button{display:block;width:100%;text-align:left;background:transparent;
@@ -1497,9 +1516,10 @@ const HELP = {
   drawdown:  "Percent below the index's last all-time high (the running peak in available price history). The pink line sits at 0% on new highs and falls as the index pulls back. Pastel green bands behind the line mark drawdown depths that were reached or exceeded on about 1%, 5%, 10%, 25%, and 50% of trading days over the last 25 years (or as much history as is cached): higher probability bands are lighter green, rarer deep drawdowns are darker. The left axis labels those probabilities; the right axis shows drawdown percent.",
 };
 
-const helpIcon = k => HELP[k]
-  ? `<span class="info" tabindex="0" role="img" aria-label="What this chart shows"
-       data-help="${esc(HELP[k])}">i</span>` : "";
+// The (i) after every heading is gone: an icon on every title is noise, and
+// the one-line subhead under each panel already says what the chart shows.
+// HELP stays for the metric-definition popovers that replace it.
+const helpIcon = () => "";
 
 /** One tooltip element, positioned next to whichever icon is hovered. */
 function wireHelp(){
@@ -5381,6 +5401,7 @@ function render(){
          in context. Nothing here comes from a filing. -->
     <div class="mtab-panel on" data-mtab="overview" id="mtab-overview" role="tabpanel">
       <div class="pricerow" id="pricerow" hidden>
+        <div class="m-price" id="m-price" hidden></div>
         <section class="card pricechart">
           <div class="phead"><div>
             ${priceChartHeading(c.ticker)}
@@ -5408,7 +5429,7 @@ function render(){
       <section class="card panel" id="conews-panel">
         <div class="phead"><div>
           <h2>News ${helpIcon("news")}</h2>
-          <p id="news-scope">Recent stories.</p>
+          <p id="news-scope" hidden>Recent stories.</p>
         </div></div>
         <div class="newswrap" id="co-news"><div class="note">Loading news…</div></div>
       </section>
@@ -7577,7 +7598,12 @@ PRICE.pane = "rsi";
 
 const INTERVALS = [["Daily", "daily"], ["Weekly", "weekly"], ["Monthly", "monthly"]];
 
-/** The two dropdown groups above the chart. */
+/** The controls above the chart: the interval, and one Indicators menu.
+
+    There used to be a menu per family -- Trend, Volatility, Structure, the
+    lower strip -- and with the ranges that was twelve controls in the
+    header of one chart. The closed button still names what is on: one
+    choice takes its name, several take a count. */
 function chartToolbar(){
   const menu = (id, label, body, active) => `
     <div class="tmenu" data-menu="${id}">
@@ -7590,40 +7616,32 @@ function chartToolbar(){
   const timeBody = INTERVALS.map(([lab, v]) =>
     `<button type="button" data-interval="${v}"
        class="${PRICE.interval === v ? "on" : ""}">${lab}</button>`).join("");
-
-  /* A closed menu says what is chosen inside it, not what it is called. The
-     buttons read "Time", "Trend", "Volatility" whatever was picked, so the
-     chart's state was legible only by opening all four. One choice takes its
-     name; several take a count, because three indicator names do not fit. */
-  const chosen = (g) => {
-    const on = Object.entries(g.items).filter(([id]) => PRICE.active.has(id));
-    return !on.length ? g.label
-      : on.length === 1 ? on[0][1].name
-      : `${g.label} · ${on.length}`;
-  };
   const intervalLabel = (INTERVALS.find(([, v]) => v === PRICE.interval) || [])[0];
 
   const groups = Object.entries(TA).map(([gid, g]) =>
-    menu(gid, chosen(g), `<div class="tpop-h">${esc(g.label)}</div>` +
-      Object.entries(g.items).map(([id, it]) =>
-        `<button type="button" data-ta="${id}"
-           class="${PRICE.active.has(id) ? "on" : ""}">${esc(it.name)}</button>`).join(""),
-      Object.keys(g.items).some(id => PRICE.active.has(id)))).join("");
-
-  // One strip at a time, so this menu is a choice rather than a set.
+    `<div class="tpop-h">${esc(g.label)}</div>` +
+    Object.entries(g.items).map(([id, it]) =>
+      `<button type="button" data-ta="${id}"
+         class="${PRICE.active.has(id) ? "on" : ""}">${esc(it.name)}</button>`).join("")).join("");
   const paneBody = `<div class="tpop-h">Lower strip</div>` +
     Object.entries(PANES).map(([id, p]) =>
       `<button type="button" data-pane="${id}"
          class="${PRICE.pane === id ? "on" : ""}">${esc(p.name)}</button>`).join("") +
     `<button type="button" data-pane="" class="${PRICE.pane ? "" : "on"}">None</button>`;
-  const paneLabel = (PANES[PRICE.pane] || {}).name || "Momentum";
 
-  const anyOn = PRICE.active.size > 0;
-  return menu("time", intervalLabel || "Time",
-              `<div class="tpop-h">Interval</div>${timeBody}`, !!intervalLabel) + groups +
-    menu("pane", paneLabel, paneBody, !!PRICE.pane) +
-    `<button type="button" class="tbtn ${anyOn ? "" : "off"}" data-ta-clear
-       ${anyOn ? "" : "disabled"}>Clear</button>`;
+  // What the closed button says: the one thing that is on, or how many.
+  const on = [];
+  for (const g of Object.values(TA))
+    for (const [id, it] of Object.entries(g.items)) if (PRICE.active.has(id)) on.push(it.name);
+  if (PANES[PRICE.pane]) on.push(PANES[PRICE.pane].name);
+  const label = !on.length ? "Indicators" : on.length === 1 ? on[0] : `Indicators · ${on.length}`;
+  const anyOn = on.length > 0;
+  const clear = `<button type="button" class="tpop-clear" data-ta-clear
+       ${anyOn ? "" : "disabled"}>Clear all</button>`;
+
+  return menu("time", intervalLabel || "Interval",
+              `<div class="tpop-h">Interval</div>${timeBody}`, false) +
+    menu("ind", label, `<div class="tpop-cols">${groups}${paneBody}</div>${clear}`, anyOn);
 }
 
 function wireToolbar(){
@@ -7658,7 +7676,10 @@ function wireToolbar(){
     paintPrices();
   });
   const clear = bar.querySelector("[data-ta-clear]");
-  if (clear) clear.onclick = () => { PRICE.active.clear(); paintPrices(); };
+  if (clear) clear.onclick = e => {
+    e.stopPropagation();
+    PRICE.active.clear(); PRICE.pane = null; paintPrices();
+  };
 }
 
 /** Every active overlay, resolved against the bars on screen. */
@@ -7827,17 +7848,19 @@ function drawCandles(){
 
   const fs = document.body.classList.contains("chart-fs-open");
   const mobile = MOBILE_MQ.matches || fs;
-  const W = 900;
+  // On a phone the viewBox is the pane's real width, so a pixel is a pixel
+  // and the axis text is not squashed by a stretched 900-unit canvas.
+  const W = mobile && !fs ? Math.max(300, Math.round(host.clientWidth || 360)) : 900;
   // Heights are stacked rather than carved out of one total: candles, then a
   // volume band, then whichever momentum strip is chosen. The chart's height
   // is what those add up to, so turning the strip off gives the space back
   // instead of leaving a gap where it was.
   const pane = PANES[PRICE.pane] || null;
-  const ph = fs ? 470 : mobile ? 344 : 252;      // the candles' own height
-  const VH = mobile ? 54 : 38;                   // the volume band
+  const ph = fs ? 470 : mobile ? 210 : 252;      // the candles' own height
+  const VH = mobile ? 36 : 38;                   // the volume band
   const GAP = 12;
-  const PH2 = pane ? (mobile ? 62 : pane.height) : 0;
-  const ml = 8, mr = mobile ? 52 : 60, mt = 10, mb = 22;
+  const PH2 = pane ? (mobile ? 50 : pane.height) : 0;
+  const ml = 8, mr = mobile ? 48 : 60, mt = 10, mb = 22;
   const pw = W - ml - mr;
   const volBase = mt + ph + GAP + VH;            // the volume band's baseline
   const paneTop = volBase + GAP + 2;
@@ -8090,7 +8113,8 @@ function drawCandles(){
   }
 
   // Dates at a readable density, whatever the range. Always include ends.
-  const every = Math.max(1, Math.round((bars.length - 1) / 6));
+  // Six date labels on a desk; on a phone three, or they overlap.
+  const every = Math.max(1, Math.round((bars.length - 1) / (mobile && !fs ? 2 : 6)));
   const dateIdx = new Set([0, bars.length - 1]);
   for (let i = every; i < bars.length - 1; i += every) dateIdx.add(i);
   const dates = [...dateIdx].sort((a, b) => a - b).map(i => {
@@ -8120,7 +8144,7 @@ function drawCandles(){
   host.innerHTML = `${approxNote}
     <svg viewBox="0 0 ${W} ${H}" class="pchart" role="img"
          aria-label="Daily prices for ${esc(PRICE.symbol)}"
-         preserveAspectRatio="${mobile ? "none" : "xMidYMid meet"}">
+         preserveAspectRatio="${fs ? "none" : "xMidYMid meet"}">
       ${/* Overlays are computed with a lead-in of history, so their values
             can sit outside the visible price range -- a 200-day average far
             from a one-month window's prices drew straight through the volume
@@ -8285,7 +8309,7 @@ function priceStateChip(){
       if (![0, 6].includes(d.getUTCDay())) n++;
     }
     return { cls: "st-behind", lead,
-      rest: `${n} session${n === 1 ? "" : "s"} behind · refreshing`,
+      rest: `${n} session${n === 1 ? "" : "s"} behind, refreshing`,
       title: `This is the close from ${longDate(asOf)}, not the latest session (${longDate(lastClose)}). A refresh has been requested and the page updates when it arrives.` };
   }
   return { cls: phase === "open" ? "st-open" : phase === "pre" ? "st-pre"
@@ -8340,8 +8364,8 @@ function drawPriceStats(){
   // when it does.
   const call = consensusCall(ANALYST.data && ANALYST.data.consensus);
 
-  const front = `
-    <div class="pface pface-front">
+  const st = priceStateChip();
+  const head = `
       <div class="pqhead">
         <div class="pq">
           <div class="pq-price">${n(price)}</div>
@@ -8349,16 +8373,14 @@ function drawPriceStats(){
             <span class="pq-pill ${dirClass}">${chgPct >= 0 ? "+" : ""}${n(chgPct)}%</span>`}
         </div>
       </div>
-      ${(() => { const st = priceStateChip();
-        return `<div class="pq-state ${st.cls}" title="${esc(st.title)}"><i></i>` +
-               `<b>${esc(st.lead)}</b><span>· ${esc(st.rest)}</span></div>`; })()}
+      <div class="pq-state ${st.cls}" title="${esc(st.title)}"><i></i>
+        <b>${esc(st.lead)}</b><span>${esc(st.rest)}</span></div>`;
+  const front = `
+    <div class="pface pface-front">
+      ${head}
       <dl class="pstats">
         ${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
       </dl>
-      ${/* The date used to live here as "As of …", repeating what the state
-            pill above now says. The exchange is the only part left that the
-            pill does not carry. */""}
-      ${q && q.exchange ? `<p class="pnote">${esc(q.exchange)}</p>` : ""}
       ${consensusSummary(price)}
       <p class="pflip-hint">Flip for company profile</p>
     </div>`;
@@ -8378,6 +8400,12 @@ function drawPriceStats(){
     </div>`;
 
   wirePriceFlip(host);
+
+  // On a phone the price comes before the chart, the way every quote page a
+  // reader knows does it; the stats stay below the chart. The slot is hidden
+  // on a desk, where the column beside the chart already leads with it.
+  const mp = document.getElementById("m-price");
+  if (mp) { mp.innerHTML = head; mp.hidden = false; }
 }
 
 const COUNTRY_NAME = {

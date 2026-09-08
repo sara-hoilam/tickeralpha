@@ -1,8 +1,8 @@
 {
   "dashboard.html": {
-    "font-size-px": 121,
+    "font-size-px": 103,
     "hex-colour": 18,
-    "radius-px": 38,
+    "radius-px": 36,
     "toFixed": 242
   },
   "earnings.html": {
@@ -12,7 +12,7 @@
     "toFixed": 10
   },
   "landing.html": {
-    "font-size-px": 101,
+    "font-size-px": 100,
     "hex-colour": 23,
     "radius-px": 30,
     "toFixed": 228

@@ -363,6 +363,10 @@
   .nav-in { padding: 10px 14px; gap: 10px; }
   .nav-brand b { display: none; }
   .nav-search kbd { display: none; }
+  /* The asset-type filter took a third of the field on a phone and left
+     the placeholder clipped to "Searc". Search still covers every type. */
+  .nav .nav-search select { display: none; }
+  .nav .nav-search input { border-radius: 9px; }
   .nav-strip .nav-in { padding: 7px 14px; gap: 14px; }
 }
 

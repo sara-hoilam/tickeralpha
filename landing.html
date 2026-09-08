@@ -63,17 +63,17 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
   gap:12px 24px; margin-bottom:12px; flex-wrap:nowrap;
 }
 .value-prop{
-  font-size:12.5px;color:var(--ink-3);line-height:1.45;margin:0 0 10px;
+  font-size:var(--fs-3);color:var(--ink-3);line-height:var(--lh-body);margin:0 0 10px;
 }
 .value-prop-cta{
   font:inherit;font-size:inherit;color:var(--accent);background:none;border:0;
   padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px;
 }
 .value-prop-cta:hover{color:var(--ink)}
-.sumhead h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin:0;flex:0 0 auto}
+.sumhead h2{font-size:var(--fs-6);font-weight:600;letter-spacing:-.01em;margin:0;flex:0 0 auto}
 .sumhead .sub{color:var(--ink-3);font-size:12.5px;text-align:right;margin-left:auto;
   line-height:1.35;white-space:nowrap;flex:0 1 auto;min-width:0}
-.sumhead .sub b{font-family:var(--font-mono);font-weight:500;color:var(--ink-2)}
+.sumhead .sub b{font-variant-numeric:tabular-nums;font-weight:500;color:var(--ink-2)}
 h2{font-size:var(--fs-6);font-weight:600;letter-spacing:-.01em;margin-bottom:12px}
 .panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow-card);overflow:hidden}
 .split{display:grid;grid-template-columns:minmax(320px,420px) 1fr;min-height:520px}
@@ -526,9 +526,9 @@ a.nm:hover{color:var(--accent)}
   }
   .foot{margin:18px 14px 0;padding-top:14px}
 
-  .value-prop{font-size:11.5px;margin:0 0 8px;line-height:1.4}
-  .sumhead{margin:0 10px 8px;gap:6px 10px;flex-wrap:nowrap;overflow-x:auto}
-  .sumhead .sub{font-size:10.5px;text-align:right;margin-left:auto;white-space:nowrap}
+  .value-prop{font-size:var(--fs-2);margin:0 0 8px}
+  .sumhead{margin:0 10px 8px;gap:2px 10px;flex-wrap:wrap;align-items:baseline}
+  .sumhead .sub{font-size:var(--fs-2);text-align:left;margin-left:0;white-space:normal;flex-basis:100%}
 
   /* Pulse: three indexes on one row, the two gauges on a second. Five in a
      row needed 8px labels and 12px figures; nothing on the site goes below
