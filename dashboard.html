@@ -312,7 +312,10 @@ tbody tr:hover td{background:var(--sunk)}
 .ptip-r b{font-variant-numeric:tabular-nums;font-size:11.5px;font-weight:500;
   font-variant-numeric:tabular-nums;color:var(--ink)}
 .pchart{width:100%;height:auto;display:block;touch-action:none}
-.pchart .ax{font-family:var(--font-sans);font-size:var(--fs-1);fill:var(--ink-3);font-variant-numeric:tabular-nums}
+/* The price chart is drawn at 900 units and scaled up to the card, so its
+   axis type is set a step under the shared size to land at the same
+   rendered size as the other charts' axes. */
+.pchart .ax{font-family:var(--font-sans);font-size:calc(var(--fs-1) * .85);fill:var(--ink-3);font-variant-numeric:tabular-nums}
 .pchart .ax.mid{text-anchor:middle}
 
 .ranges{display:flex;gap:4px;flex-shrink:0}
@@ -4495,7 +4498,7 @@ function drawIndexPE(){
 
   linePlot(host, series, {
     id: "idxpe", zero: false,
-    H: MOBILE_MQ.matches ? 240 : 200,
+    H: MOBILE_MQ.matches ? 260 : 280,
     mb: 36, mr: 40, xLabels: 4,
     fmtY: v => v.toFixed(0),
     fmtV: v => v.toFixed(2) + "x",
@@ -8037,8 +8040,8 @@ function drawCandles(){
     <rect x="${axX + 2}" y="${(y(lastPx) - 7.5).toFixed(1)}" width="${badgeW}" height="15"
       rx="3" fill="${lastUp ? "var(--up)" : "var(--down)"}"/>
     <text x="${(axX + 2 + badgeW / 2).toFixed(1)}" y="${(y(lastPx) + 3.5).toFixed(1)}"
-      class="ax" text-anchor="middle" fill="#fff"
-      style="font-weight:600">${esc(axNum(lastPx))}</text>`;
+      class="ax" text-anchor="middle"
+      style="font-weight:600;fill:#fff">${esc(axNum(lastPx))}</text>`;
 
   /* The momentum strip. Its own scale, its own guides, its latest reading on
      the axis in the same place the price badge sits, so the two read as one
