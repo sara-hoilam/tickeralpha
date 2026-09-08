@@ -16,6 +16,13 @@
 <script src="analytics.js"></script>
 <script src="posthog-init.js"></script>
 <script type="module" src="clarity-init.js"></script>
+<script>
+/* Theme before first paint: nav.js re-applies the same choice later, but by
+   then the page has already been painted light for a dark-mode reader. */
+(function(){try{var t=localStorage.getItem("alphaticker-theme")||localStorage.getItem("ledger-theme");
+if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";
+document.documentElement.setAttribute("data-theme",t)}catch(e){}})();
+</script>
 <link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +30,7 @@
      saves the DNS + TCP + TLS setup that otherwise sits in front of the first
      byte of data. The origin is already public in config.js. -->
 <link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:opsz,wght@14..32,400..700&display=swap" rel="stylesheet">
 <style>
 
 
@@ -36,7 +43,7 @@ body{
 main{max-width:var(--page,1680px);margin:0 auto;padding:22px 28px 72px}
 .up{color:var(--up)} .down{color:var(--down)}
 .panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
-  box-shadow:var(--shadow);overflow:hidden}
+  box-shadow:var(--shadow-card);overflow:hidden}
 .note{padding:28px 18px;color:var(--ink-3);font-size:13px;text-align:center}
 .load{display:inline-block;width:13px;height:13px;border:2px solid var(--rule);
   border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
@@ -62,7 +69,7 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:22px 28px 72px}
 .daycard{
   background:var(--card);border:1px solid var(--rule);border-radius:10px;
   padding:10px 8px 8px;cursor:pointer;text-align:left;min-width:0;
-  box-shadow:var(--shadow);transition:border-color .12s, background .12s;
+  box-shadow:var(--shadow-card);transition:border-color .12s, background .12s;
 }
 .daycard:hover{border-color:var(--accent)}
 .daycard[aria-pressed=true]{background:var(--sunk);border-color:var(--ink-3)}
@@ -86,7 +93,7 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:22px 28px 72px}
 .elist{display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 310px);
   overflow-y:auto;padding-right:2px;scrollbar-gutter:stable}
 .ecard{background:var(--card);border:1px solid var(--rule);border-radius:12px;
-  padding:16px 18px;box-shadow:var(--shadow)}
+  padding:16px 18px;box-shadow:var(--shadow-card)}
 .ecard .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .ecard .who{display:flex;gap:10px;align-items:center;min-width:0}
 .ecard .dot{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
@@ -116,7 +123,7 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:22px 28px 72px}
   width:14px;height:14px;color:var(--ink-3);pointer-events:none}
 .wl-search input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;background:var(--card)}
 .wl-ac{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;background:var(--card);
-  border:1px solid var(--rule);border-radius:8px;box-shadow:var(--shadow);display:none;overflow:hidden}
+  border:1px solid var(--rule);border-radius:8px;box-shadow:var(--shadow-card);display:none;overflow:hidden}
 .wl-ac.open{display:block}
 .wl-ac div{padding:8px 10px;cursor:pointer;display:flex;gap:8px;border-bottom:1px solid var(--rule-2)}
 .wl-ac div:last-child{border-bottom:0}
@@ -154,7 +161,7 @@ tbody tr{cursor:pointer}
 tbody tr:hover td{background:var(--sunk)}
 .sym{display:flex;align-items:center;gap:8px;min-width:0}
 .dot{width:22px;height:22px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
-  font-family:var(--font-mono);font-size:8.5px;font-weight:600;color:#fff}
+  font-size:8.5px;font-weight:600;color:var(--ink-2);background:var(--sunk);border:1px solid var(--rule)}
 .symtext{min-width:0;display:flex;flex-direction:column;gap:1px}
 .tickline{display:flex;align-items:center;gap:5px}
 .tick{font-weight:600}
@@ -163,10 +170,10 @@ tbody tr:hover td{background:var(--sunk)}
 .coname{font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;
   max-width:100%;white-space:nowrap}
 .rstar{border:0;background:transparent;cursor:pointer;color:var(--ink-3);font-size:13px;padding:0;line-height:1}
-.rstar.on{color:#d4a017}
-.pill{display:inline-block;min-width:58px;text-align:right;padding:2px 6px;border-radius:5px;
-  font-size:12px;font-weight:500}
-.pill.up{background:var(--up-soft)} .pill.down{background:var(--down-soft)}
+.rstar.on{color:var(--ink)}
+.pill{display:inline-block;min-width:58px;text-align:right;padding:2px 0;
+  font-size:var(--fs-2);font-weight:500;font-variant-numeric:tabular-nums}
+.pill.up{color:var(--up)} .pill.down{color:var(--down)}
 .next-earn{font-size:11.5px;color:var(--ink-2)}
 /* Two words wrapped to two lines in a 300px sidebar and dragged the whole
    table into a horizontal scroll. One word does not. */
@@ -247,7 +254,7 @@ const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
 const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
 const GA = window.TAnalytics || { track(){}, pageView(){} };
 const WATCH_KEY = "alphaticker-watchlist";
-const AVATAR = ["#1e4fbf","#eb2024","#1baf7a","#eda100","#e87ba4","#4a3aa7","#2a78d6","#e34948"];
+const AVATAR = ["var(--sunk)"];
 
 async function rpc(fn, args){
   if (!HOSTED) throw new Error("config.js is missing, so there is no data source");

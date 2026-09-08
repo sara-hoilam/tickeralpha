@@ -40,6 +40,9 @@
          Circular, and padded the same 15% as the avatars above: these sit
          next to .dot avatars on the same screens, and a rounded square beside
          a circle reads as two different systems rather than one. */
+      /* `hidden` must win over the display below, or a chip a page hid
+         keeps drawing as an empty ring. */
+      ".tick-logo[hidden]{display:none!important}",
       ".tick-logo{",
       "  display:inline-block;flex-shrink:0;width:22px;height:22px;",
       "  border-radius:50%;overflow:hidden;",

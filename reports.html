@@ -19,6 +19,13 @@
 <script src="analytics.js"></script>
 <script src="posthog-init.js"></script>
 <script type="module" src="clarity-init.js"></script>
+<script>
+/* Theme before first paint: nav.js re-applies the same choice later, but by
+   then the page has already been painted light for a dark-mode reader. */
+(function(){try{var t=localStorage.getItem("alphaticker-theme")||localStorage.getItem("ledger-theme");
+if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";
+document.documentElement.setAttribute("data-theme",t)}catch(e){}})();
+</script>
 <link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,7 +33,7 @@
      saves the DNS + TCP + TLS setup that otherwise sits in front of the first
      byte of data. The origin is already public in config.js. -->
 <link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:opsz,wght@14..32,400..700&display=swap" rel="stylesheet">
 
 <!-- Four reports; a search engine should be able to find each. -->
 <script type="application/ld+json">
@@ -84,7 +91,7 @@ a{color:inherit}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:20px}
 
 .rep{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
-  box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;
+  box-shadow:var(--shadow-card);overflow:hidden;display:flex;flex-direction:column;
   text-decoration:none;position:relative;transition:transform .16s ease,box-shadow .16s ease}
 a.rep:hover{transform:translateY(-3px);
   box-shadow:0 2px 4px rgba(17,24,32,.08),0 18px 38px -18px rgba(17,24,32,.4)}
@@ -113,7 +120,7 @@ a.rep:hover{transform:translateY(-3px);
 .badge.live{background:var(--accent);border-color:var(--accent);color:#fff}
 
 .foot{margin-top:38px;padding:22px 24px;background:var(--card);border:1px solid var(--rule);
-  border-radius:var(--r);box-shadow:var(--shadow);max-width:720px}
+  border-radius:var(--r);box-shadow:var(--shadow-card);max-width:720px}
 .foot h2{font-family:var(--font-sans);font-size:18px;font-weight:600;
   margin-bottom:8px;letter-spacing:-.01em}
 .foot p{font-size:13.5px;line-height:1.6;color:var(--ink-2)}

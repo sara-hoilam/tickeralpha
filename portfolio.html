@@ -16,6 +16,13 @@
 <script src="analytics.js"></script>
 <script src="posthog-init.js"></script>
 <script type="module" src="clarity-init.js"></script>
+<script>
+/* Theme before first paint: nav.js re-applies the same choice later, but by
+   then the page has already been painted light for a dark-mode reader. */
+(function(){try{var t=localStorage.getItem("alphaticker-theme")||localStorage.getItem("ledger-theme");
+if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";
+document.documentElement.setAttribute("data-theme",t)}catch(e){}})();
+</script>
 <link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +30,7 @@
      saves the DNS + TCP + TLS setup that otherwise sits in front of the first
      byte of data. The origin is already public in config.js. -->
 <link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:opsz,wght@14..32,400..700&display=swap" rel="stylesheet">
 <style>
 
 
@@ -36,7 +43,7 @@ body{
 .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
 main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 .up{color:var(--up)} .down{color:var(--down)}
-.panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow-card);overflow:hidden}
 /* Table needs enough width for %Portfolio + Dividend + actions without a
    horizontal scroll; chart keeps a solid but smaller share. */
 .split{display:grid;grid-template-columns:minmax(600px,1.35fr) minmax(280px,1fr);min-height:520px}
@@ -135,7 +142,7 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 .sumhead .sub{color:var(--ink-3);font-size:12.5px;margin-left:auto}
 .pulse{
   display:grid;grid-template-columns:repeat(5,1fr);background:var(--card);
-  border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);
+  border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow-card);
   margin-bottom:18px;overflow:hidden
 }
 .pulse .cell{padding:14px 16px;border-right:1px solid var(--rule);min-width:0}
@@ -183,11 +190,8 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 /* ---- split list + chart -------------------------------------------------- */
 .listhead{display:flex;justify-content:space-between;align-items:center;gap:10px;
   padding:14px 18px 10px;flex-wrap:wrap}
-.seg{display:flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden;flex-shrink:0}
-.seg button{background:transparent;border:0;padding:6px 11px;font:inherit;font-size:12px;
-  cursor:pointer;color:var(--ink-2);border-right:1px solid var(--rule);white-space:nowrap}
-.seg button:last-child{border-right:0}
-.seg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:500}
+/* .seg is shared (nav.css). */
+/* the active state comes from the shared .seg in nav.css */
 .rows{border-right:1px solid var(--rule);overflow-y:auto;overflow-x:auto;max-height:520px}
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 thead{position:relative;z-index:2}
@@ -209,9 +213,9 @@ tr.on td{background:var(--accent-soft)}
 .chead .c-sym-line{display:inline-flex;align-items:center;gap:8px}
 .chead .c-sym-line b{font-family:var(--font-sans);font-size:27px;font-weight:600;
   letter-spacing:-.015em;line-height:1}
-.pill{display:inline-block;padding:2px 7px;border-radius:99px;font-size:11.5px;font-weight:600}
-.pill.up{background:var(--up-soft);color:var(--up)}
-.pill.down{background:var(--down-soft);color:var(--down)}
+.pill{display:inline-block;padding:2px 0;font-size:var(--fs-2);font-weight:600;font-variant-numeric:tabular-nums}
+.pill.up{color:var(--up)}
+.pill.down{color:var(--down)}
 .row-actions{display:flex;gap:4px;flex-wrap:nowrap;align-items:center}
 .row-actions button{
   border:1px solid var(--rule);background:var(--card);border-radius:6px;
@@ -311,7 +315,7 @@ tr.on td{background:var(--accent-soft)}
 
 .chead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;flex-shrink:0}
 .chead .price{font-size:22px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.chead .price b{font-family:var(--font-mono)}
+.chead .price #c-price{font-variant-numeric:tabular-nums}
 .chead .c-sym-line{display:inline-flex;align-items:center;gap:8px}
 .chead .meta{font-size:12.5px;color:var(--ink-3);margin-top:4px}
 .chead .meta .up,.chead .meta .down{font-weight:600}
@@ -489,7 +493,7 @@ tr.on td{background:var(--accent-soft)}
   flex:0 0 calc((100% - 48px) / 5);min-width:0;
   display:flex;flex-direction:column;background:var(--card);
   border:1px solid var(--rule);border-radius:9px;overflow:hidden;
-  text-decoration:none;color:inherit;box-shadow:var(--shadow);
+  text-decoration:none;color:inherit;box-shadow:var(--shadow-card);
   transition:transform .25s ease, border-color .2s ease, box-shadow .25s ease;
 }
 .disc-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb, var(--accent) 45%, var(--rule));
@@ -506,8 +510,8 @@ tr.on td{background:var(--accent-soft)}
 .disc-meta{display:flex;align-items:center;justify-content:space-between;gap:6px;
   margin-top:auto;padding-top:1px}
 .disc-src{display:flex;align-items:center;gap:6px;min-width:0;font-size:10.5px;color:var(--ink-3)}
-.disc-src .av{width:18px;height:18px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
-  font-size:8px;font-weight:700;color:#fff;background:var(--accent)}
+.disc-src .av{width:18px;height:18px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;border:1px solid var(--rule);
+  font-size:8px;font-weight:700;color:var(--ink-2);background:var(--sunk)}
 .disc-src .who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .disc-card .tag{font-family:var(--font-mono);font-size:10px;font-weight:600;
   color:var(--accent);flex-shrink:0}
@@ -677,9 +681,9 @@ tr.on td{background:var(--accent-soft)}
   border-bottom:1px solid var(--rule-2);box-sizing:border-box;flex-shrink:0;
 }
 .cal-ev:last-child{border-bottom:0}
-.cal-ev .av{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:grid;
-  place-items:center;font-family:var(--font-mono);font-size:10px;
-  font-weight:700;color:#fff}
+.cal-ev .av{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:grid;border:1px solid var(--rule);
+  place-items:center;font-size:10px;
+  font-weight:700;color:var(--ink-2)}
 .cal-ev .body{min-width:0;flex:1}
 .cal-ev .row1{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .cal-ev .sym{font-family:var(--font-mono);font-weight:700;font-size:13px}
@@ -1121,10 +1125,10 @@ const WATCH_KEY = "alphaticker-watchlist";
 const MERGED_KEY = "alphaticker-portfolio-merged";
 
 const INDEXES = [
-  { sym: "SPY",  name: "S&P 500",  colour: "#2a78d6" },
-  { sym: "QQQ",  name: "NASDAQ",   colour: "#eda100" },
-  { sym: "IWM",  name: "Russell",  colour: "#1baf7a" },
-  { sym: "DIA",  name: "Dow",      colour: "#eb6834" },
+  { sym: "SPY",  name: "S&P 500",  colour: "var(--s6)" },
+  { sym: "QQQ",  name: "NASDAQ",   colour: "var(--s3)" },
+  { sym: "IWM",  name: "Russell",  colour: "var(--s4)" },
+  { sym: "DIA",  name: "Dow",      colour: "var(--s7)" },
 ];
 
 const ETF_SET = new Set([
@@ -3245,7 +3249,7 @@ async function drawRightChart(){
     // Daily bars for the selected range (1W / 1M / YTD / 1Y). Intraday is
     // only a few sessions and was ignoring the range filter.
     const bars = await seriesForSymbol(S.selected, from);
-    drawLineChart(host, [{ id: S.selected, colour: "var(--accent)", points: bars }], { unit: "price" });
+    drawLineChart(host, [{ id: S.selected, colour: "var(--s1)", points: bars }], { unit: "price" });
     return;
   }
 
@@ -3369,12 +3373,27 @@ function formatChartValue(v, unit){
 }
 
 function drawLineChart(host, lines, { unit }){
-  // Tall viewBox + none: chart fills the pane; generous pads keep axis text readable.
-  const W = 900, H = 520, pad = { l: 72, r: 64, t: 20, b: 48 };
+  // The viewBox is the pane's own size, so a pixel is a pixel: the old fixed
+  // 900x520 stretched with preserveAspectRatio="none" squashed every numeral
+  // whenever the pane was not exactly that shape. Redrawn when the pane
+  // resizes, at most once per size.
+  const W = Math.max(320, Math.round(host.clientWidth || 900));
+  const H = Math.max(220, Math.round(host.clientHeight || 520));
+  const pad = { l: 64, r: 64, t: 16, b: 40 };
   const all = lines.flatMap(l => l.points);
   if (!all.length) {
-    host.innerHTML = `<div class="note">No price history yet — it will appear once daily bars are available.</div>`;
+    host.innerHTML = `<div class="note">No price history for this range.</div>`;
     return;
+  }
+  host._draw = { lines, unit, W, H };
+  if (window.ResizeObserver && !host._ro) {
+    host._ro = new ResizeObserver(() => {
+      const d = host._draw;
+      if (!d) return;
+      const w = Math.round(host.clientWidth), h = Math.round(host.clientHeight);
+      if (Math.abs(w - d.W) > 2 || Math.abs(h - d.H) > 2) drawLineChart(host, d.lines, { unit: d.unit });
+    });
+    host._ro.observe(host);
   }
   // Use chronological index per series; align by date string order.
   const dates = [...new Set(all.map(p => p.d))].sort();
@@ -3396,9 +3415,7 @@ function drawLineChart(host, lines, { unit }){
     const label = formatChartValue(v, unit);
     grid.push(`<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}"
       stroke="var(--rule-2)" stroke-width="1"/>
-      <text x="${pad.l - 10}" y="${y + 4}" text-anchor="end" fill="var(--ink-3)"
-        font-size="12" font-weight="500"
-        font-family="IBM Plex Mono,ui-monospace,monospace">${esc(label)}</text>`);
+      <text x="${pad.l - 10}" y="${y + 4}" text-anchor="end" class="ax">${esc(label)}</text>`);
   }
 
   const paths = lines.map(l => {
@@ -3416,13 +3433,11 @@ function drawLineChart(host, lines, { unit }){
       // Keep end labels from clipping off the plot edges.
       const anchor = idx === 0 ? "start" : idx === arr.length - 1 ? "end" : "middle";
       const tx = idx === 0 ? pad.l : idx === arr.length - 1 ? (W - pad.r) : x;
-      return `<text x="${tx}" y="${H - 12}" text-anchor="${anchor}" fill="var(--ink-3)"
-        font-size="12" font-weight="500"
-        font-family="IBM Plex Mono,ui-monospace,monospace">${esc(formatChartDate(d))}</text>`;
+      return `<text x="${tx}" y="${H - 12}" text-anchor="${anchor}" class="ax">${esc(formatChartDate(d))}</text>`;
     }).join("");
 
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%"
-    preserveAspectRatio="none" role="img" aria-label="Performance chart">
+    role="img" aria-label="Performance chart">
     ${grid.join("")}
     ${unit === "pct" ? `<line x1="${pad.l}" y1="${yAt(0)}" x2="${W - pad.r}" y2="${yAt(0)}"
       stroke="var(--ink-3)" stroke-dasharray="4 4" stroke-width="1" opacity=".5"/>` : ""}
@@ -3435,13 +3450,13 @@ function drawLineChart(host, lines, { unit }){
       <circle id="pf-dot" r="4" fill="var(--ink-2)" stroke="var(--card)" stroke-width="2"></circle>
       <g id="pf-plab">
         <rect x="${W - pad.r + 2}" width="56" height="18" rx="4" fill="var(--ink)"></rect>
-        <text x="${W - pad.r + 30}" text-anchor="middle" font-size="11"
-              font-family="IBM Plex Mono,monospace" fill="var(--card)" font-weight="600"></text>
+        <text x="${W - pad.r + 30}" text-anchor="middle" class="ax"
+              style="fill:var(--card);font-weight:600"></text>
       </g>
       <g id="pf-tlab">
         <rect height="18" rx="4" fill="var(--ink)"></rect>
-        <text text-anchor="middle" font-size="11"
-              font-family="IBM Plex Mono,monospace" fill="var(--card)" font-weight="600"></text>
+        <text text-anchor="middle" class="ax"
+              style="fill:var(--card);font-weight:600"></text>
       </g>
     </g>
     <rect id="pf-hit" x="${pad.l}" y="${pad.t}" width="${W - pad.l - pad.r}"
@@ -4126,7 +4141,7 @@ function newsImage(a){
   return a.image;
 }
 
-const AVATAR = ["--accent","#eb6834","#1baf7a","#eda100","#e87ba4","#4a3aa7","#2a78d6","#e34948"];
+const AVATAR = ["var(--sunk)"];
 const avatarColour = s => {
   let h = 0; for (const ch of String(s || "")) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   const c = AVATAR[h % AVATAR.length];
