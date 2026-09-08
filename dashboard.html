@@ -504,12 +504,11 @@ tbody tr:hover td{background:var(--sunk)}
 .idx-pie-wrap svg.path-dim path{opacity:.35}
 .idx-pie-wrap svg.path-dim path.is-hot{opacity:1}
 .idx-pie-wrap .pie-lab{
-  font-family:var(--font-sans);font-size:9.5px;fill:var(--ink);
+  font-family:var(--font-sans);font-size:var(--fs-1);fill:var(--ink);
   pointer-events:none;
 }
 .idx-pie-wrap .pie-lab-pct{
-  font-variant-numeric:tabular-nums;font-size:9px;fill:var(--ink-2);
-  pointer-events:none;
+  font-variant-numeric:tabular-nums;fill:var(--ink-3);
 }
 .idx-pie-legend{display:flex;flex-direction:column;gap:6px;padding:2px 2px 0;font-size:12.5px}
 .idx-pie-legend span{display:flex;align-items:center;gap:8px;color:var(--ink-2);min-width:0}
@@ -4180,8 +4179,9 @@ function indexDonutSlicePath(cx, cy, r, r0, a0, a1){
 
 function drawIndexPie(host, slices, total){
   if (!host || !slices.length) return;
-  // Roomy viewBox so on-slice labels stay inside the SVG / card border.
-  const size = 300, cx = size / 2, cy = size / 2, r = 108, r0 = 56, rLab = (r + r0) / 2;
+  // The ring is drawn in a square; the viewBox widens either side for the
+  // labels that hang off it.
+  const size = 260, cx = size / 2, cy = size / 2, r = 104, r0 = 58;
   let angle = -Math.PI / 2;
   const parts = [];
   const labels = [];
@@ -4198,20 +4198,28 @@ function drawIndexPie(host, slices, total){
     meta[i] = { label: s.label, share, weight: s.weight };
     parts.push(`<path d="${d}" fill="${colour}" fill-rule="evenodd" data-i="${i}"></path>`);
 
-    // Label larger slices inside the ring so names stay within the chart border.
-    if (share >= 7) {
+    // Labels sit outside the ring in ink, tied to the slice by a short
+    // leader: ink on a saturated slice was unreadable in light mode, and
+    // white on the paler slices would have been unreadable in dark. Small
+    // slices are named in the legend below instead.
+    if (share >= 4) {
       const mid = (a0 + a1) / 2;
-      const lx = cx + rLab * Math.cos(mid);
-      const ly = cy + rLab * Math.sin(mid);
-      const short = s.label.length > 14 ? s.label.slice(0, 13) + "…" : s.label;
+      const c = Math.cos(mid), sn = Math.sin(mid);
+      const x0 = cx + (r + 3) * c, y0 = cy + (r + 3) * sn;
+      const x1 = cx + (r + 14) * c, y1 = cy + (r + 14) * sn;
+      const right = c >= 0;
+      const x2 = x1 + (right ? 8 : -8);
+      const short = s.label.length > 24 ? s.label.slice(0, 23) + "…" : s.label;
       labels.push(`
-        <text x="${lx.toFixed(1)}" y="${(ly - 4).toFixed(1)}" text-anchor="middle"
-          class="pie-lab">${esc(short)}</text>
-        <text x="${lx.toFixed(1)}" y="${(ly + 9).toFixed(1)}" text-anchor="middle"
-          class="pie-lab-pct">${share.toFixed(0)}%</text>`);
+        <polyline points="${x0.toFixed(1)},${y0.toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)} ${x2.toFixed(1)},${y1.toFixed(1)}"
+          fill="none" stroke="var(--ink-3)" stroke-width="1"/>
+        <text x="${(x2 + (right ? 3 : -3)).toFixed(1)}" y="${(y1 + 3.5).toFixed(1)}"
+          text-anchor="${right ? "start" : "end"}" class="pie-lab">${esc(short)}
+          <tspan class="pie-lab-pct"> ${share.toFixed(0)}%</tspan></text>`);
     }
   });
-  host.innerHTML = `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"
+  const pad = 96;
+  host.innerHTML = `<svg viewBox="${-pad} 0 ${size + pad * 2} ${size}" width="${size + pad * 2}" height="${size}"
     role="img" aria-label="Sector breakdown">${parts.join("")}${labels.join("")}</svg>`;
 
   const svg = host.querySelector("svg");
@@ -4488,7 +4496,7 @@ function drawIndexPE(){
   linePlot(host, series, {
     id: "idxpe", zero: false,
     H: MOBILE_MQ.matches ? 240 : 200,
-    mb: 36, mr: 44, insideY: true, xLabels: 4,
+    mb: 36, mr: 40, xLabels: 4,
     fmtY: v => v.toFixed(0),
     fmtV: v => v.toFixed(2) + "x",
     alt: "Forward P/E across market indexes",
