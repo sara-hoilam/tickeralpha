@@ -12,6 +12,21 @@
    and tritanopia, the normal-vision floor and 3:1 against their own surface.
    The slot order is the same in both themes, because colour follows the
    series, not the theme.
+
+   The desk standard, in five rules the pages are held to:
+   1. One container level. A panel is card + 1px rule + var(--r), no shadow.
+      Inside it, regions separate with a hairline or a --sunk ground, never a
+      second border. A bordered box never contains another bordered box.
+      Shadows belong to things that float (menus, tooltips, modals) only.
+   2. One type scale: --fs-1 to --fs-7, three weights (400/500/600), two
+      line-heights. Labels are sentence case in .lbl; no tracked uppercase.
+   3. One accent, spent on links, focus rings and the single primary button on
+      a screen. Selection and active states are ink. --up/--down mean direction
+      and never colour a row, avatar, badge, whole bar or heading.
+   4. Numbers are Inter with tabular figures. Mono is for the kbd hint and the
+      sign-in code only. The serif is for headlines and findings, not UI.
+   5. Anything the reader compares is a table. Empty modules collapse to one
+      line; nothing keeps a box for data it does not have.
 =========================================================================== */
 
 :root {
@@ -19,9 +34,13 @@
 
   /* surfaces and ink */
   --ground:#f5f5f7; --card:#ffffff; --sunk:#f1f1f4;
-  --ink:#0d0d11; --ink-2:#55555f; --ink-3:#8a8a95;
+  --raised:#ffffff;
+  /* Three ink tiers, three perceptual steps apart: ink-3 clears 4.5:1 at
+     12px on --card and --sunk, ink-2 sits between it and the headline ink. */
+  --ink:#0d0d11; --ink-2:#3f3f48; --ink-3:#6b6b76;
   --rule:#e4e4e9; --rule-2:#eeeef1;
-  --accent:#2563eb; --accent-soft:#e8eefd;
+  /* One step off the Tailwind default it used to be. */
+  --accent:#2352c7; --accent-soft:#e9eefb;
 
   /* direction: reserved, never reused as a series colour */
   --up:#0d7a46; --down:#cf3025;
@@ -32,16 +51,27 @@
   --s1:#2563eb; --s2:#d9308a; --s3:#b87709; --s4:#0d9668;
   --s5:#7c4dee; --s6:#0f8fcc; --s7:#da6410; --s8:#0e9a8d;
 
+  /* Eleven sector slots, ordered so no pair that collapses under
+     deuteranopia sits next to another; validated at 11 slots. */
+  --k1:#2563eb; --k2:#da6410; --k3:#0d9668; --k4:#7c4dee;
+  --k5:#b87709; --k6:#0e9a8d; --k7:#4f46e5; --k8:#d9308a;
+  --k9:#4d7c0f; --k10:#0f8fcc; --k11:#be123c;
+
+  /* --shadow is for what floats. Data surfaces take --shadow-card, which is
+     nothing: a panel is separated by its rule, not by elevation. */
   --shadow:0 1px 2px rgba(13,13,17,.05), 0 8px 24px -16px rgba(13,13,17,.22);
+  --shadow-card:none;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --ground:#0a0a0c; --card:#141417; --sunk:#1a1a1e;
-  --ink:#f4f4f6; --ink-2:#a1a1ac; --ink-3:#74747f;
+  /* The near-neutral ladder the series colours were validated against;
+     --raised is the one step above --card, for menus and popovers. */
+  --ground:#0a0a0c; --card:#141417; --sunk:#1a1a1e; --raised:#1f1f24;
+  --ink:#f4f4f6; --ink-2:#b4b4bf; --ink-3:#8c8d97;
   --rule:#26262c; --rule-2:#1e1e23;
-  --accent:#3b82f6; --accent-soft:#16213c;
+  --accent:#7aa5f7; --accent-soft:#16213c;
 
   --up:#22c55e; --down:#f26a62;
   --up-soft:#0f2a1b; --down-soft:#2c1614;
@@ -51,16 +81,39 @@
   --s1:#3b82f6; --s2:#db2777; --s3:#c1840d; --s4:#0fa97b;
   --s5:#8b5cf6; --s6:#1b92ce; --s7:#e06a12; --s8:#0e9c90;
 
+  --k1:#3b82f6; --k2:#e06a12; --k3:#0fa97b; --k4:#8b5cf6;
+  --k5:#c1840d; --k6:#0e9c90; --k7:#6366f1; --k8:#db2777;
+  --k9:#6f8c1c; --k10:#1b92ce; --k11:#e11d48;
+
   --shadow:0 1px 2px rgba(0,0,0,.5), 0 12px 32px -18px rgba(0,0,0,.85);
+  --shadow-card:none;
 }
 
 :root {
   /* type and geometry: one set, both themes */
   --font-sans:"Inter","IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-serif:"Source Serif 4","Iowan Old Style","Palatino Linotype",Georgia,serif;
   --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;
-  --r:14px;          /* cards */
-  --r-2:10px;        /* inputs, pills */
-  --r-3:8px;         /* chips, small tiles */
+
+  /* The scale. Seven sizes and nothing in between: a page that needs a size
+     not here is asking the wrong question. */
+  --fs-1:11px;   /* axis ticks, source lines */
+  --fs-2:12px;   /* meta, captions, labels, chart titles */
+  --fs-3:13px;   /* controls, nav, the compact screener cell */
+  --fs-4:14px;   /* body, table cells, panel titles */
+  --fs-5:16px;   /* section heads */
+  --fs-6:20px;   /* page heads, the company name, KPI values */
+  --fs-7:28px;   /* the one hero number on a page */
+  --lh-tight:1.2;
+  --lh-body:1.45;
+
+  /* Spacing on a 4px grid. */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px;
+
+  --r:6px;           /* panels, inputs */
+  --r-2:4px;         /* buttons, menus */
+  --r-3:3px;         /* chips */
+  --r-pill:999px;    /* the session-state dot and nothing else */
 }
 
 
@@ -137,7 +190,9 @@
   padding: 7px 11px; border-radius: 7px;
 }
 .nav-links a:hover { background: var(--sunk); color: var(--ink); }
-.nav-links a.on { color: var(--accent); background: var(--accent-soft); }
+/* The current page is ink with a rule under it, not a tinted pill: the
+   accent is for things you can click, and you are already here. */
+.nav-links a.on { color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--ink); border-radius: 0; }
 
 .nav-search { position: relative; flex: 1; min-width: 0; max-width: 460px; margin: 0 auto;
   display: flex; align-items: stretch; }
@@ -178,7 +233,7 @@
 }
 .nav-ac {
   position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 120;
-  background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
+  background: var(--raised); border: 1px solid var(--rule); border-radius: var(--r);
   box-shadow: var(--shadow); overflow: hidden; display: none;
 }
 .nav-ac.open { display: block; }
@@ -187,10 +242,10 @@
   align-items: baseline; border-bottom: 1px solid var(--rule-2);
 }
 .nav-ac div:last-child { border-bottom: 0; }
-.nav-ac div:hover, .nav-ac div[aria-selected="true"] { background: var(--accent-soft); }
+.nav-ac div:hover, .nav-ac div[aria-selected="true"] { background: var(--sunk); }
 .nav-ac b {
-  font-family: var(--font-mono); font-size: 12.5px;
-  min-width: 58px; color: var(--accent);
+  font-size: var(--fs-3); font-weight: 600; text-transform: uppercase;
+  font-variant-numeric: tabular-nums; min-width: 58px; color: var(--ink);
 }
 .nav-ac span {
   font-size: 12.5px; color: var(--ink-2);
@@ -203,12 +258,16 @@
   width: 34px; height: 34px; cursor: pointer; color: var(--ink-2);
   font-size: 14px; line-height: 1;
 }
-.nav .nav-theme:hover { border-color: var(--accent); color: var(--accent); }
+.nav .nav-theme:hover { border-color: var(--ink-3); color: var(--ink); }
+.nav .nav-theme svg { width: 16px; height: 16px; display: block; margin: 0 auto; }
+/* Secondary: outlined. The one primary button on a screen belongs to the
+   page, not to the chrome that is on every page. */
 .nav .nav-login {
-  background: var(--accent); color: #fff; border: 0; border-radius: 8px;
-  padding: 9px 16px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  background: transparent; color: var(--ink); border: 1px solid var(--rule);
+  border-radius: var(--r-2); padding: 8px 14px; font: inherit;
+  font-size: var(--fs-3); font-weight: 600; cursor: pointer;
 }
-.nav .nav-login:hover { filter: brightness(1.08); }
+.nav .nav-login:hover { border-color: var(--ink-3); }
 .nav-note {
   display: flex; align-items: center; justify-content: center; gap: 12px;
   padding: 9px 20px; font-size: 12.5px;
@@ -226,10 +285,10 @@
   background: transparent; border: 1px solid var(--rule); border-radius: 8px;
   padding: 5px 9px 5px 5px; color: var(--ink-2); font: inherit; font-size: 13px;
 }
-.nav .nav-user:hover { border-color: var(--accent); }
+.nav .nav-user:hover { border-color: var(--ink-3); }
 .nav-user img, .nav-avatar {
   width: 24px; height: 24px; border-radius: 50%; object-fit: cover;
-  background: var(--accent); color: #fff;
+  background: var(--sunk); color: var(--ink-2);
   display: grid; place-items: center; font-size: 11px; font-weight: 600;
 }
 .nav-caret { width: 9px; height: 6px; color: var(--ink-3); flex-shrink: 0; }
@@ -237,7 +296,7 @@
 
 .nav-menu {
   position: absolute; top: calc(100% + 7px); right: 0; z-index: 130; min-width: 214px;
-  background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
+  background: var(--raised); border: 1px solid var(--rule); border-radius: var(--r);
   box-shadow: var(--shadow); overflow: hidden;
 }
 .nav-who {
@@ -267,7 +326,9 @@
 
   .tabbar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
-    display: grid; grid-template-columns: repeat(5, 1fr);
+    /* One row whatever the count: six items on a fixed five-column grid put
+       the sixth on a second row, over the page. */
+    display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
     background: color-mix(in srgb, var(--card) 96%, transparent);
     backdrop-filter: blur(14px);
     border-top: 1px solid var(--rule);
@@ -281,7 +342,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   .tabbar a svg { width: 21px; height: 21px; }
-  .tabbar a.on { color: var(--accent); }
+  .tabbar a.on { color: var(--ink); }
   .tabbar a.on svg { stroke-width: 2.2; }
   .tabbar a:active { background: var(--sunk); }
 
@@ -313,7 +374,7 @@
   justify-content: space-between;
 }
 .site-foot a { color: var(--ink-2); text-decoration: none; }
-.site-foot a:hover { color: var(--accent); text-decoration: underline; }
+.site-foot a:hover { color: var(--ink); text-decoration: underline; }
 .site-foot .site-foot-links { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
 /* Reads as one of the footer links, but has to be a button: it reopens the
    consent banner rather than navigating anywhere. */
@@ -321,7 +382,7 @@
   background: none; border: 0; padding: 0; cursor: pointer;
   font: inherit; color: var(--ink-2); text-decoration: none;
 }
-.site-foot .foot-link:hover { color: var(--accent); text-decoration: underline; }
+.site-foot .foot-link:hover { color: var(--ink); text-decoration: underline; }
 @media (max-width: 720px) {
   .site-foot { padding: 16px 14px 32px; margin-top: 24px; }
 }
@@ -381,10 +442,10 @@
 .auth-google {
   display: flex; align-items: center; justify-content: center; gap: 10px;
   width: 100%; border: 0; border-radius: 10px; cursor: pointer;
-  padding: 13px 16px; font: inherit; font-size: 14.5px; font-weight: 600;
-  background: #1a1d23; color: #fff;
+  padding: 13px 16px; font: inherit; font-size: var(--fs-4); font-weight: 600;
+  background: var(--ink); color: var(--card);
 }
-.auth-google:hover { background: #0e1116; }
+.auth-google:hover { opacity: .92; }
 .auth-google svg { width: 18px; height: 18px; flex-shrink: 0; }
 .auth-sso {
   margin: 14px 0 0; font-size: 11.5px; color: var(--ink-3); letter-spacing: .01em;
@@ -395,8 +456,7 @@
    Google account to a site they met five minutes ago. */
 .auth-or {
   display: flex; align-items: center; gap: 12px;
-  margin: 18px 2px 14px; color: var(--ink-3); font-size: 11.5px;
-  text-transform: uppercase; letter-spacing: .08em;
+  margin: 18px 2px 14px; color: var(--ink-3); font-size: var(--fs-2);
 }
 .auth-or::before, .auth-or::after {
   content: ""; flex: 1; height: 1px; background: var(--rule);
@@ -466,13 +526,63 @@
    here rather than at every call site. Hierarchy is carried by weight and
    ink, not by size: headings stay close to body size and separate themselves
    by being darker and tighter. */
-body { letter-spacing:-.006em; }
+body { font-size:var(--fs-4); line-height:var(--lh-body); font-optical-sizing:auto; }
 
-h1, h2, h3, h4, .grouphead { font-weight:600; letter-spacing:-.022em; }
-h1 { letter-spacing:-.03em; }
+/* Hierarchy is carried by weight and ink; tracking tightens only where the
+   type is large enough for Inter's default spacing to look loose. */
+h1, h2, h3, h4, .grouphead { font-weight:600; line-height:var(--lh-tight); letter-spacing:0; }
+h1, .fs-7 { letter-spacing:-.02em; }
+h2, .fs-6 { letter-spacing:-.01em; }
 
 /* Figures line up wherever they are read in a column. */
-.num, table, .kpi .v { font-variant-numeric:tabular-nums; }
+.num, table, .kpi .v, dd, .price, .v { font-variant-numeric:lining-nums tabular-nums; }
+
+/* ---- the shared blocks pages inherit ------------------------------------
+   Defined once. A page that redefines .lbl, .note, .seg, .ax or .tbl is
+   drifting; the lint counts literal sizes so the drift shows in review. */
+
+/* The label: sentence case, one size, one weight. Replaces every tracked
+   uppercase micro-label. */
+.lbl { font-size:var(--fs-2); font-weight:500; color:var(--ink-3);
+  letter-spacing:0; text-transform:none; line-height:var(--lh-tight); }
+
+/* Empty and loading states: one line, left-aligned, no box, no min-height. */
+.note { padding:var(--sp-3) var(--sp-4); font-size:var(--fs-2); color:var(--ink-3);
+  text-align:left; line-height:var(--lh-body); }
+
+/* Segmented control: text buttons; the active one is ink on the sunk ground. */
+.seg { display:inline-flex; gap:2px; padding:2px; background:var(--sunk);
+  border-radius:var(--r-2); border:0; flex-shrink:0; }
+.seg:empty { display:none; }
+.seg button { background:transparent; border:0; border-radius:var(--r-3);
+  padding:4px 9px; font:inherit; font-size:var(--fs-3); font-weight:500;
+  color:var(--ink-3); cursor:pointer; min-height:0; line-height:var(--lh-tight); }
+.seg button:hover { color:var(--ink); }
+.seg button[aria-pressed=true], .seg button[aria-selected=true], .seg button.on {
+  background:var(--card); color:var(--ink); font-weight:600;
+  box-shadow:0 0 0 1px var(--rule); }
+
+/* Chart text: one size, one colour, tabular. */
+svg .ax, .ax { font-family:var(--font-sans); font-size:var(--fs-1); fill:var(--ink-3);
+  font-variant-numeric:tabular-nums; }
+.chart-grid { stroke:var(--rule-2); stroke-width:1; }
+
+/* The table: body-size cells, right-aligned tabular numerics, sentence-case
+   headers in the label style, hairline rows. */
+.tbl { width:100%; border-collapse:collapse; font-size:var(--fs-4); }
+.tbl th { font-size:var(--fs-1); font-weight:500; color:var(--ink-3); text-align:left;
+  letter-spacing:0; text-transform:none; padding:8px 12px; border-bottom:1px solid var(--rule); }
+.tbl td { padding:8px 12px; border-bottom:1px solid var(--rule-2); vertical-align:middle; }
+.tbl th.num, .tbl td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.tbl tbody tr:hover td { background:var(--sunk); }
+
+/* Tickers: Inter, bold, uppercase, tabular. Not monospace. */
+.tick, .sym { font-weight:600; text-transform:uppercase; letter-spacing:0;
+  font-variant-numeric:tabular-nums; }
+
+/* The one serif: headlines and findings. Never controls, labels or numbers. */
+.serif, .finding { font-family:var(--font-serif); font-weight:400;
+  font-optical-sizing:auto; letter-spacing:0; }
 
 /* A unit or currency beside a figure is support, not headline. */
 .kpi .v small, .v .unit { font-weight:500; color:var(--ink-3); }

@@ -1,0 +1,62 @@
+{
+  "dashboard.html": {
+    "font-size-px": 121,
+    "hex-colour": 18,
+    "radius-px": 38,
+    "toFixed": 242
+  },
+  "earnings.html": {
+    "font-size-px": 28,
+    "hex-colour": 3,
+    "radius-px": 6,
+    "toFixed": 10
+  },
+  "landing.html": {
+    "font-size-px": 101,
+    "hex-colour": 23,
+    "radius-px": 30,
+    "toFixed": 228
+  },
+  "logo.js": {
+    "font-size-px": 3,
+    "hex-colour": 3,
+    "radius-px": 0,
+    "toFixed": 0
+  },
+  "nav.js": {
+    "font-size-px": 0,
+    "hex-colour": 4,
+    "radius-px": 0,
+    "toFixed": 10
+  },
+  "news.html": {
+    "font-size-px": 40,
+    "hex-colour": 3,
+    "radius-px": 13,
+    "toFixed": 2
+  },
+  "politicians.html": {
+    "font-size-px": 45,
+    "hex-colour": 3,
+    "radius-px": 13,
+    "toFixed": 7
+  },
+  "portfolio.html": {
+    "font-size-px": 125,
+    "hex-colour": 13,
+    "radius-px": 31,
+    "toFixed": 36
+  },
+  "privacy.html": {
+    "font-size-px": 8,
+    "hex-colour": 5,
+    "radius-px": 1,
+    "toFixed": 0
+  },
+  "reports.html": {
+    "font-size-px": 15,
+    "hex-colour": 1,
+    "radius-px": 1,
+    "toFixed": 0
+  }
+}

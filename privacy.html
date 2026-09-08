@@ -12,6 +12,13 @@
 <script src="analytics.js"></script>
 <script src="posthog-init.js"></script>
 <script type="module" src="clarity-init.js"></script>
+<script>
+/* Theme before first paint: nav.js re-applies the same choice later, but by
+   then the page has already been painted light for a dark-mode reader. */
+(function(){try{var t=localStorage.getItem("alphaticker-theme")||localStorage.getItem("ledger-theme");
+if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";
+document.documentElement.setAttribute("data-theme",t)}catch(e){}})();
+</script>
 <link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,7 +26,7 @@
      saves the DNS + TCP + TLS setup that otherwise sits in front of the first
      byte of data. The origin is already public in config.js. -->
 <link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:opsz,wght@14..32,400..700&display=swap" rel="stylesheet">
 <style>
 
 
@@ -32,7 +39,7 @@ body{
 main{max-width:720px;margin:0 auto;padding:32px 28px 48px}
 .panel{
   background:var(--card); border:1px solid var(--rule); border-radius:var(--r);
-  box-shadow:var(--shadow); padding:28px 32px 32px;
+  box-shadow:var(--shadow-card); padding:28px 32px 32px;
 }
 h1{
   font-family:var(--font-sans);

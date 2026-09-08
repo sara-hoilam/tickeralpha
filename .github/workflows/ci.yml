@@ -26,6 +26,11 @@ jobs:
       - name: Syntax check
         run: python -m compileall -q edgar.py store.py worker.py server.py validate.py
 
+      - name: Design lint
+        # Counts literal font sizes, radii, hex colours and local toFixed()
+        # per page and fails if any count rose above tools/design_baseline.json.
+        run: python tools/design_lint.py
+
       - name: Validate against live filings
         env:
           SEC_CONTACT: ${{ secrets.SEC_CONTACT }}

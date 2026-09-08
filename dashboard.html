@@ -18,6 +18,13 @@
 <script src="analytics.js"></script>
 <script src="posthog-init.js"></script>
 <script type="module" src="clarity-init.js"></script>
+<script>
+/* Theme before first paint: nav.js re-applies the same choice later, but by
+   then the page has already been painted light for a dark-mode reader. */
+(function(){try{var t=localStorage.getItem("alphaticker-theme")||localStorage.getItem("ledger-theme");
+if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";
+document.documentElement.setAttribute("data-theme",t)}catch(e){}})();
+</script>
 <link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,7 +32,7 @@
      saves the DNS + TCP + TLS setup that otherwise sits in front of the first
      byte of data. The origin is already public in config.js. -->
 <link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:opsz,wght@14..32,400..700&display=swap" rel="stylesheet">
 <style>
 /* ---------------------------------------------------------------------------
    Ticker Alpha — a reading surface for filed financial statements.
@@ -44,18 +51,28 @@
   --revenue:var(--s1); --profit:var(--up); --cost:var(--down);
   /* Underwater / % off high, with pastel probability bands behind it.
      Sequential: one hue, light to dark, lighter = more common. */
-  --dd:#d9308a; --dd-fill:#d9308acc; --dd-soft:#fbeaf3;
-  --dd-band-50:#e7f4ec; --dd-band-25:#cfe8d9; --dd-band-10:#b2d9c3;
-  --dd-band-5:#93c9ac; --dd-band-1:#74b895; --dd-band-deep:#55a67e;
+  /* The line is the direction colour; the fill a tint of it; the bands one
+     neutral ramp of ink, lighter where a drawdown this deep is common. */
+  --dd:var(--down); --dd-fill:color-mix(in srgb, var(--down) 22%, transparent); --dd-soft:var(--down-soft);
+  --dd-band-50:color-mix(in srgb, var(--ink) 4%, transparent);
+  --dd-band-25:color-mix(in srgb, var(--ink) 7%, transparent);
+  --dd-band-10:color-mix(in srgb, var(--ink) 10%, transparent);
+  --dd-band-5:color-mix(in srgb, var(--ink) 13%, transparent);
+  --dd-band-1:color-mix(in srgb, var(--ink) 16%, transparent);
+  --dd-band-deep:color-mix(in srgb, var(--ink) 20%, transparent);
 }
 
 :root[data-theme="dark"] {
   --c-blue:var(--s1); --c-grey:#74747f;
   --c-band:var(--s5); --c-bandfill:#8b5cf629;
   --revenue:var(--s1); --profit:var(--up); --cost:var(--down);
-  --dd:#db2777; --dd-fill:#db2777c0; --dd-soft:#2e1220;
-  --dd-band-50:#12261a; --dd-band-25:#173021; --dd-band-10:#1c3b29;
-  --dd-band-5:#214631; --dd-band-1:#265139; --dd-band-deep:#2b5c41;
+  --dd:var(--down); --dd-fill:color-mix(in srgb, var(--down) 26%, transparent); --dd-soft:var(--down-soft);
+  --dd-band-50:color-mix(in srgb, var(--ink) 4%, transparent);
+  --dd-band-25:color-mix(in srgb, var(--ink) 7%, transparent);
+  --dd-band-10:color-mix(in srgb, var(--ink) 10%, transparent);
+  --dd-band-5:color-mix(in srgb, var(--ink) 13%, transparent);
+  --dd-band-1:color-mix(in srgb, var(--ink) 16%, transparent);
+  --dd-band-deep:color-mix(in srgb, var(--ink) 20%, transparent);
 }
 
 
@@ -110,54 +127,26 @@ select:disabled{opacity:.45;cursor:not-allowed}
 
 /* ---- page ---------------------------------------------------------------- */
 main{max-width:var(--page,1680px);margin:0 auto;padding:24px 28px 72px}
-.card{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow)}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow-card)}
 .pad{padding:20px 22px}
 
 .ident{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;margin-bottom:20px}
 .ident-with-logo{display:flex;flex-direction:row;align-items:flex-start;gap:12px;min-width:0}
-/* Locked until generated reports ship. Reads as a real control so the offer
-   registers, but muted so nobody thinks it failed when it does not unlock. */
-/* Its own line at the foot of the identity block, left edge flush with the
-   price chart card below it. */
-/* The wrapper claims its own line so the button escapes the title block, then
-   mirrors .pricerow's grid so its right edge lands exactly on the chart card's
-   -- 292px panel plus an 18px gap in from the row's right edge. Mirroring the
-   grid rather than hard-coding 310px means the two stay together if the split
-   ever changes, including when it collapses to one column below 1080px.
-   The negative margin lifts the line back up level with the ticker chips; the
-   title block ends at ~510px and the button starts past 950, so nothing
-   collides. */
-.unlockrow{flex-basis:100%;order:3;display:grid;gap:18px;
-  grid-template-columns:minmax(0,1fr) 292px;margin-top:-34px;
-  /* .ident aligns its items to flex-end, which swallows a top margin past a
-     point -- the item's bottom stays pinned to the line. A relative offset
-     moves it regardless, and leaves the chart below exactly where it was. */
-  position:relative;top:-17px}
-.unlockrow>.unlockbtn{grid-column:1;justify-self:end}
-@media (max-width:1080px){
-  .unlockrow{grid-template-columns:1fr;margin-top:2px;top:0}
-}
-.unlockbtn{display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
-  padding:7px 13px;border:1px dashed var(--rule);border-radius:8px;
-  background:var(--sunk);color:var(--ink-2);text-decoration:none;
-  font-size:12.5px;font-weight:600;letter-spacing:-.005em;font-family:inherit;
-  cursor:default}
-.unlockbtn[disabled]{opacity:.9}
-.unlockbtn svg{width:15px;height:15px;flex-shrink:0}
-.unlockbtn em{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.06em;
-  text-transform:uppercase;padding:2px 6px;border-radius:99px;
-  background:var(--accent);color:#fff}
-@media (max-width:640px){ .unlockbtn span{display:none} .unlockbtn{padding:7px 10px} }
 .ident-with-logo .tick-logo{margin-top:4px}
-.ident h1{font-family:var(--font-sans);font-size:26px;font-weight:600;letter-spacing:-.018em;line-height:1.14}
-.ident .sub{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:7px;color:var(--ink-3);font-size:12.5px}
+.ident h1{font-family:var(--font-sans);font-size:var(--fs-6);font-weight:600;letter-spacing:-.01em;line-height:1.2}
+/* One line of identity, read as a sentence: the ticker in bold, the rest in
+   ink-2, separated by middots. The bordered chips this replaces gave every
+   fact the same visual weight as a control. */
+.ident .sub{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;margin-top:4px;color:var(--ink-2);font-size:var(--fs-3)}
+.ident .sub .tick{color:var(--ink)}
+.ident .sub > span + span::before{content:"·";color:var(--ink-3);margin-right:6px}
 .price-title{display:inline-flex;align-items:center;gap:8px;margin:0}
-.price-title .price-sym{font-family:var(--font-mono);font-weight:600;letter-spacing:-.01em}
+.price-title .price-sym{font-weight:600;text-transform:uppercase;font-variant-numeric:tabular-nums}
 .chip{
-  font-family:var(--font-mono);font-size:11px;letter-spacing:.02em;
-  border:1px solid var(--rule);border-radius:5px;padding:2px 7px;color:var(--ink-2);
+  font-size:var(--fs-2);
+  border:1px solid var(--rule);border-radius:var(--r-3);padding:1px 6px;color:var(--ink-2);
 }
-.chip.key{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.chip.key{font-weight:600;color:var(--ink);text-transform:uppercase;border-color:var(--rule)}
 .period{text-align:right}
 /* The period pickers sit where the period used to be printed, so choosing a
    quarter happens at the place the reader is already looking. */
@@ -170,7 +159,7 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:24px 28px 72px}
 
 /* ---- KPI ----------------------------------------------------------------- */
 .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px}
-.kpi{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);padding:14px 15px;box-shadow:var(--shadow)}
+.kpi{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);padding:14px 15px;box-shadow:var(--shadow-card)}
 .kpi .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kpi .v{font-family:var(--font-mono);font-size:25px;font-weight:600;letter-spacing:-.04em;margin-top:7px;font-variant-numeric:tabular-nums}
 .kpi .d{font-size:11.5px;margin-top:4px;color:var(--ink-3);display:flex;align-items:center;gap:4px}
@@ -253,7 +242,7 @@ tbody tr:hover td{background:var(--sunk)}
 #tip .r span:last-child{font-family:var(--font-mono);color:var(--ink);font-variant-numeric:tabular-nums}
 
 /* ---- states -------------------------------------------------------------- */
-.note{padding:26px 22px;color:var(--ink-3);font-size:13px;text-align:center}
+/* .note is shared (nav.css): one line, left-aligned, no box. */
 .err{border-color:var(--down);color:var(--down)}
 
 .load{display:inline-block;width:13px;height:13px;border:2px solid var(--rule);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
@@ -268,9 +257,6 @@ tbody tr:hover td{background:var(--sunk)}
    sitting on top of the report. */
 .hero[hidden]{display:none}
 .hero-in{width:100%;max-width:660px;text-align:center}
-.hero-badge{display:inline-block;font-family:var(--font-mono);font-size:10.5px;
-  letter-spacing:.13em;text-transform:uppercase;font-weight:600;color:var(--accent);
-  background:var(--accent-soft);border-radius:20px;padding:5px 12px;margin-bottom:20px}
 .hero h1{font-family:var(--font-sans);font-size:clamp(30px,5vw,44px);
   font-weight:600;letter-spacing:-.026em;line-height:1.12;margin-bottom:14px}
 .hero-sub{font-size:14.5px;line-height:1.6;color:var(--ink-2);
@@ -326,19 +312,19 @@ tbody tr:hover td{background:var(--sunk)}
 .ptip-r b{font-family:var(--font-mono);font-size:11.5px;font-weight:500;
   font-variant-numeric:tabular-nums;color:var(--ink)}
 .pchart{width:100%;height:auto;display:block;touch-action:none}
-.pchart .ax{font-family:var(--font-mono);font-size:9.5px;fill:var(--ink-3)}
+.pchart .ax{font-family:var(--font-sans);font-size:var(--fs-1);fill:var(--ink-3);font-variant-numeric:tabular-nums}
 .pchart .ax.mid{text-anchor:middle}
 
 .ranges{display:flex;gap:4px;flex-shrink:0}
 /* The ownership chart's cadence is a fact, not a control: 13F is quarterly. */
 .ownhist-cadence{font-size:10.5px;color:var(--ink-3);letter-spacing:.06em;
   text-transform:uppercase;white-space:nowrap}
-.ranges button{background:var(--sunk);border:1px solid var(--rule);border-radius:6px;
-  padding:4px 10px;font-size:11.5px;font-weight:500;color:var(--ink-2);cursor:pointer;
+.ranges button{background:transparent;border:1px solid transparent;border-radius:var(--r-2);
+  padding:4px 8px;font-size:var(--fs-3);font-weight:500;color:var(--ink-3);cursor:pointer;
   min-height:0}
-.ranges button:hover{border-color:var(--accent);color:var(--accent)}
-.ranges button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);
-  color:#fff}
+.ranges button:hover{color:var(--ink)}
+.ranges button[aria-pressed=true]{background:var(--sunk);border-color:var(--rule);
+  color:var(--ink);font-weight:600}
 
 .pricestats{padding:16px 18px 14px;display:flex;flex-direction:column;
   perspective:1400px;position:relative}
@@ -360,12 +346,15 @@ tbody tr:hover td{background:var(--sunk)}
 .pflip-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .pqhead{padding-bottom:13px;border-bottom:1px solid var(--rule);padding-right:28px}
 .pq{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap}
-.pq-price{font-family:var(--font-mono);font-size:29px;font-weight:600;
-  letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.pq-pill{font-family:var(--font-mono);font-size:12px;font-weight:600;
-  border-radius:6px;padding:2px 7px;line-height:1.5}
-.pq-pill.up{background:var(--up-soft);color:var(--up)}
-.pq-pill.down{background:var(--down-soft);color:var(--down)}
+/* The one number on the page bigger than everything else. It is ink: the
+   direction lives in the change beside it, which carries a sign as well as a
+   colour, so nothing depends on red or green alone. */
+.pq-price{font-size:34px;font-weight:600;line-height:1;color:var(--ink);
+  letter-spacing:-.02em;font-variant-numeric:lining-nums tabular-nums;font-optical-sizing:auto}
+.pq-pill{font-size:var(--fs-4);font-weight:600;line-height:1.5;
+  font-variant-numeric:tabular-nums}
+.pq-pill.up{color:var(--up)}
+.pq-pill.down{color:var(--down)}
 /* What the shown price IS right now: last close, pre-market, after hours,
    open session, or a 24/7 market. One glance, one pill, dot coloured by
    session. Sized to wrap cleanly under the price on a phone. */
@@ -377,32 +366,26 @@ tbody tr:hover td{background:var(--sunk)}
 .pq-state b{font-weight:600;color:var(--ink)}
 .pq-state span{font-weight:400;color:var(--ink-3)}
 .pq-state.st-open i,.pq-state.st-live i{background:var(--up)}
-.pq-state.st-pre i{background:#eda100}
-.pq-state.st-after i{background:var(--accent)}
+.pq-state.st-pre i{background:var(--s3)}
+.pq-state.st-after i{background:var(--ink-2)}
 /* A close older than the last completed session: the reason a prev-close can
    disagree with what the reader saw elsewhere, so it is flagged, not muted. */
 .pq-state.st-behind{border-color:var(--down);background:var(--down-soft)}
 .pq-state.st-behind i{background:var(--down)}
 .pq-state.st-behind span{color:var(--down)}
 /* What the houses call it, under the price it is called on. */
-.pq-call{display:flex;align-items:baseline;gap:8px;margin-top:8px}
-.pq-call b{font-size:17px;font-weight:600;letter-spacing:-.01em}
-.pq-call span{font-family:var(--font-mono);font-size:11px;color:var(--ink-3)}
-.pq-call.buy b{color:var(--up)}
-.pq-call.hold b{color:var(--ink-3)}
-.pq-call.sell b{color:var(--down)}
-.pstats{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:4px}
+/* What the houses call it lives in the consensus block below the stats. */
+.pstats{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;margin-top:4px}
+.pstats>div{min-width:0}
 .pstats>div{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
   padding:7px 0;border-bottom:1px solid var(--rule-2)}
-.pstats dt{font-size:11.5px;color:var(--ink-3);white-space:nowrap}
-.pstats dd{font-family:var(--font-mono);font-size:12px;font-weight:500;
+.pstats dt{font-size:var(--fs-2);color:var(--ink-3);white-space:nowrap}
+.pstats dd{font-size:var(--fs-3);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-variant-numeric:tabular-nums;text-align:right}
-.pnote{margin-top:11px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--ink-3)}
+.pnote{margin-top:11px;font-size:var(--fs-2);color:var(--ink-3)}
 
 /* Flip-side company profile (FMP /profile). */
-.pabout-h{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
-  color:var(--ink-3);margin:0 0 6px;padding-right:28px}
+.pabout-h{font-size:var(--fs-2);font-weight:500;color:var(--ink-3);margin:0 0 6px;padding-right:28px}
 .pabout{display:flex;flex-direction:column;margin:0}
 .pabout>div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
   padding:8px 0;border-bottom:1px solid var(--rule-2)}
@@ -416,8 +399,7 @@ tbody tr:hover td{background:var(--sunk)}
 .pdesc-more:hover{text-decoration:underline}
 .pdesc-more svg{width:12px;height:12px;transition:transform .2s}
 .pdesc-more[aria-expanded=true] svg{transform:rotate(180deg)}
-.pflip-hint{margin-top:auto;padding-top:12px;font-size:10.5px;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--ink-3)}
+.pflip-hint{margin-top:auto;padding-top:12px;font-size:var(--fs-2);color:var(--ink-3)}
 
 /* Where the houses think the price is going, under the price it is measured
    against. Same shape as the quote above it: a heading, a figure, the spread. */
@@ -439,9 +421,9 @@ tbody tr:hover td{background:var(--sunk)}
 .wst-n:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
 
 .wst-t{display:flex;align-items:baseline;gap:10px;margin-top:6px}
-.wst-t b{font-family:var(--font-mono);font-size:22px;font-weight:600;
+.wst-t b{font-size:var(--fs-6);font-weight:600;
   letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.wst-t span{font-family:var(--font-mono);font-size:13px;font-weight:600}
+.wst-t span{font-size:var(--fs-3);font-weight:600}
 .wst-t span.up{color:var(--up)} .wst-t span.down{color:var(--down)}
 .wst-r{margin-top:3px;font-size:11.5px;color:var(--ink-3)}
 .wst-bar{display:flex;gap:2px;height:9px;border-radius:5px;overflow:hidden;
@@ -451,7 +433,7 @@ tbody tr:hover td{background:var(--sunk)}
 .wst-bar span.hold{background:var(--c-grey)}
 .wst-bar span.sell{background:var(--down)}
 .wst-k{font-size:11.5px;color:var(--ink-3)}
-.wst-k b{font-family:var(--font-mono);color:var(--ink-2);font-weight:600}
+.wst-k b{color:var(--ink-2);font-weight:600}
 
 @media (max-width:1080px){
   .pricerow{grid-template-columns:minmax(0,1fr)}
@@ -624,7 +606,7 @@ tbody tr:hover td{background:var(--sunk)}
 .season tfoot th{color:var(--ink-2)}
 .season .sf{background:var(--sunk);color:var(--ink-2);font-weight:500}
 
-.newswrap{padding:0 4px 6px;height:340px;overflow-y:auto;overscroll-behavior:contain;
+.newswrap{padding:0 4px 6px;max-height:340px;overflow-y:auto;overscroll-behavior:contain;
   scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
 .newswrap::-webkit-scrollbar{width:8px}
 .newswrap::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
@@ -671,7 +653,7 @@ tbody tr:hover td{background:var(--sunk)}
   min-height:0;
 }
 .mtabs button:hover{color:var(--ink)}
-.mtabs button[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent)}
+.mtabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--ink)}
 /* One tab at a time. .mreport is set by every report render, so the rule
    cannot hide panels on a page that is not showing one. */
 body.mreport .mtab-panel{display:none}
@@ -694,12 +676,11 @@ body.mreport .mtab-panel.on{display:block}
      exchange are what matter, and the CIK and SIC stay reachable. */
   .ident .sub{
     flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
-    margin-top:5px;padding-bottom:2px;font-size:11.5px;gap:6px;
+    margin-top:5px;padding-bottom:2px;font-size:var(--fs-2);gap:6px;
   }
   .ident .sub::-webkit-scrollbar{display:none}
   .ident .sub > *{flex:0 0 auto}
   .ident h1{line-height:1.1}
-  .ident .chip{padding:2px 7px;font-size:11px}
   /* The star is a 44px control beside a 20px title; shrink it to match. */
   .wstar{transform:scale(.85);transform-origin:left center}
 
@@ -719,13 +700,8 @@ body.mreport .mtab-panel.on{display:block}
   .swrap{max-height:44vh}
   .ident{
     display:flex;justify-content:space-between;align-items:flex-start;
-    /* wrap, not nowrap. .unlockrow is flex-basis:100% so it can take its own
-       line on desktop; with nowrap it could not wrap, so it consumed the whole
-       line and crushed its siblings to zero width -- the title then overflowed
-       its own box and rendered on top of the fiscal-year pickers. */
     flex-wrap:wrap;gap:8px 10px;padding:0 14px;margin-bottom:4px;
   }
-  .ident > .unlockrow{flex-basis:100%;order:3;margin-top:6px;top:0}
   .ident > div:first-child{flex:1;min-width:0}
   .ident h1{font-size:20px;padding-right:4px}
   .qpick{
@@ -1053,21 +1029,20 @@ button.pchip.addp:hover{border-color:var(--accent);color:var(--accent)}
 /* ---- chart toolbar ------------------------------------------------------- */
 .ptools{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .tmenu{position:relative}
-.tbtn{display:inline-flex;align-items:center;gap:6px;background:var(--sunk);
-  border:1px solid var(--rule);border-radius:8px;padding:5px 11px;font:inherit;
-  font-size:11.5px;font-weight:500;color:var(--ink-2);cursor:pointer;min-height:0}
-.tbtn:hover{border-color:var(--accent);color:var(--accent)}
+.tbtn{display:inline-flex;align-items:center;gap:6px;background:transparent;
+  border:1px solid transparent;border-radius:var(--r-2);padding:4px 8px;font:inherit;
+  font-size:var(--fs-3);font-weight:500;color:var(--ink-3);cursor:pointer;min-height:0}
+.tbtn:hover{border-color:var(--rule);color:var(--ink)}
 .tbtn svg{width:9px;height:6px}
 .tbtn.off{opacity:.45;cursor:default}
 /* A menu naming a live choice rather than its own category. */
 .tbtn-on{color:var(--ink);border-color:var(--ink-3)}
-.tmenu.open>.tbtn{border-color:var(--accent);color:var(--accent)}
+.tmenu.open>.tbtn{border-color:var(--rule);color:var(--ink);background:var(--sunk)}
 .tpop{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:60;
-  min-width:216px;background:var(--card);border:1px solid var(--rule);
-  border-radius:10px;box-shadow:var(--shadow);padding:6px;overflow:hidden}
+  min-width:216px;background:var(--raised);border:1px solid var(--rule);
+  border-radius:var(--r);box-shadow:var(--shadow);padding:6px;overflow:hidden}
 .tmenu.open .tpop{display:block}
-.tpop-h{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
-  color:var(--ink-3);font-weight:600;padding:7px 10px 5px}
+.tpop-h{font-size:var(--fs-2);color:var(--ink-3);font-weight:500;padding:7px 10px 5px}
 .tpop button{display:block;width:100%;text-align:left;background:transparent;
   border:0;border-radius:7px;padding:8px 10px;font:inherit;font-size:12.5px;
   color:var(--ink-2);cursor:pointer}
@@ -1090,10 +1065,10 @@ button.pchip.addp:hover{border-color:var(--accent);color:var(--accent)}
   margin-left:10px;background:var(--sunk);border:1px solid var(--rule);
   border-radius:20px;padding:5px 11px;cursor:pointer;color:var(--ink-3);
   font:inherit;font-size:12.5px;min-height:0}
-.wstar:hover{border-color:#e0a92e;color:#e0a92e}
-.wstar.on{background:#fdf0d5;border-color:#e0a92e;color:#b8860b}
+.wstar:hover{border-color:var(--ink-3);color:var(--ink)}
+.wstar.on{background:var(--sunk);border-color:var(--ink-3);color:var(--ink)}
 .wstar-i{font-size:14px;line-height:1}
-.wstar-n{font-family:var(--font-mono);font-size:11.5px;font-weight:600}
+.wstar-n{font-size:var(--fs-2);font-weight:500;color:var(--ink-3)}
 .wstar[disabled]{opacity:.6}
 
 .wstar-hint{display:inline-block;margin-left:8px;vertical-align:middle;
@@ -1129,8 +1104,7 @@ button.pchip.addp:hover{border-color:var(--accent);color:var(--accent)}
      so it asks rather than guessing. -->
 <section class="hero" id="hero" hidden>
   <div class="hero-in">
-    <span class="hero-badge">SEC EDGAR</span>
-    <h1>Unlock the full report.</h1>
+    <h1>Read a company from its filings.</h1>
     <p class="hero-sub">
       Every quarter a company has filed, read straight from the filing.
     </p>
@@ -2744,10 +2718,11 @@ async function loadTickerNews(){
 
   const scopeEl = document.getElementById("news-scope");
   if (!arts.length) {
-    scopeEl.textContent = `Nothing recent for ${sym}`;
-    host.innerHTML = `<div class="note">No recent stories.</div>`;
+    scopeEl.hidden = true;
+    host.innerHTML = `<div class="note">No recent stories for ${esc(sym)}.</div>`;
     return;
   }
+  scopeEl.hidden = false;
   scopeEl.textContent = `${sym}, ${name || "the company"} and ${industryTerm || "its industry"}`;
 
   try {
@@ -3660,7 +3635,7 @@ function drawAnalyst(){
 function priceChartHeading(sym){
   const s = (sym || (S.company && S.company.ticker) || "").toUpperCase();
   const chip = (window.TickerLogos && s) ? window.TickerLogos.chip(s, "tick-logo-lg") : "";
-  return `<h2 class="price-title">${chip}${s ? `<span class="price-sym">${esc(s)}</span>` : ""} Price ${helpIcon("price")}</h2>`;
+  return `<h2 class="price-title">${chip}${s ? `<span class="price-sym">${esc(s)}</span>` : ""} Price</h2>`;
 }
 
 function hydratePageLogos(){
@@ -3693,14 +3668,12 @@ function marketOnly(ticker, company, why){
           <span class="wstar-i">☆</span><span class="wstar-n"></span>
         </button>
         <div class="sub">
-          <span class="chip key">${esc(c.ticker || ticker)}</span>
-          ${c.exchange ? `<span class="chip">${esc(c.exchange)}</span>` : ""}
-          ${c.cik ? `<span class="chip">CIK ${c.cik}</span>` : ""}
+          <span class="tick">${esc(c.ticker || ticker)}</span>
+          ${c.exchange ? `<span>${esc(c.exchange)}</span>` : ""}
           ${c.sic ? `<span>${esc(c.sic)}</span>` : ""}
         </div>
         </div>
       </div>
-      <div class="unlockrow">${unlockReportBtn(c.ticker || ticker)}</div>
     </div>
 
     ${tabBar(["overview", "earnings", "ownership"])}
@@ -3892,20 +3865,6 @@ const retClass = v => (v == null || Number.isNaN(+v)) ? "" : (+v > 0 ? "up" : +v
     button rather than a link dressed as one -- nothing to click through, no
     href for a crawler to follow, and `disabled` so the keyboard skips it
     instead of offering a control that does nothing. */
-function unlockReportBtn(ticker){
-  const t = String(ticker || "").toUpperCase();
-  return `<button type="button" class="unlockbtn" disabled
-     title="Instant research reports for any company are coming soon."
-     data-ticker="${esc(t)}">
-    <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
-         stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="4" y="8.5" width="12" height="8" rx="1.6"/>
-      <path d="M7 8.5V6a3 3 0 0 1 6 0v2.5"/>
-    </svg>
-    <span>Unlock report</span>
-    <em>Soon</em>
-  </button>`;
-}
 
 /** Major index page: price chart, holdings+industry, PE vs peers, seasonality.
  *  With opts.sector it is a sector-ETF page: same layout, holdings drawn from
@@ -3967,10 +3926,10 @@ function openIndexSymbol(ticker, meta, opts){
           <span class="wstar-i">☆</span><span class="wstar-n"></span>
         </button>
         <div class="sub">
-          <span class="chip key">${esc(c.ticker)}</span>
-          <span class="chip">${sector ? "Sector ETF" : "Index"}</span>
-          ${sector ? `<span class="chip">${esc(sector)}</span>` : ""}
-          ${c.exchange ? `<span class="chip">${esc(c.exchange)}</span>` : ""}
+          <span class="tick">${esc(c.ticker)}</span>
+          <span>${sector ? "Sector ETF" : "Index"}</span>
+          ${sector ? `<span>${esc(sector)}</span>` : ""}
+          ${c.exchange ? `<span>${esc(c.exchange)}</span>` : ""}
         </div>
         </div>
       </div>
@@ -4935,7 +4894,7 @@ function drawCorrelation(){
   if (!host) return;
 
   if (CORR.state === "idle")
-    return corrNote("Enter a ticker above to plot it against " + esc(S.ticker || "this company") + ".");
+    return corrNote("Loading the S&amp;P 500 comparison…");
   if (CORR.state === "bad")     return corrNote("That does not look like a ticker.");
   if (CORR.state === "self")    return corrNote("Pick a different company to compare against.");
   if (CORR.state === "loading") return corrNote(`<span class="load"></span> &nbsp;Loading ${esc(CORR.other)}…`);
@@ -5406,14 +5365,12 @@ function render(){
           <span class="wstar-i">☆</span><span class="wstar-n"></span>
         </button>
         <div class="sub">
-          <span class="chip key">${esc(c.ticker)}</span>
-          ${c.exchange ? `<span class="chip">${esc(c.exchange)}</span>` : ""}
-          <span class="chip">CIK ${c.cik}</span>
+          <span class="tick">${esc(c.ticker)}</span>
+          ${c.exchange ? `<span>${esc(c.exchange)}</span>` : ""}
           ${c.sic ? `<span>${esc(c.sic)}</span>` : ""}
         </div>
         </div>
       </div>
-      <div class="unlockrow">${unlockReportBtn(c.ticker)}</div>
     </div>
 
     ${tabBar(["overview", "financials", "earnings", "industry", "ownership"])}
@@ -7044,10 +7001,12 @@ function bandTicks(lo, hi, count = 5){
 function compact(v){
   if (v === null || v === undefined) return "—";
   const a = Math.abs(v);
-  if (a >= 1e12) return (v / 1e12).toFixed(2) + "T";
-  if (a >= 1e9)  return (v / 1e9).toFixed(2) + "B";
-  if (a >= 1e6)  return (v / 1e6).toFixed(2) + "M";
-  if (a >= 1e3)  return (v / 1e3).toFixed(1) + "K";
+  // Three significant figures, the house rule: 4.20T, 14.2B, 120M.
+  const sig = x => x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(2);
+  if (a >= 1e12) return sig(v / 1e12) + "T";
+  if (a >= 1e9)  return sig(v / 1e9) + "B";
+  if (a >= 1e6)  return sig(v / 1e6) + "M";
+  if (a >= 1e3)  return sig(v / 1e3) + "K";
   return String(Math.round(v));
 }
 
@@ -7435,9 +7394,9 @@ const TA = {
       ma: { name: "Moving Averages (20/50/200)", fn: bars => {
         const c = bars.map(b => b.c);
         return { lines: [
-          { pts: sma(c, 20),  colour: "#2f7dff", name: "20" },
-          { pts: sma(c, 50),  colour: "#f0952a", name: "50" },
-          { pts: sma(c, 200), colour: "#a855f7", name: "200" },
+          { pts: sma(c, 20),  colour: "var(--s1)", name: "20" },
+          { pts: sma(c, 50),  colour: "var(--s7)", name: "50" },
+          { pts: sma(c, 200), colour: "var(--s5)", name: "200" },
         ] };
       }},
       ribbon: { name: "EMA Ribbon", fn: bars => {
@@ -7462,9 +7421,11 @@ const TA = {
           tenkan[i] === null || kijun[i] === null ? null : (tenkan[i] + kijun[i]) / 2);
         const spanB = mid(52);
         return {
-          lines: [{ pts: tenkan, colour: "#2f7dff", name: "Tenkan 9" },
-                  { pts: kijun, colour: "#a855f7", name: "Kijun 26" }],
-          cloud: { a: spanA, b: spanB, up: "#16c78433", down: "#ea394333" },
+          lines: [{ pts: tenkan, colour: "var(--s1)", name: "Tenkan 9" },
+                  { pts: kijun, colour: "var(--s5)", name: "Kijun 26" }],
+          cloud: { a: spanA, b: spanB,
+                   up: "color-mix(in srgb, var(--up) 20%, transparent)",
+                   down: "color-mix(in srgb, var(--down) 20%, transparent)" },
         };
       }},
     },
@@ -7477,16 +7438,16 @@ const TA = {
         const m = sma(c, 20), sd = stdev(c, 20);
         const up = m.map((v, i) => v === null ? null : v + 2 * sd[i]);
         const dn = m.map((v, i) => v === null ? null : v - 2 * sd[i]);
-        return { lines: [{ pts: m, colour: "#a855f7", name: "20 SMA", dash: true }],
-                 band: { hi: up, lo: dn, colour: "#a855f733", name: "±2σ" } };
+        return { lines: [{ pts: m, colour: "var(--s5)", name: "20 SMA", dash: true }],
+                 band: { hi: up, lo: dn, colour: "var(--s5)", name: "±2σ" } };
       }},
       keltner: { name: "Keltner Channels (20, 2 ATR)", fn: bars => {
         const c = bars.map(b => b.c);
         const mid = ema(c, 20), atr = sma(trueRange(bars), 20);
         const up = mid.map((v, i) => v === null || atr[i] === null ? null : v + 2 * atr[i]);
         const dn = mid.map((v, i) => v === null || atr[i] === null ? null : v - 2 * atr[i]);
-        return { lines: [{ pts: mid, colour: "#16a3c7", name: "20 EMA", dash: true }],
-                 band: { hi: up, lo: dn, colour: "#16a3c733", name: "±2 ATR" } };
+        return { lines: [{ pts: mid, colour: "var(--s6)", name: "20 EMA", dash: true }],
+                 band: { hi: up, lo: dn, colour: "var(--s6)", name: "±2 ATR" } };
       }},
       donchian: { name: "Donchian Channels (20)", fn: bars => {
         const up = bars.map((_, i) => i < 19 ? null
@@ -7494,8 +7455,8 @@ const TA = {
         const dn = bars.map((_, i) => i < 19 ? null
           : Math.min(...bars.slice(i - 19, i + 1).map(b => b.l)));
         const mid = up.map((v, i) => v === null ? null : (v + dn[i]) / 2);
-        return { lines: [{ pts: mid, colour: "#f0952a", name: "Midline", dash: true }],
-                 band: { hi: up, lo: dn, colour: "#f0952a2b", name: "20-day high/low" } };
+        return { lines: [{ pts: mid, colour: "var(--s7)", name: "Midline", dash: true }],
+                 band: { hi: up, lo: dn, colour: "var(--s7)", name: "20-day high/low" } };
       }},
     },
   },
@@ -7511,7 +7472,7 @@ const TA = {
         return { levels: [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1].map(f => ({
           v: hi - span * f,
           name: f === 0 ? "High" : f === 1 ? "Low" : `${(f * 100).toFixed(1)}%`,
-          colour: f === 0 || f === 1 ? "var(--ink-3)" : "#d4a017",
+          colour: f === 0 || f === 1 ? "var(--ink-3)" : "var(--s3)",
         })) };
       }},
       pivots: { name: "Pivot Points (classic)", fn: bars => {
@@ -7521,11 +7482,11 @@ const TA = {
         if (!b) return {};
         const p = (b.h + b.l + b.c) / 3;
         return { levels: [
-          { v: p + (p - b.l),          name: "R2", colour: "#ea3943" },
-          { v: 2 * p - b.l,            name: "R1", colour: "#ea394399" },
+          { v: p + (p - b.l),          name: "R2", colour: "var(--down)" },
+          { v: 2 * p - b.l,            name: "R1", colour: "color-mix(in srgb, var(--down) 60%, transparent)" },
           { v: p,                      name: "P",  colour: "var(--ink-3)" },
-          { v: 2 * p - b.h,            name: "S1", colour: "#16c78499" },
-          { v: p - (b.h - p),          name: "S2", colour: "#16c784" },
+          { v: 2 * p - b.h,            name: "S1", colour: "color-mix(in srgb, var(--up) 60%, transparent)" },
+          { v: p - (b.h - p),          name: "S2", colour: "var(--up)" },
         ] };
       }},
       vwap: { name: "VWAP (anchored to window)", fn: bars => {
@@ -7535,7 +7496,7 @@ const TA = {
           pv += typical * (b.v || 0); vol += (b.v || 0);
           return vol ? pv / vol : null;
         });
-        return { lines: [{ pts, colour: "#e0a92e", name: "VWAP" }] };
+        return { lines: [{ pts, colour: "var(--s3)", name: "VWAP" }] };
       }},
     },
   },
@@ -7973,11 +7934,11 @@ function drawCandles(){
       const bot = o.band.lo.map((v, i) => v === null ? null
         : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).reverse();
       if (top.length) out += `<polygon points="${top.concat(bot).join(" ")}"
-        fill="${o.band.colour}"/>`;
+        fill="color-mix(in srgb, ${o.band.colour} 18%, transparent)"/>`;
       [o.band.hi, o.band.lo].forEach(edge => {
         const d = path(edge);
         if (d) out += `<polyline points="${d}" fill="none"
-          stroke="${o.band.colour.slice(0, 7)}" stroke-width="1.2" opacity=".85"/>`;
+          stroke="${o.band.colour}" stroke-width="1.2" opacity=".85"/>`;
       });
     }
     if (o.cloud) {
@@ -8192,9 +8153,9 @@ function drawCandles(){
       (o.lines || []).forEach(l => bits.push(
         `<span><i style="background:${l.colour}"></i>${esc(o.name.split(" (")[0])} ${esc(l.name)}</span>`));
       if (o.band) bits.push(
-        `<span><i style="background:${o.band.colour.slice(0,7)}"></i>${esc(o.band.name)}</span>`);
-      if (o.cloud) bits.push(`<span><i style="background:#16c784"></i>Cloud</span>`);
-      if (o.levels) bits.push(`<span><i style="background:#d4a017"></i>${esc(o.name.split(" (")[0])}</span>`);
+        `<span><i style="background:${o.band.colour}"></i>${esc(o.band.name)}</span>`);
+      if (o.cloud) bits.push(`<span><i style="background:var(--up)"></i>Cloud</span>`);
+      if (o.levels) bits.push(`<span><i style="background:var(--s3)"></i>${esc(o.name.split(" (")[0])}</span>`);
     });
     key.innerHTML = bits.join("");
     key.hidden = !bits.length;
@@ -8363,7 +8324,7 @@ function drawPriceStats(){
     ["50d avg", n(q && q.avg_50)],
     ["200d avg", n(q && q.avg_200)],
     ["Volume", q && q.volume ? compact(q.volume) : "—"],
-    ["Market cap", q && q.market_cap ? "$" + compact(q.market_cap) : "—"],
+    ["Mkt cap", q && q.market_cap ? "$" + compact(q.market_cap) : "—"],
     ["Shares out", q && q.shares ? compact(q.shares) : "—"],
     // A company with no earnings has no P/E. That is a fact about the
     // company, not a gap in the data, so it says so.
@@ -8383,14 +8344,10 @@ function drawPriceStats(){
     <div class="pface pface-front">
       <div class="pqhead">
         <div class="pq">
-          <div class="pq-price ${dirClass}">${n(price)}</div>
+          <div class="pq-price">${n(price)}</div>
           ${chgPct === null || chgPct === undefined ? "" : `
             <span class="pq-pill ${dirClass}">${chgPct >= 0 ? "+" : ""}${n(chgPct)}%</span>`}
         </div>
-        ${!call ? "" : `<div class="pq-call ${call.tone}"
-          title="${call.n} of ${call.total} analysts covering ${esc(PRICE.symbol || "")} rate it ${call.word.toLowerCase()}">
-          <b>${call.word}</b><span>${call.n}/${call.total} ratings</span>
-        </div>`}
       </div>
       ${(() => { const st = priceStateChip();
         return `<div class="pq-state ${st.cls}" title="${esc(st.title)}"><i></i>` +
@@ -8470,9 +8427,10 @@ function profileFace(){
   }
   const rows = [
     ["Symbol", p.symbol || PRICE.symbol],
-    ["IPO Date", formatIpo(p.ipoDate)],
+    ["CIK", S.company && S.company.cik ? String(S.company.cik) : null],
+    ["IPO date", formatIpo(p.ipoDate)],
     ["CEO", p.ceo],
-    ["Fulltime Employees", formatEmployees(p.employees)],
+    ["Employees", formatEmployees(p.employees)],
     ["Sector", p.sector],
     ["Industry", p.industry],
     ["Country", countryLabel(p.country)],

@@ -16,6 +16,13 @@
 <script src="analytics.js"></script>
 <script src="posthog-init.js"></script>
 <script type="module" src="clarity-init.js"></script>
+<script>
+/* Theme before first paint: nav.js re-applies the same choice later, but by
+   then the page has already been painted light for a dark-mode reader. */
+(function(){try{var t=localStorage.getItem("alphaticker-theme")||localStorage.getItem("ledger-theme");
+if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";
+document.documentElement.setAttribute("data-theme",t)}catch(e){}})();
+</script>
 <link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +30,7 @@
      saves the DNS + TCP + TLS setup that otherwise sits in front of the first
      byte of data. The origin is already public in config.js. -->
 <link rel="preconnect" href="https://etembhwwbqswzcepfhxp.supabase.co" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:opsz,wght@14..32,400..700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
 <style>
 /* ---------------------------------------------------------------------------
    Markets Today — the same design system as the company page, so moving
@@ -35,15 +42,9 @@
   /* Eleven sector lines. Ordered so no pair that collapses under
      deuteranopia sits next to another; validated at 11 slots, and identity
      never rests on colour alone -- there is a legend and a hover readout. */
-  --k1:#2563eb; --k2:#da6410; --k3:#0d9668; --k4:#7c4dee;
-  --k5:#b87709; --k6:#0e9a8d; --k7:#4f46e5; --k8:#d9308a;
-  --k9:#4d7c0f; --k10:#0f8fcc; --k11:#be123c;
 }
 
 :root[data-theme="dark"] {
-  --k1:#3b82f6; --k2:#e06a12; --k3:#0fa97b; --k4:#8b5cf6;
-  --k5:#c1840d; --k6:#0e9c90; --k7:#6366f1; --k8:#db2777;
-  --k9:#6f8c1c; --k10:#1b92ce; --k11:#e11d48;
 }
 
 
@@ -73,14 +74,14 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 .sumhead .sub{color:var(--ink-3);font-size:12.5px;text-align:right;margin-left:auto;
   line-height:1.35;white-space:nowrap;flex:0 1 auto;min-width:0}
 .sumhead .sub b{font-family:var(--font-mono);font-weight:500;color:var(--ink-2)}
-h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin-bottom:12px}
-.panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+h2{font-size:var(--fs-6);font-weight:600;letter-spacing:-.01em;margin-bottom:12px}
+.panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow-card);overflow:hidden}
 .split{display:grid;grid-template-columns:minmax(320px,420px) 1fr;min-height:520px}
 .up{color:var(--up)} .down{color:var(--down)}
 .tsym,.ppl{display:flex;flex-direction:column;align-items:flex-start;gap:1px;
   text-decoration:none;text-align:left}
-.tsym-t{font-family:var(--font-mono);font-weight:600;color:var(--accent);
-  font-size:12.5px;line-height:1.25}
+.tsym-t{font-weight:600;color:var(--ink);text-transform:uppercase;
+  font-size:var(--fs-3);line-height:1.25;font-variant-numeric:tabular-nums}
 .tsym-n,.ppl-n{font-family:var(--font-sans);font-size:10.5px;color:var(--ink-3);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;line-height:1.3}
 .ppl-t{font-family:var(--font-sans);font-weight:600;font-size:12.5px;
@@ -89,14 +90,14 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin-bottom:12px}
   background:transparent;border:1px solid var(--rule);border-radius:7px;
   padding:8px 13px;cursor:pointer;color:var(--ink-2);font:inherit;font-size:12.5px;
 }
-.ghost:hover{border-color:var(--accent);color:var(--accent)}
+.ghost:hover{border-color:var(--ink-3);color:var(--ink)}
 .ghost:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .card{
   background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
-  padding:15px 16px;box-shadow:var(--shadow);min-height:104px;
+  padding:15px 16px;box-shadow:var(--shadow-card);min-height:104px;
   display:flex;flex-direction:column;
 }
-.card .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.card .k{font-size:var(--fs-2);color:var(--ink-3);font-weight:500}
 .card .v{font-family:var(--font-sans);font-size:23px;font-weight:600;
   letter-spacing:-.015em;margin-top:8px;line-height:1.15;overflow-wrap:break-word;
   hyphens:none}
@@ -105,11 +106,8 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin-bottom:12px}
 
 .listhead{display:flex;justify-content:space-between;align-items:center;gap:10px;
   padding:14px 18px 10px;flex-wrap:wrap}
-.seg{display:flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden;flex-shrink:0}
-.seg button{background:transparent;border:0;padding:6px 11px;font:inherit;font-size:12px;
-  cursor:pointer;color:var(--ink-2);border-right:1px solid var(--rule);white-space:nowrap}
-.seg button:last-child{border-right:0}
-.seg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:500}
+/* .seg is shared (nav.css). */
+.seg button{white-space:nowrap}
 .seg button[disabled]{opacity:.34;cursor:not-allowed}
 
 /* Risk & Return controls: the period buttons and the interval dropdown. */
@@ -132,6 +130,7 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin-bottom:12px}
 .dropmenu button:hover{background:var(--sunk);color:var(--ink)}
 .dropmenu button[aria-selected=true]{color:var(--accent);font-weight:600}
 .dropmenu button[aria-selected=true]::before{content:"✓ "}
+.dropmenu button[aria-selected=true]{color:var(--ink);font-weight:600}
 .dropmenu button[disabled]{opacity:.34;cursor:not-allowed}
 .dropmenu button[disabled]:hover{background:transparent;color:var(--ink-2)}
 
@@ -156,14 +155,19 @@ tbody td:first-child{text-align:left;padding-left:18px;font-family:var(--font-sa
 tbody td:last-child{padding-right:18px}
 tbody tr{cursor:pointer}
 tbody tr:hover td{background:var(--sunk)}
-tbody tr[aria-selected=true] td{background:var(--accent-soft)}
+tbody tr[aria-selected=true] td{background:var(--sunk)}
+tbody tr[aria-selected=true] td:first-child{box-shadow:inset 2px 0 0 var(--ink)}
 .sym{display:flex;align-items:center;gap:9px}
+/* A neutral disc until a real logo hydrates over it: the initials are a
+   placeholder, and a placeholder in a saturated colour reads as data. */
 .dot{width:22px;height:22px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
-  font-family:var(--font-mono);font-size:9px;font-weight:600;color:#fff;letter-spacing:-.02em}
-.tick{font-weight:500}
-.pill{display:inline-block;min-width:64px;text-align:right;padding:2px 7px;border-radius:5px;
-  font-size:12.5px;font-weight:500}
-.pill.up{background:var(--up-soft)} .pill.down{background:var(--down-soft)}
+  font-size:9px;font-weight:600;color:var(--ink-2);background:var(--sunk);
+  border:1px solid var(--rule);letter-spacing:0}
+.tick{font-weight:600;text-transform:uppercase}
+/* A change is coloured tabular text with its sign, not a tinted pill. */
+.pill{display:inline-block;min-width:64px;text-align:right;padding:2px 0;
+  font-size:var(--fs-3);font-weight:500;font-variant-numeric:tabular-nums}
+.pill.up{color:var(--up)} .pill.down{color:var(--down)}
 
 /* ---- chart --------------------------------------------------------------- */
 .chartwrap{padding:14px 18px 18px;display:flex;flex-direction:column;min-width:0}
@@ -176,8 +180,7 @@ tbody tr[aria-selected=true] td{background:var(--accent-soft)}
 .search{position:relative}
 .search input{
   background:var(--sunk);border:1px solid var(--rule);border-radius:8px;
-  padding:9px 13px;font:inherit;font-size:13px;color:var(--ink);width:230px;
-  font-family:var(--font-mono);
+  padding:9px 13px;font:inherit;font-size:var(--fs-3);color:var(--ink);width:230px;
 }
 .search input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;background:var(--card)}
 .ac{position:absolute;top:calc(100% + 5px);right:0;z-index:60;width:320px;background:var(--card);
@@ -185,8 +188,8 @@ tbody tr[aria-selected=true] td{background:var(--accent-soft)}
 .ac.open{display:block}
 .ac div{padding:8px 11px;cursor:pointer;display:flex;gap:10px;align-items:baseline;border-bottom:1px solid var(--rule-2)}
 .ac div:last-child{border-bottom:0}
-.ac div:hover,.ac div[aria-selected=true]{background:var(--accent-soft)}
-.ac b{font-family:var(--font-mono);font-size:12.5px;min-width:56px;color:var(--accent)}
+.ac div:hover,.ac div[aria-selected=true]{background:var(--sunk)}
+.ac b{font-size:var(--fs-3);font-weight:600;text-transform:uppercase;min-width:56px;color:var(--ink)}
 .ac span{font-size:12.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #chart{flex:1;min-height:360px}
 svg{display:block;max-width:100%}
@@ -379,27 +382,27 @@ a.nm:hover{color:var(--accent)}
 .pulse{
   display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
   background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
-  box-shadow:var(--shadow);margin:0 0 18px;overflow:hidden;
+  box-shadow:var(--shadow-card);margin:0 0 18px;overflow:hidden;
 }
 .pulse .cell{padding:14px 16px;border-right:1px solid var(--rule);min-width:0}
 .pulse .cell:last-child{border-right:0}
 .pulse a.cell{display:block;text-decoration:none;color:inherit}
 .pulse a.cell:hover{background:var(--hover, rgba(127,127,127,.06))}
-.pulse .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--ink-3);font-weight:600;margin-bottom:6px}
-.pulse .v{font-family:var(--font-sans);font-size:22px;font-weight:700;
-  letter-spacing:-.02em;line-height:1.15;color:var(--ink)}
-.pulse .v.up{color:var(--up)} .pulse .v.down{color:var(--down)}
-.pulse .v .dim{color:var(--ink-3);font-weight:500;font-size:16px}
-.pulse .chg{margin-top:6px;font-size:12.5px;font-weight:600;
-  font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.pulse .k{font-size:var(--fs-2);color:var(--ink-3);font-weight:500;margin-bottom:6px}
+/* The level is ink; the change under it carries the sign and the colour. */
+.pulse .v{font-family:var(--font-sans);font-size:var(--fs-6);font-weight:600;
+  letter-spacing:-.01em;line-height:1.15;color:var(--ink);font-variant-numeric:tabular-nums}
+.pulse .v .dim{color:var(--ink-3);font-weight:500;font-size:var(--fs-4)}
+.pulse .chg{margin-top:4px;font-size:var(--fs-3);font-weight:600;
+  font-variant-numeric:tabular-nums}
 .pulse .chg.up{color:var(--up)} .pulse .chg.down{color:var(--down)}
 .pulse .spark{display:block;width:100%;height:36px;margin-top:10px}
 .pulse .scale{margin-top:10px;height:6px;border-radius:99px;position:relative;
-  background:linear-gradient(90deg,#c0392e 0%,#eda100 45%,#2a78d6 100%)}
+  background:linear-gradient(90deg,var(--down) 0%,var(--s3) 45%,var(--s1) 100%)}
 /* Fear runs red to green; breadth runs red to blue. Same shape, different
    quantity, so the ramps differ deliberately. */
-.pulse .scale.fg{background:linear-gradient(90deg,#c0392e 0%,#e67e22 25%,#eda100 50%,#27ae60 75%,#0b7a4b 100%)}
+.pulse[hidden]{display:none}
+.pulse .scale.fg{background:linear-gradient(90deg,var(--down) 0%,var(--s7) 25%,var(--s3) 50%,var(--s4) 75%,var(--up) 100%)}
 .pulse .chg.mut{color:var(--ink-3);font-weight:500;text-transform:capitalize}
 .pulse .scale i{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;
   background:var(--card);border:2px solid var(--ink);transform:translate(-50%,-50%);
@@ -527,20 +530,25 @@ a.nm:hover{color:var(--accent)}
   .sumhead{margin:0 10px 8px;gap:6px 10px;flex-wrap:nowrap;overflow-x:auto}
   .sumhead .sub{font-size:10.5px;text-align:right;margin-left:auto;white-space:nowrap}
 
-  /* Pulse: one compact row of five (3 indexes + breadth + fear). */
+  /* Pulse: three indexes on one row, the two gauges on a second. Five in a
+     row needed 8px labels and 12px figures; nothing on the site goes below
+     11px now, so the row breaks instead of the type. */
   .pulse{
-    margin:0 10px 8px;border-radius:10px;border:1px solid var(--rule);
-    grid-template-columns:repeat(5,minmax(0,1fr));
+    margin:0 10px 8px;border-radius:var(--r);border:1px solid var(--rule);
+    grid-template-columns:repeat(3,minmax(0,1fr));
   }
   .pulse .cell{
-    padding:10px 6px 9px;border-right:1px solid var(--rule);border-bottom:0;
+    padding:10px 10px 9px;border-right:1px solid var(--rule);border-bottom:0;
   }
-  .pulse .cell:last-child{border-right:0}
-  .pulse .k{font-size:8px;letter-spacing:.04em;margin-bottom:4px;white-space:nowrap;
+  .pulse .cell:nth-child(3){border-right:0}
+  .pulse .cell:nth-child(4),.pulse .cell:nth-child(5){border-top:1px solid var(--rule)}
+  .pulse .cell:nth-child(4){grid-column:1 / 3}
+  .pulse .cell:nth-child(5){grid-column:3;border-right:0}
+  .pulse .k{font-size:var(--fs-1);margin-bottom:4px;white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis}
-  .pulse .v{font-size:12.5px;letter-spacing:-.02em}
-  .pulse .v .dim{font-size:9.5px}
-  .pulse .chg{font-size:9.5px;margin-top:3px}
+  .pulse .v{font-size:var(--fs-5);letter-spacing:-.01em}
+  .pulse .v .dim{font-size:var(--fs-2)}
+  .pulse .chg{font-size:var(--fs-2);margin-top:3px}
   .pulse .spark{height:22px;margin-top:6px}
   .pulse .scale{margin-top:7px;height:4px}
   .pulse .scale i{width:8px;height:8px;border-width:1.5px}
@@ -601,7 +609,7 @@ a.nm:hover{color:var(--accent)}
   flex:0 0 calc((100% - 48px) / 5);min-width:0;
   display:flex;flex-direction:column;background:var(--card);
   border:1px solid var(--rule);border-radius:9px;overflow:hidden;
-  text-decoration:none;color:inherit;box-shadow:var(--shadow);
+  text-decoration:none;color:inherit;box-shadow:var(--shadow-card);
   transition:transform .25s ease, border-color .2s ease, box-shadow .25s ease;
 }
 .disc-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb, var(--accent) 45%, var(--rule));
@@ -670,7 +678,7 @@ a.nm:hover{color:var(--accent)}
    page that reset them globally, so keep that reset inside the section. */
 .alphaday a{color:inherit;text-decoration:none}
 .alphaday .ahead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
-.alphaday .ahead .sub{color:var(--ink-3);font-size:12.5px;margin-left:auto}
+.alphaday .ahead .sub{color:var(--ink-3);font-size:var(--fs-2);margin-left:auto}
 /* Alpha score: hovering (or focusing) the number explains the weighting. */
 .alphaday .scorewrap{position:relative;display:inline-block;cursor:help}
 .alphaday .scorewrap:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
@@ -680,16 +688,18 @@ a.nm:hover{color:var(--accent)}
   transform:translateY(-3px);transition:opacity .14s ease,transform .14s ease,visibility .14s}
 .alphaday .scorewrap:hover .wgt,.alphaday .scorewrap:focus-visible .wgt{
   opacity:1;visibility:visible;transform:translateY(0)}
-.alphaday .wgt h5{font-size:10.5px;font-weight:700;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--ink-3);margin-bottom:7px}
+.alphaday .wgt{background:var(--raised)}
+.alphaday .wgt h5{font-size:var(--fs-2);font-weight:500;color:var(--ink-3);margin-bottom:7px}
 .alphaday .wgt .wr{display:flex;justify-content:space-between;gap:10px;
   font-size:12px;color:var(--ink-2);padding:2.5px 0}
-.alphaday .wgt .wr b{font-family:var(--font-mono);color:var(--ink);font-weight:600}
+.alphaday .wgt .wr b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .alphaday .wgt p{margin-top:8px;padding-top:8px;border-top:1px solid var(--rule-2);
   font-size:11px;color:var(--ink-3);line-height:1.45}
 
 /* ---- hero carousel ------------------------------------------------------ */
-.alphaday .hero{position:relative}
+/* The pick is the one panel on the page with weight: a 2px ink rule along
+   its top, and no shadow. */
+.alphaday .hero{position:relative;border-top:2px solid var(--ink);border-radius:0 0 var(--r) var(--r)}
 /* The clip is sized to the slide on screen, not to the tallest of the nine —
    the pick carries three gate rows the candidates do not, and letting it set
    the height left every other slide with dead space under its chips. */
@@ -705,80 +715,87 @@ a.nm:hover{color:var(--accent)}
 /* Whatever slack the score rail leaves goes to the charts, so the evidence
    grows into the space instead of stranding it under the chips. */
 .alphaday .pick-main .charts{flex:1 0 auto}
-.alphaday .eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
-  margin-bottom:10px}
-.alphaday .eyebrow.today{color:var(--accent)}
-.alphaday .eyebrow.rank{color:var(--ink-3)}
+.alphaday .eyebrow{font-size:var(--fs-2);font-weight:500;color:var(--ink-3);margin-bottom:10px}
+.alphaday .eyebrow.today{color:var(--ink);font-weight:600}
 .alphaday .idrow{display:flex;align-items:center;gap:13px;flex-wrap:wrap}
-.alphaday .idrow .dot{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;
-  color:#fff;font-family:var(--font-mono);font-size:14px;font-weight:600;
-  flex-shrink:0;overflow:hidden;position:relative}
-.alphaday .idrow .nm b{font-size:19px;letter-spacing:-.01em;display:block;line-height:1.2}
-.alphaday .idrow .nm b a:hover{color:var(--accent)}
-.alphaday .side-in{font-size:14px;font-weight:700}
-.alphaday .idrow .nm > span{color:var(--ink-3);font-size:12.5px}
+.alphaday .idrow .dot{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;
+  color:var(--ink-2);background:var(--sunk);border:1px solid var(--rule);
+  font-size:13px;font-weight:600;flex-shrink:0;overflow:hidden;position:relative}
+.alphaday .idrow .nm b{font-size:24px;letter-spacing:-.015em;display:block;line-height:1.15;
+  text-transform:uppercase;font-variant-numeric:tabular-nums}
+.alphaday .idrow .nm b a:hover{text-decoration:underline;text-underline-offset:3px}
+/* The direction word is the only saturated element on the pick. */
+.alphaday .side-in{font-size:var(--fs-4);font-weight:600;text-transform:none;margin-left:6px}
+.alphaday .idrow .nm > span{color:var(--ink-3);font-size:var(--fs-2)}
 .alphaday .side-in.up{color:var(--up)}.alphaday .side-in.down{color:var(--down)}
 .alphaday .px{margin-left:auto;text-align:right}
-.alphaday .px .p{font-family:var(--font-mono);font-size:19px;font-weight:600}
-.alphaday .px .c{font-size:11.5px;color:var(--ink-3)}
-.alphaday .px .c b{font-family:var(--font-mono);font-weight:600}
-.alphaday .case{font-family:var(--font-sans);font-size:17.5px;line-height:1.42;
-  letter-spacing:-.008em;margin:11px 0 14px;max-width:74ch}
+.alphaday .px .p{font-size:24px;font-weight:600;letter-spacing:-.015em;line-height:1.15;
+  font-variant-numeric:tabular-nums}
+.alphaday .px .c{font-size:var(--fs-2);color:var(--ink-3)}
+.alphaday .px .c b{font-weight:600;font-variant-numeric:tabular-nums}
+/* The finding, in the serif: the one sentence the whole panel exists to say. */
+.alphaday .case{font-family:var(--font-serif);font-size:22px;line-height:1.35;
+  font-weight:400;letter-spacing:0;color:var(--ink);margin:12px 0 16px;max-width:62ch;
+  text-wrap:pretty}
 .alphaday .case b{font-weight:600}
 .alphaday .charts{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.alphaday .ch{background:var(--sunk);border:1px solid var(--rule-2);border-radius:9px;
-  padding:12px 14px 8px;min-width:0}
-.alphaday .ch h4{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--ink-3);display:flex;justify-content:space-between;align-items:baseline;
-  margin-bottom:4px;gap:8px}
-.alphaday .ch h4 a{color:var(--accent);text-transform:none;letter-spacing:0;font-weight:600;
-  font-size:11.5px;white-space:nowrap}
+/* Chart tiles are not boxes inside the box: a hairline above, nothing around. */
+.alphaday .ch{border-top:1px solid var(--rule-2);padding:10px 0 4px;min-width:0}
+.alphaday .ch h4{font-size:var(--fs-2);font-weight:500;color:var(--ink-3);
+  display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;gap:8px}
+.alphaday .ch h4 a{color:var(--ink-2);font-weight:500;font-size:var(--fs-2);white-space:nowrap}
+.alphaday .ch h4 a:hover{text-decoration:underline;text-underline-offset:2px}
 .alphaday .ch svg{width:100%;height:auto;display:block}
 .alphaday .ch .empty{color:var(--ink-3);font-size:12px;padding:26px 0;text-align:center}
-.alphaday .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
-.alphaday .chip{display:inline-flex;align-items:center;gap:7px;background:var(--sunk);
-  border:1px solid var(--rule-2);border-radius:8px;padding:6px 11px;font-size:12px;
-  color:var(--ink-2)}
-.alphaday .chip b{font-family:var(--font-mono);color:var(--ink);font-weight:600}
+/* The evidence, as a two-column list of label and figure rather than a row
+   of chips: the reader compares these, and comparison wants a column. */
+.alphaday .chips{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;margin-top:14px;
+  border-top:1px solid var(--rule-2)}
+.alphaday .chip{display:flex;align-items:baseline;gap:8px;padding:6px 0;
+  border-bottom:1px solid var(--rule-2);font-size:var(--fs-3);color:var(--ink-2)}
+.alphaday .chip b{margin-left:auto;color:var(--ink);font-weight:600;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
 .alphaday .chip .d{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .alphaday .chip .d.up{background:var(--up)} .alphaday .chip .d.down{background:var(--down)}
 .alphaday .chip .d.mut{background:var(--ink-3)}
 
+/* The verdict. The one designed graphic on the page: the score at hero size
+   and six factor bars, square-ended, in one ink hue. No green, no gradient,
+   no "/ 100"; the label says what it is. */
 .alphaday .rail{padding:18px 22px;background:var(--sunk)}
-.alphaday .rail h3{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-3);margin-bottom:6px}
-.alphaday .big{font-family:var(--font-mono);font-size:44px;font-weight:600;
-  letter-spacing:-.03em;line-height:1}
-.alphaday .big small{font-size:15px;color:var(--ink-3);font-weight:500;letter-spacing:0}
-.alphaday .conv{font-size:11.5px;color:var(--ink-2);margin:6px 0 15px}
-.alphaday .fam{margin-bottom:9px}
-.alphaday .fam .fr{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-2);
+.alphaday .rail h3{font-size:var(--fs-2);font-weight:500;color:var(--ink-3);margin-bottom:4px}
+.alphaday .big{font-size:var(--fs-7);font-weight:600;letter-spacing:-.02em;line-height:1;
+  font-variant-numeric:tabular-nums;font-optical-sizing:auto}
+.alphaday .big small{display:none}
+.alphaday .conv{font-size:var(--fs-2);color:var(--ink-2);margin:6px 0 14px}
+.alphaday .fam{margin-bottom:8px}
+.alphaday .fam .fr{display:flex;justify-content:space-between;font-size:var(--fs-2);color:var(--ink-2);
   margin-bottom:3px;gap:8px}
-.alphaday .fam .fr b{font-family:var(--font-mono);font-weight:600;color:var(--ink)}
+.alphaday .fam .fr b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
 .alphaday .fam.thin .fr{color:var(--ink-3)}
 .alphaday .fam.thin .fr b{color:var(--ink-3);font-weight:500}
-.alphaday .bar2{height:5px;border-radius:3px;background:var(--rule-2);overflow:hidden}
-.alphaday .bar2 i{display:block;height:100%;border-radius:3px}
+.alphaday .bar2{height:4px;background:color-mix(in srgb,var(--ink) 9%,transparent);overflow:hidden}
+.alphaday .bar2 i{display:block;height:100%;background:color-mix(in srgb,var(--ink) 62%,transparent)}
 .alphaday .gate{display:flex;gap:7px;align-items:center;font-size:11.5px;color:var(--ink-2);
   margin-top:10px}
 .alphaday .gate:first-of-type{padding-top:11px;border-top:1px solid var(--rule)}
-.alphaday .gate .ok{width:15px;height:15px;border-radius:50%;background:var(--up-soft);
-  color:var(--up);display:grid;place-items:center;font-size:9.5px;font-weight:700;
-  flex-shrink:0}
+.alphaday .gate .ok{width:15px;height:15px;border-radius:50%;background:transparent;
+  border:1px solid var(--ink-3);color:var(--ink-2);display:grid;place-items:center;
+  font-size:9px;font-weight:700;flex-shrink:0}
 
 .alphaday .ctrl{display:flex;gap:14px;justify-content:center;align-items:center;padding:8px 0 10px;
   border-top:1px solid var(--rule-2);background:var(--card)}
 .alphaday .arr{width:28px;height:28px;border-radius:50%;border:1px solid var(--rule);
   background:var(--card);color:var(--ink-2);cursor:pointer;font-size:15px;line-height:1;
   display:grid;place-items:center;flex-shrink:0;font-family:inherit}
-.alphaday .arr:hover{color:var(--accent);border-color:var(--accent)}
+.alphaday .arr:hover{color:var(--ink);border-color:var(--ink-3)}
 .alphaday .arr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .alphaday .dots{display:flex;gap:6px;justify-content:center;align-items:center}
 .alphaday .dots button{width:7px;height:7px;border-radius:50%;border:0;background:var(--rule);
   cursor:pointer;padding:0}
-.alphaday .dots button.on{background:var(--accent);width:18px;border-radius:4px}
-.alphaday .dots .cnt{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3);
-  margin-left:9px}
+.alphaday .dots button.on{background:var(--ink);width:18px;border-radius:4px}
+.alphaday .dots .cnt{font-size:var(--fs-2);color:var(--ink-3);margin-left:9px;
+  font-variant-numeric:tabular-nums}
 
 /* ---- track record strip ------------------------------------------------- */
 .alphaday .strip{margin-top:18px;padding:12px 18px;display:flex;align-items:center;gap:10px;
@@ -788,7 +805,7 @@ a.nm:hover{color:var(--accent)}
 .alphaday .tr-chip{display:inline-flex;gap:7px;align-items:center;background:var(--sunk);
   border:1px solid var(--rule-2);border-radius:8px;padding:5px 10px;font-size:11.5px;
   color:var(--ink-2)}
-.alphaday .tr-chip b{font-family:var(--font-mono);font-weight:600}
+.alphaday .tr-chip b{font-weight:600;font-variant-numeric:tabular-nums}
 
 /* ---- methodology -------------------------------------------------------- */
 .alphaday .meth{margin-top:18px;padding:16px 18px}
@@ -797,12 +814,15 @@ a.nm:hover{color:var(--accent)}
 .alphaday .meth .cols{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
 .alphaday .mcard{background:var(--sunk);border:1px solid var(--rule-2);border-radius:8px;
   padding:10px 12px}
-.alphaday .mcard b{font-family:var(--font-mono);color:var(--ink-3);font-weight:500;
-  font-size:11px;display:block}
+.alphaday .mcard b{color:var(--ink-3);font-weight:500;font-size:var(--fs-1);display:block}
 .alphaday .mcard h5{font-size:12.5px;font-weight:600;margin:1px 0 3px}
 .alphaday .mcard p{font-size:11px;color:var(--ink-3);line-height:1.4}
 .alphaday .disc{margin-top:12px;font-size:10.5px;color:var(--ink-3);max-width:110ch}
 
+@media (max-width:720px){
+  .alphaday .case{font-size:19px}
+  .alphaday .chips{grid-template-columns:1fr}
+}
 @media (max-width:980px){
     .alphaday .pick{grid-template-columns:minmax(0,1fr)}
   .alphaday .pick-main{border-right:0;border-bottom:1px solid var(--rule-2);padding:14px 16px 16px}
@@ -934,7 +954,7 @@ a.nm:hover{color:var(--accent)}
     <div class="scroll" id="heatmap"><div class="note"><span class="load"></span></div></div>
   </section>
 
-  <h2 style="margin-top:26px">Sectors Movement</h2>
+  <h2 style="margin-top:26px">Sector movement</h2>
   <div class="grid2 wide">
     <section class="panel" id="riskpanel">
       <div class="hmhead">
@@ -1087,7 +1107,8 @@ const ago = iso => {
 };
 
 // A stable colour per symbol, so a ticker keeps its identity between views.
-const AVATAR = ["--accent","#eb6834","#1baf7a","#eda100","#e87ba4","#4a3aa7","#2a78d6","#e34948"];
+// Avatars are neutral until a logo hydrates; the colour is not information.
+const AVATAR = ["var(--sunk)"];
 const avatarColour = s => {
   let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   const c = AVATAR[h % AVATAR.length];
@@ -1201,9 +1222,11 @@ async function paintIndexSparks(indexes){
 function renderPulse(p){
   const host = document.getElementById("pulse");
   if (!p) {
-    host.innerHTML = `<div class="note" style="grid-column:1/-1">Pulse unavailable.</div>`;
+    // Nothing to show is not a panel: the box goes, not just its contents.
+    host.hidden = true;
     return;
   }
+  host.hidden = false;
   // Prefer indexes from 0048; fall back to legacy marketCap/spy if present.
   let indexes = Array.isArray(p.indexes) ? p.indexes.slice() : [];
   if (!indexes.length && (p.marketCap || p.spy)) {
@@ -3228,7 +3251,7 @@ async function rpc(fn, args){
   return r.json();
 }
 
-const AVATAR = ["#1e4fbf","#eb2024","#1baf7a","#eda100","#e87ba4","#4a3aa7","#2a78d6","#e34948"];
+const AVATAR = ["var(--sunk)"];
 const avatarColour = s => AVATAR[[...String(s)].reduce((a,c)=>a+c.charCodeAt(0),0) % AVATAR.length];
 
 function niceScale(lo, hi, want){
@@ -3846,8 +3869,10 @@ function assignCharts(ideas){
   });
 }
 
-const barColour = v => v >= 80 ? "var(--up)" : v >= 60 ? "var(--accent)" : "var(--ink-3)";
-const sellBarColour = v => v >= 80 ? "var(--down)" : v >= 60 ? "var(--accent)" : "var(--ink-3)";
+// One hue for every bar. The number beside it says how strong; painting the
+// bar green as well made green mean four things on one card.
+const barColour = () => "";
+const sellBarColour = () => "";
 
 function convLine(idea){
   const ev = idea.evidence || {};
@@ -3869,14 +3894,14 @@ function slide(idea, idx, total){
   const tone = sell ? "down" : "up";
   const eyebrow = idea.isPick
     ? `<div class="eyebrow today">Today’s pick</div>`
-    : `<div class="eyebrow rank">${sell ? "Sell" : "Buy"} candidate · rank ${idea.rank}</div>`;
+    : `<div class="eyebrow rank">${sell ? "Sell" : "Buy"} candidate, rank ${idea.rank} of ${total}</div>`;
   const fams = Object.entries(idea.families || {})
     .sort((a, b) => b[1] - a[1]);
   const colour = sell ? sellBarColour : barColour;
   const famHtml = fams.map(([f, v]) => {
     const thin = (ev.thin || []).includes(f);
     return `<div class="fam${thin ? " thin" : ""}"><div class="fr"><span>${FAMILY_LABEL[f] || f}${thin ? " · thin data" : ""}</span><b>${thin ? "—" : v}</b></div>
-      <div class="bar2"><i style="width:${thin ? 0 : v}%;background:${colour(v)}"></i></div></div>`;
+      <div class="bar2"><i style="width:${thin ? 0 : v}%"></i></div></div>`;
   }).join("");
   const gates = (idea.gates || []).map(g =>
     `<div class="gate"><span class="ok">✓</span><span>${esc(g.l)}</span></div>`).join("");
@@ -3910,12 +3935,12 @@ function slide(idea, idx, total){
     <div class="pick-main">
       ${eyebrow}
       <div class="idrow">
-        <span class="dot" data-logo="${esc(idea.symbol)}" style="background:${avatarColour(idea.symbol)}">${esc(idea.symbol.slice(0, 2))}</span>
-        <span class="nm"><b><a href="${url}">${esc(idea.symbol)}</a> <span class="side-in ${tone}">${sell ? "SELL" : "BUY"}</span></b>
+        <span class="dot" data-logo="${esc(idea.symbol)}">${esc(idea.symbol.slice(0, 2))}</span>
+        <span class="nm"><b><a href="${url}">${esc(idea.symbol)}</a><span class="side-in ${tone}">${sell ? "Sell" : "Buy"}</span></b>
           <span>${esc(ev.industry || "")}</span></span>
         <span class="px"><div class="p">$${(+idea.price).toFixed(2)}</div>${result ? `<div class="c">${result}</div>` : ""}</span>
       </div>
-      <p class="case">${esc(idea.headline || "")}</p>
+      <p class="case finding">${esc(idea.headline || "")}</p>
       <div class="charts">
         <div class="ch"><h4>Price, 3 years <a href="${url}">full chart →</a></h4>
           ${price || `<div class="empty">price history arrives with the next refresh</div>`}</div>
@@ -3928,7 +3953,7 @@ function slide(idea, idx, total){
       <h3>Alpha score</h3>
       <span class="scorewrap" tabindex="0" role="button"
             aria-label="Alpha score ${idea.score} of 100. How it is weighted.">
-        <span class="big ${sell ? "down" : ""}">${idea.score}<small> / 100</small></span>
+        <span class="big">${idea.score}</span>
         ${WEIGHTS_HTML}
       </span>
       <div class="conv">${esc(convLine(idea))}</div>

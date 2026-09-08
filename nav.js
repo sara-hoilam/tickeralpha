@@ -164,7 +164,12 @@
 
   /* ---- theme ------------------------------------------------------------ */
   const themeBtn = document.getElementById("nav-theme");
-  const ICON = { dark: "☾", light: "☀" };
+  // Stroke icons rather than glyphs: a glyph draws at whatever weight the
+  // fallback font gives it, which is never the weight of the icons beside it.
+  const ICON = {
+    dark: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 9.8A6 6 0 0 1 6.2 2.5a6 6 0 1 0 7.3 7.3Z"/></svg>',
+    light: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg>',
+  };
   const markImg = document.getElementById("nav-mark");
   // The tab follows the *browser's* theme, not the site's. A black mark
   // vanishes on a dark tab strip and a white one vanishes on a light strip,
@@ -186,7 +191,7 @@
   tabDark.addEventListener("change", setFavicon);
   function setTheme(t) {
     document.documentElement.setAttribute("data-theme", t);
-    themeBtn.textContent = t === "dark" ? ICON.light : ICON.dark;
+    themeBtn.innerHTML = t === "dark" ? ICON.light : ICON.dark;
     themeBtn.title = t === "dark" ? "Switch to light" : "Switch to dark";
     if (markImg) markImg.src = t === "dark" ? "brand-logo-dark.png" : "brand-logo-light.png";
     try { localStorage.setItem("alphaticker-theme", t); } catch {}
@@ -396,8 +401,75 @@
     return tok;
   }
 
+  /* ---- number and time formatting -----------------------------------------
+     One formatter for every page. The rules -- two decimals on a price, one
+     on a percentage, three significant figures when compact, a true minus,
+     an em dash for nothing, the sign always printed so colour is never the
+     only carrier -- drift the moment each page writes its own toFixed. */
+  const MINUS = "\u2212", DASH = "\u2014";
+  const isNum = v => typeof v === "number" && Number.isFinite(v);
+  const signed = (s, v) => v < 0 ? MINUS + s.replace(/^-/, "") : (v > 0 ? "+" + s : s);
+  const fmt = {
+    dash: DASH,
+    /** 1234.5 -> "1,234.50"; negative with a true minus. */
+    price(v, dp = 2){
+      if (!isNum(v)) return DASH;
+      const s = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+      return v < 0 ? MINUS + s : s;
+    },
+    /** 1.234 -> "+1.2%"; the sign is always printed. */
+    pct(v, dp = 1){
+      if (!isNum(v)) return DASH;
+      return signed(Math.abs(v).toFixed(dp) + "%", v);
+    },
+    /** A change in price units with its sign: -3.2 -> "−3.20". */
+    change(v, dp = 2){
+      if (!isNum(v)) return DASH;
+      return signed(Math.abs(v).toFixed(dp), v);
+    },
+    /** 24_400_000_000 -> "24.4B"; three significant figures. */
+    compact(v){
+      if (!isNum(v)) return DASH;
+      const a = Math.abs(v), neg = v < 0 ? MINUS : "";
+      const units = [[1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "K"]];
+      for (const [cut, u] of units) {
+        if (a >= cut) {
+          const x = a / cut;
+          return neg + (x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(2)) + u;
+        }
+      }
+      return neg + (a >= 100 ? a.toFixed(0) : a >= 10 ? a.toFixed(1) : a.toFixed(2));
+    },
+    /** "2026-09-04" -> "Sep 4" this year, "Sep 4, 2025" otherwise. */
+    date(d, { year } = {}){
+      const t = d instanceof Date ? d : new Date(String(d).length === 10 ? d + "T12:00:00" : d);
+      if (isNaN(t)) return DASH;
+      const now = new Date();
+      const showYear = year === true || (year !== false && t.getFullYear() !== now.getFullYear());
+      return t.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(showYear ? { year: "numeric" } : {}) });
+    },
+    /** Relative for the recent, absolute after that: "14:05", "Yesterday", "Sep 3". */
+    ago(d){
+      const t = d instanceof Date ? d : new Date(d);
+      if (isNaN(t)) return DASH;
+      const now = new Date();
+      const sameDay = t.toDateString() === now.toDateString();
+      if (sameDay) return t.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+      const y = new Date(now); y.setDate(y.getDate() - 1);
+      if (t.toDateString() === y.toDateString()) return "Yesterday";
+      return fmt.date(t);
+    },
+    /** Wrap a formatted time in <time datetime> so it stays machine-readable. */
+    time(d, text){
+      const t = d instanceof Date ? d : new Date(d);
+      return isNaN(t) ? (text || DASH)
+        : `<time datetime="${t.toISOString()}">${text || fmt.ago(t)}</time>`;
+    },
+  };
+
   window.TA = {
     session,
+    fmt,
     token: () => (session() || {}).access_token || null,
     signedIn: () => !!(session() && session().user),
     signIn,
@@ -464,7 +536,7 @@
       // Google: there are two ways in now, and a button that silently picks
       // one of them is not offering a choice.
       auth.innerHTML =
-        `<button class="nav-login" id="nav-login">Sign up / Sign in</button>`;
+        `<button class="nav-login" id="nav-login">Sign in</button>`;
       document.getElementById("nav-login").onclick = () => showSignupModal({ reason: "nav" });
     }
   }
@@ -569,7 +641,7 @@
     if (document.getElementById("auth-modal")) return;
     const reason = (opts && opts.reason) || "generic";
     const title = SIGNUP_REASONS[reason] ||
-      "Sign up below to unlock the full potential of Ticker Alpha";
+      "Sign up to save your watchlist";
     const note = SIGNUP_NOTES[reason] || "";
     GA.track("signup_modal_view", { gate: reason });
 
