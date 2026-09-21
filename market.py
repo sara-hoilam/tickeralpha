@@ -1053,10 +1053,10 @@ def quotes(symbols: list[str]) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def intraday(symbol: str, days: int = 2) -> list[dict]:
-    """Five-minute bars over the last couple of sessions, oldest first."""
+    """Fifteen-minute bars over the last couple of sessions, oldest first."""
     end = dt.date.today()
     start = end - dt.timedelta(days=max(1, days) + 3)   # pad for weekends
-    rows = _get("historical-chart/5min", symbol=symbol,
+    rows = _get("historical-chart/15min", symbol=symbol,
                 **{"from": start.isoformat(), "to": end.isoformat()}) or []
     pts = [{"t": r["date"], "c": r.get("close")} for r in rows
            if r.get("date") and r.get("close") is not None]
