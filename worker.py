@@ -1277,10 +1277,10 @@ def refresh_sections(do_trades: bool = True) -> bool:
         hist = []
 
     # Risk and return per sector. Eleven *full* price histories -- each ETF
-    # from 1990 -- is ~4.5MB a run, ~108MB a day on the hourly cycle, second
-    # only to the trade feeds in what ate the bandwidth cap. The underlying
-    # numbers are years of closes; they do not move hourly, so they ride the
-    # trades cadence (six-hourly) rather than the hourly one.
+    # from 1990 -- is ~4.5MB a run, ~108MB a day on the old hourly cycle,
+    # second only to the trade feeds in what ate the bandwidth cap. The
+    # underlying numbers are years of closes; they do not move hourly, so
+    # they ride the trades cadence (daily) rather than the sections one.
     if do_trades:
         try:
             risk = market.sector_risk_return()
@@ -1536,14 +1536,17 @@ def run() -> None:
     last_logos = 0.0
     last_sweep_day: dt.date | None = None
     market_every = int(os.environ.get("MARKET_REFRESH_SECONDS", "900"))
-    sections_every = int(os.environ.get("SECTIONS_REFRESH_SECONDS", "3600"))
+    sections_every = int(os.environ.get("SECTIONS_REFRESH_SECONDS", "21600"))
+    # Earnings / US economic calendars: hourly, off the ~900s market cycle.
+    last_calendars = 0.0
+    calendars_every = int(os.environ.get("CALENDARS_REFRESH_SECONDS", "3600"))
     # The insider/congress pulls cost ~65MB of FMP bandwidth per run (up to a
     # hundred 1,000-row pages to cover ninety days). Hourly, that was ~1.8GB a
-    # day and exhausted the Starter plan's 20GB/30-day cap mid-month. Every
-    # six hours is ~260MB/day -- inside the cap with room for everything else
-    # -- and still four refreshes through each trading day.
+    # day and exhausted the Starter plan's 20GB/30-day cap mid-month. Daily
+    # is ~65MB/day -- inside the cap with room for everything else -- and
+    # disclosures move at most once a day.
     last_trades = 0.0
-    trades_every = int(os.environ.get("TRADES_REFRESH_SECONDS", "21600"))
+    trades_every = int(os.environ.get("TRADES_REFRESH_SECONDS", "86400"))
     # Alpha of the Day: one scan per trading day, retried hourly on failure.
     last_alpha_day: dt.date | None = None
     last_alpha_try = 0.0
@@ -1574,8 +1577,9 @@ def run() -> None:
                     refresh_news()
                 except market.MarketError as exc:
                     log(f"news refresh failed (continuing): {exc}")
-                # Keep the Earnings page warm with the market cycle (one FMP
-                # call) so a deploy does not wait an hour for the first fill.
+                last_market = now
+
+            if now - last_calendars > calendars_every:
                 try:
                     refresh_earnings()
                 except market.MarketError as exc:
@@ -1584,7 +1588,7 @@ def run() -> None:
                     refresh_economic_calendar()
                 except market.MarketError as exc:
                     log(f"economic calendar refresh failed (continuing): {exc}")
-                last_market = now
+                last_calendars = now
 
             if now - last_sections > sections_every:
                 try:
