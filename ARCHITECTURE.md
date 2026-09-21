@@ -234,8 +234,10 @@ rising count is the signal that a filer has changed how it renders its tables.
 ## 10. The one model call
 
 The market page opens with **Today's Brief**: three to five short paragraphs
-on what is scheduled for the day and why it matters. Those are written by
-Claude, once each morning, by `.github/workflows/insights.yml`.
+on what is scheduled for the day and why it matters. Those are written once
+each morning by `.github/workflows/insights.yml`, using the Cursor User API
+key (`CURSOR_API_KEY`) and the Cursor Models pool (Grok / Composer). The
+expired Anthropic `tickeralpha` key is only a fallback.
 
 It is worth being precise about where that sits, because it is the only part
 of the product that is not deterministic:
@@ -247,7 +249,7 @@ GitHub Actions, 10:07 UTC ──▶ insights.py
                                 │    the most-covered names, and the
                                 │    headline behind each move
                                 │  picks ~20 candidates in Python
-                                │  one Claude API call
+                                │  one Cursor (or Anthropic) call
                                 │  seven validation gates
                                 ▼
                         ledger.market_insight   ◀── the page reads this

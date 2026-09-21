@@ -4,6 +4,12 @@ name: market brief
 # before the US open. The job talks to Supabase only -- it never commits to
 # this repository.
 #
+# Generation uses secrets.CURSOR_API_KEY (Cursor Models pool: grok-4.6,
+# then grok-4.5 / composer-2.5). That is the same User API key the other
+# daily Cursor jobs use. The Anthropic key named "tickeralpha" expired on
+# 2026-09-16 and is only a fallback if CURSOR_API_KEY is unset. Alpha of
+# the Day does not use either key -- it is a deterministic Render scan.
+#
 # ~10:00 UTC is 06:00 in New York on eastern daylight time and 05:00 on
 # eastern standard time. GitHub's cron is UTC year-round while the market
 # keeps wall-clock hours, so the gap to the 09:30 open shifts by an hour
@@ -38,7 +44,7 @@ concurrency:
 jobs:
   brief:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     # The job writes to Supabase, not to git.
     permissions:
       contents: read
@@ -49,22 +55,30 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install the Anthropic SDK
-        run: pip install --quiet anthropic
+      - name: Install the model SDKs
+        run: pip install --quiet cursor-sdk anthropic
 
       - name: Write today's brief
         env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           missing=""
-          [ -z "$ANTHROPIC_API_KEY" ] && missing="$missing ANTHROPIC_API_KEY"
+          if [ -z "$CURSOR_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+            missing="$missing CURSOR_API_KEY"
+          fi
           [ -z "$SUPABASE_URL" ] && missing="$missing SUPABASE_URL"
           [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] && missing="$missing SUPABASE_SERVICE_ROLE_KEY"
           if [ -n "$missing" ]; then
             echo "::error::missing repository secrets:$missing"
             exit 1
+          fi
+          if [ -n "$CURSOR_API_KEY" ]; then
+            echo "using Cursor API key (Cursor Models pool)"
+          else
+            echo "CURSOR_API_KEY unset; falling back to Anthropic"
           fi
           # A scheduled run never overwrites a brief the day already has:
           # the second cron is a safety net, not a rewrite, and a first cron

@@ -35,19 +35,23 @@ Usage:
     python insights.py --day 2026-08-17 generate for a specific day
 
 Environment:
-    ANTHROPIC_API_KEY            required
+    CURSOR_API_KEY               preferred; the same User API key the other
+                                 daily Cursor jobs use (GBA Pulse, etc.)
+    ANTHROPIC_API_KEY            fallback if CURSOR_API_KEY is unset
     SUPABASE_URL                 required (reads)
     SUPABASE_SERVICE_ROLE_KEY    required (writes; not needed for --dry-run)
     SUPABASE_ANON_KEY            optional; falls back to public/config.js
-    ANTHROPIC_MODEL              optional; defaults to MODEL below
+    CURSOR_MODEL                 optional; defaults to grok-4.6
+    CURSOR_FALLBACK_MODELS       optional; comma list, defaults to
+                                 grok-4.5,composer-2.5
+    ANTHROPIC_MODEL              optional; defaults to claude-opus-5
     ANTHROPIC_FALLBACK_MODEL     optional; retried once if the first model
                                  declines the request
 
 Unlike the rest of the project this file is not standard-library-only: it
-uses the official `anthropic` SDK, which is the supported way to call the
-API and gives typed errors and retries for free. That dependency lives in
-the GitHub Actions runner, not in the Render worker, so worker.py and
-store.py stay dependency-free.
+talks to Cursor (cursor-sdk) or Anthropic. Those dependencies live in the
+GitHub Actions runner, not in the Render worker, so worker.py and store.py
+stay dependency-free. Alpha of the Day does not call a model at all.
 """
 
 from __future__ import annotations
@@ -65,15 +69,41 @@ import urllib.request
 import envload  # noqa: F401  -- reads .env for local runs
 import store
 
-# The model that writes the brief. Opus is the default because the job runs
-# once a day and the payload is small -- a few thousand input tokens against
-# a handful of output ones -- so the price difference against a cheaper tier
-# is cents a month. Set ANTHROPIC_MODEL to change it.
-MODEL = os.environ.get("ANTHROPIC_MODEL") or "claude-opus-5"
+# Cursor Models pool first, matching the other daily jobs (GBA Pulse).
+_CURSOR_POOL = ("grok-4.6", "grok-4.5", "composer-2.5")
 
-# A refusal is unlikely on market copy, but a declined request would leave the
-# page showing yesterday's brief. Naming a second model here retries once.
-FALLBACK_MODEL = os.environ.get("ANTHROPIC_FALLBACK_MODEL") or ""
+
+def _cursor_key() -> str:
+    return (os.environ.get("CURSOR_API_KEY") or "").strip()
+
+
+def _anthropic_key() -> str:
+    return (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+
+
+def _uses_cursor() -> bool:
+    return bool(_cursor_key())
+
+
+def _models() -> list[str]:
+    """Models to try, in order. Cursor when its key is set, else Anthropic."""
+    if _uses_cursor():
+        primary = (os.environ.get("CURSOR_MODEL") or _CURSOR_POOL[0]).strip()
+        extra = (os.environ.get("CURSOR_FALLBACK_MODELS")
+                 or ",".join(_CURSOR_POOL[1:]))
+        out = [primary]
+        for name in extra.split(","):
+            name = name.strip()
+            if name and name not in out:
+                out.append(name)
+        return out
+    primary = (os.environ.get("ANTHROPIC_MODEL") or "claude-opus-5").strip()
+    extra = (os.environ.get("ANTHROPIC_FALLBACK_MODEL") or "").strip()
+    return [primary] + ([extra] if extra else [])
+
+
+# Used only as a label when a successful call did not report its model.
+MODEL = _models()[0]
 
 # Thinking is on by default on the current models and counts against
 # max_tokens, so leave headroom above what the brief itself needs (~800).
@@ -1574,14 +1604,90 @@ def validate(payload, candidates: list[dict],
 # The model call
 # ---------------------------------------------------------------------------
 
-def call_model(day: dt.date, candidates: list[dict], model: str,
-               complaint: str = "") -> tuple[dict, dict]:
+def _parse_json_object(text: str) -> dict:
+    """The brief payload, stripped of the fences a text-only model adds."""
+    raw = (text or "").strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```\s*$", "", raw)
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        start, end = raw.find("{"), raw.rfind("}")
+        if start < 0 or end <= start:
+            raise Rejected("shape: response was not valid JSON")
+        try:
+            payload = json.loads(raw[start:end + 1])
+        except json.JSONDecodeError as exc:
+            raise Rejected(f"shape: response was not valid JSON ({exc})")
+    if not isinstance(payload, dict):
+        raise Rejected("shape: response JSON was not an object")
+    return payload
+
+
+def _result_text(result) -> str:
+    text = getattr(result, "result", None)
+    if isinstance(text, str) and text.strip():
+        return text
+    getter = getattr(result, "text", None)
+    if callable(getter):
+        got = getter()
+        if isinstance(got, str) and got.strip():
+            return got
+    return text or ""
+
+
+def _result_usage(result, model: str) -> dict:
+    resolved = getattr(result, "model", None)
+    model_id = getattr(resolved, "id", None) or model
+    usage = getattr(result, "usage", None)
+    return {
+        "model": model_id,
+        "input_tokens": getattr(usage, "input_tokens", 0) or 0,
+        "output_tokens": getattr(usage, "output_tokens", 0) or 0,
+    }
+
+
+def call_cursor(day: dt.date, candidates: list[dict], model: str,
+                complaint: str = "") -> tuple[dict, dict]:
+    try:
+        from cursor_sdk import Agent, AgentOptions, LocalAgentOptions
+    except ImportError:
+        raise SystemExit("the cursor-sdk package is required: pip install cursor-sdk")
+
+    prompt = (
+        SYSTEM_PROMPT
+        + "\n\nReply with a single JSON object and nothing else. "
+          "No markdown, no preamble. The object must match this schema:\n"
+        + json.dumps(RESULT_SCHEMA)
+        + "\n\n"
+        + user_message(day, candidates, complaint)
+    )
+    # tools=[] is text-only: the ranking and the numbers are already settled
+    # in Python, so the model must not read the repo or invent extras.
+    result = Agent.prompt(
+        prompt,
+        AgentOptions(
+            model=model,
+            api_key=_cursor_key(),
+            tools=[],
+            local=LocalAgentOptions(cwd=os.getcwd()),
+        ),
+    )
+    status = getattr(result, "status", "finished")
+    if status and status != "finished":
+        raise Rejected(f"shape: Cursor run ended as {status}")
+    return _parse_json_object(_result_text(result)), _result_usage(result, model)
+
+
+def call_anthropic(day: dt.date, candidates: list[dict], model: str,
+                   complaint: str = "") -> tuple[dict, dict]:
     try:
         import anthropic
     except ImportError:
         raise SystemExit("the anthropic package is required: pip install anthropic")
 
-    client = anthropic.Anthropic()
+    client = anthropic.Anthropic(api_key=_anthropic_key() or None)
     response = client.messages.create(
         model=model,
         max_tokens=MAX_TOKENS,
@@ -1603,10 +1709,17 @@ def call_model(day: dt.date, candidates: list[dict], model: str,
         "input_tokens": response.usage.input_tokens,
         "output_tokens": response.usage.output_tokens,
     }
-    try:
-        return json.loads(text), usage
-    except json.JSONDecodeError as exc:
-        raise Rejected(f"shape: response was not valid JSON ({exc})")
+    return _parse_json_object(text), usage
+
+
+def call_model(day: dt.date, candidates: list[dict], model: str,
+               complaint: str = "") -> tuple[dict, dict]:
+    if _uses_cursor():
+        return call_cursor(day, candidates, model, complaint)
+    if not _anthropic_key():
+        raise SystemExit("insights: set CURSOR_API_KEY (preferred) or "
+                         "ANTHROPIC_API_KEY")
+    return call_anthropic(day, candidates, model, complaint)
 
 
 class Refused(Exception):
@@ -1639,7 +1752,7 @@ def _complaint(exc: Rejected) -> str:
 
 def generate(day: dt.date, candidates: list[dict]) -> tuple[list[dict], dict]:
     """Up to three calls per model, then a salvaged brief before giving up."""
-    models = [MODEL] + ([FALLBACK_MODEL] if FALLBACK_MODEL else [])
+    models = _models()
     complaint = ""
     last: Rejected | None = None
     # Every answer that came back, in the order it arrived. A rejected
