@@ -472,6 +472,11 @@
    "send a new code" link that invalidates whatever was already in the inbox.
    Every [hidden] element needs this whenever its display is set by class. */
 .auth-email[hidden] { display: none !important; }
+/* Portfolio chrome is toggled with [hidden]; nav/tabbar/footer set display and
+   would otherwise keep the link visible after the attribute is applied. */
+.nav-links a.nav-portfolio[hidden],
+.tabbar a.nav-portfolio[hidden],
+.site-foot a.nav-portfolio[hidden] { display: none !important; }
 .auth-lab {
   font-size: 12.5px; font-weight: 600; color: var(--ink-2); margin-left: 2px;
 }

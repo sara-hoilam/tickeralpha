@@ -21,11 +21,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://tickeralpha.ai/portfolio</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  <url>
     <loc>https://tickeralpha.ai/politicians</loc>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
