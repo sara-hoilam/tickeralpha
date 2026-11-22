@@ -96,6 +96,31 @@
     return page === want || (want === "index" && page === "");
   };
 
+  // Portfolio is private preview for one Google SSO account. Everyone else —
+  // guests and any other signed-in user — should not see the link or the page.
+  const PORTFOLIO_ALLOW = ["sarachang9824@gmail.com"];
+  function canAccessPortfolio() {
+    try {
+      const s = JSON.parse(localStorage.getItem("alphaticker-session") || "null");
+      const email = String((s && s.user && s.user.email) || "").trim().toLowerCase();
+      if (!PORTFOLIO_ALLOW.includes(email)) return false;
+      // Prefer the provider stamped on the session; fall back to the JWT.
+      let provider = String((s && s.user && s.user.provider) || "").toLowerCase();
+      if (!provider && s && s.access_token) {
+        try {
+          const body = JSON.parse(atob(s.access_token.split(".")[1]
+            .replace(/-/g, "+").replace(/_/g, "/")));
+          provider = String((body.app_metadata && body.app_metadata.provider) || "")
+            .toLowerCase();
+        } catch {}
+      }
+      // Google SSO only. Unknown provider (older sessions) still needs the
+      // allowlisted email, and is accepted so a prior Google login is not locked out.
+      return !provider || provider === "google";
+    } catch { return false; }
+  }
+  const showPortfolio = canAccessPortfolio();
+
   document.body.insertAdjacentHTML("afterbegin", `
     <div class="nav-strip" id="nav-strip">
       <div class="nav-tape" id="nav-tape"></div>
@@ -111,7 +136,7 @@
         <a href="news.html"    class="${here("news.html") ? "on" : ""}">News</a>
         <a href="earnings.html" class="${here("earnings.html") ? "on" : ""}">Earnings</a>
         <a href="reports.html" class="${here("reports.html") || here("company.html") ? "on" : ""}">Company Report</a>
-        <a href="portfolio.html" class="${here("portfolio.html") ? "on" : ""}">Portfolio</a>
+        <a href="portfolio.html" class="nav-portfolio ${here("portfolio.html") ? "on" : ""}"${showPortfolio ? "" : " hidden"}>Portfolio</a>
         <a href="politicians.html" class="${here("politicians.html") ? "on" : ""}">Insider &amp; Congress</a>
       </div>
 
@@ -149,7 +174,7 @@
         <a href="news.html" class="${here("news.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h11v14H4z"/><path d="M15 9h5v8a2 2 0 0 1-2 2h-3"/><path d="M7 8.5h5M7 12h5M7 15.5h3"/></svg><span>News</span></a>
         <a href="earnings.html" class="${here("earnings.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17"/><path d="M8 3.5v3M16 3.5v3"/></svg><span>Earnings</span></a>
         <a href="reports.html" class="${here("reports.html") || here("company.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h8l4 4V20a.5.5 0 0 1-.5.5h-11A.5.5 0 0 1 6 20z"/><path d="M14 3.5V8h4"/><path d="M9 13h6M9 16.5h4"/></svg><span>Reports</span></a>
-        <a href="portfolio.html" class="${here("portfolio.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5h17V19a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/><path d="M9 8.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2.5"/><path d="M3.5 13h17"/></svg><span>Portfolio</span></a>
+        <a href="portfolio.html" class="nav-portfolio ${here("portfolio.html") ? "on" : ""}"${showPortfolio ? "" : " hidden"}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5h17V19a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/><path d="M9 8.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2.5"/><path d="M3.5 13h17"/></svg><span>Portfolio</span></a>
         <a href="politicians.html" class="${here("politicians.html") ? "on" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20.5h16"/><path d="M5.5 17.5h13"/><path d="M6.5 10.5v7M10 10.5v7M14 10.5v7M17.5 10.5v7"/><path d="M4 10.5h16L12 4z"/></svg><span>Congress</span></a>
     </nav>
   `);
@@ -472,6 +497,7 @@
     fmt,
     token: () => (session() || {}).access_token || null,
     signedIn: () => !!(session() && session().user),
+    canAccessPortfolio,
     signIn,
     showSignupModal,
     guestWatchlistGated,
@@ -480,6 +506,19 @@
     searchCompanies,
     onAuthChange(fn){ addEventListener("ta-auth", () => fn(window.TA.signedIn())); },
   };
+
+  /** Show or hide every Portfolio chrome link when auth changes. Direct hits
+      on portfolio.html without access are sent home. */
+  function syncPortfolioNav() {
+    const show = canAccessPortfolio();
+    document.querySelectorAll("a.nav-portfolio").forEach(el => {
+      el.hidden = !show;
+    });
+    if (!show && here("portfolio.html")) {
+      location.replace("index.html");
+    }
+  }
+  addEventListener("ta-auth", syncPortfolioNav);
   const announce = () => dispatchEvent(new CustomEvent("ta-auth"));
 
   /** Tell Clarity who is signed in. Only custom-id is required; Clarity hashes
@@ -911,7 +950,8 @@
       // sent to Google Analytics, so it is kept alongside the display fields
       // rather than re-derived from the token everywhere it is needed.
       user = { id: body.sub, email: body.email, name: m.full_name,
-               picture: m.avatar_url, planTier: m.plan_tier };
+               picture: m.avatar_url, planTier: m.plan_tier,
+               provider: (body.app_metadata && body.app_metadata.provider) || "" };
     } catch {}
     saveSession({ access_token: tok, refresh_token: p.get("refresh_token"), user });
     history.replaceState(null, "", location.pathname + location.search);
@@ -1043,8 +1083,10 @@
       const m = u.user_metadata || {};
       const now = session();
       if (!now) return;
+      const am = u.app_metadata || {};
       saveSession({ ...now, user: { ...now.user, id: u.id, createdAt: u.created_at,
-                                    planTier: m.plan_tier } });
+                                    planTier: m.plan_tier,
+                                    provider: am.provider || now.user.provider || "" } });
       announce();
     } catch {}
   })();
@@ -1062,12 +1104,13 @@
   function adoptSession(d) {
     const u = d.user || {};
     const m = u.user_metadata || {};
+    const am = u.app_metadata || {};
     saveSession({
       access_token: d.access_token,
       refresh_token: d.refresh_token,
       user: { id: u.id, email: u.email, name: m.full_name || m.name,
               picture: m.avatar_url || m.picture, createdAt: u.created_at,
-              planTier: m.plan_tier },
+              planTier: m.plan_tier, provider: am.provider || "" },
     });
     renderAuth();
     announce();
@@ -1173,7 +1216,7 @@
           <a href="news.html">News</a>
           <a href="earnings.html">Earnings</a>
           <a href="company.html">Company Report</a>
-          <a href="portfolio.html">Portfolio</a>
+          <a href="portfolio.html" class="nav-portfolio"${showPortfolio ? "" : " hidden"}>Portfolio</a>
           <a href="politicians.html">Insider &amp; Congress</a>
         </span>
       </footer>`);

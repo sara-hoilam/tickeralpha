@@ -5219,10 +5219,25 @@ wireModal();
 <script src="nav.js"></script>
 <script>
 (async function start(){
+  // Portfolio is allowlisted to one Google SSO account. Guests and every other
+  // signed-in user are sent home — the nav also hides the link for them.
+  if (!(window.TA && window.TA.canAccessPortfolio && window.TA.canAccessPortfolio())) {
+    location.replace("index.html");
+    return;
+  }
   if (window.TA && window.TA.onAuthChange) {
-    window.TA.onAuthChange(() => boot(false));
+    window.TA.onAuthChange(() => {
+      if (!window.TA.canAccessPortfolio()) { location.replace("index.html"); return; }
+      boot(false);
+    });
   } else {
-    addEventListener("ta-auth", () => boot(false));
+    addEventListener("ta-auth", () => {
+      if (!(window.TA && window.TA.canAccessPortfolio && window.TA.canAccessPortfolio())) {
+        location.replace("index.html");
+        return;
+      }
+      boot(false);
+    });
   }
   await boot(true);
 })();
